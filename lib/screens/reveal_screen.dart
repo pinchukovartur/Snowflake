@@ -13,13 +13,14 @@ class RevealScreen extends StatefulWidget {
     super.key,
     required this.level,
     required this.cuts,
+    required this.stars,
     required this.paper,
     required this.onNext,
     required this.onSave,
     required this.onReplay,
   });
 
-  final int level;
+  final int level, stars;
   final List<Cut> cuts;
   final Paper paper;
   final VoidCallback onNext, onSave, onReplay;
@@ -51,7 +52,7 @@ class _RevealScreenState extends State<RevealScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    final stars = RevealScreen.starsFor(widget.cuts.length);
+    final stars = widget.stars;
     return SkyBackground(
       child: SafeArea(
         child: Stack(children: [

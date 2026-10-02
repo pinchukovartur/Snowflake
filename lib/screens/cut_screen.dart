@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../app_state.dart';
 import '../snowflake/cut_board.dart';
+import '../snowflake/detach.dart';
 import '../snowflake/geometry.dart';
 import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
@@ -21,13 +22,16 @@ const _tools = [
 ];
 
 const _maxCuts = 8;
+const _folds = 6;
 
 class CutScreen extends StatefulWidget {
   const CutScreen({super.key, required this.game, required this.level, required this.onLevels, required this.onUnfold});
   final GameState game;
   final int level;
   final VoidCallback onLevels;
-  final void Function(List<Cut> cuts, Paper paper) onUnfold;
+
+  /// [shape] is the player's cuts plus the pieces that fell off.
+  final void Function(List<Cut> shape, int cutCount, Paper paper) onUnfold;
 
   @override
   State<CutScreen> createState() => CutScreenState();
@@ -35,12 +39,23 @@ class CutScreen extends StatefulWidget {
 
 class CutScreenState extends State<CutScreen> {
   List<Cut> _cuts = const [];
+
+  /// Pieces that fell off after each cut, in step with [_cuts].
+  List<List<Cut>> _drops = const [];
+  List<Cut> _fallen = const [];
   String _tool = 'free';
   Paper _paper = const Paper();
 
+  void _setCuts(List<Cut> cuts, List<List<Cut>> drops) => setState(() {
+        _cuts = cuts;
+        _drops = drops;
+        _fallen = [for (final d in drops) ...d];
+      });
+
   void _addCut(Cut c) {
     if (widget.game.vibration) HapticFeedback.lightImpact();
-    setState(() => _cuts = [..._cuts, c]);
+    final cuts = [..._cuts, c];
+    _setCuts(cuts, [..._drops, detachedPieces(cuts, _fallen, _folds)]);
   }
 
   /// Opens the pause dialog (also used for the system back gesture).
@@ -222,14 +237,18 @@ class CutScreenState extends State<CutScreen> {
                   child: Stack(
                     alignment: Alignment.center,
                     children: [
-                      CutBoard(
-                        height: h,
-                        cuts: _cuts,
-                        tool: _tool,
-                        color: _paper.color,
-                        pattern: _paper.pattern,
-                        disabled: _cuts.length >= _maxCuts,
-                        onCut: _addCut,
+                      Positioned.fill(
+                        child: CutBoard(
+                          height: h,
+                          folds: _folds,
+                          cuts: _cuts,
+                          fallen: _fallen,
+                          tool: _tool,
+                          color: _paper.color,
+                          pattern: _paper.pattern,
+                          disabled: _cuts.length >= _maxCuts,
+                          onCut: _addCut,
+                        ),
                       ),
                       if (_cuts.isEmpty)
                         Positioned(
@@ -295,14 +314,14 @@ class CutScreenState extends State<CutScreen> {
                   LucideIcons.undo2,
                   label: 'Отменить',
                   disabled: _cuts.isEmpty,
-                  onTap: () => setState(() => _cuts = _cuts.sublist(0, _cuts.length - 1)),
+                  onTap: () => _setCuts(_cuts.sublist(0, _cuts.length - 1), _drops.sublist(0, _drops.length - 1)),
                 ),
                 const SizedBox(width: 14),
                 RoundBtn(
                   LucideIcons.rotateCcw,
                   label: 'Начать заново',
                   disabled: _cuts.isEmpty,
-                  onTap: () => setState(() => _cuts = const []),
+                  onTap: () => _setCuts(const [], const []),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -312,7 +331,7 @@ class CutScreenState extends State<CutScreen> {
                     icon: LucideIcons.sparkles,
                     block: true,
                     disabled: _cuts.length < 2,
-                    onTap: () => widget.onUnfold(_cuts, _paper),
+                    onTap: () => widget.onUnfold([..._cuts, ..._fallen], _cuts.length, _paper),
                   ),
                 ),
               ],

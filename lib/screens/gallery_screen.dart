@@ -6,43 +6,24 @@ import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
 import '../widgets/ds.dart';
 
-class GalleryScreen extends StatefulWidget {
+class GalleryScreen extends StatelessWidget {
   const GalleryScreen({super.key, required this.game, required this.onBack});
   final GameState game;
   final VoidCallback onBack;
 
   @override
-  State<GalleryScreen> createState() => _GalleryScreenState();
-}
-
-class _GalleryScreenState extends State<GalleryScreen> {
-  String _filter = 'all';
-
-  @override
   Widget build(BuildContext context) {
-    final saved = widget.game.saved;
-    final list = _filter == 'fav' ? saved.where((s) => s.fav).toList() : saved;
+    final list = game.saved;
     return SkyBackground(
       child: SafeArea(
         bottom: false,
         child: Column(children: [
           TopBar(
-            left: RoundBtn(LucideIcons.arrowLeft, label: 'Назад', variant: Variant.ghost, size: BtnSize.s, onTap: widget.onBack),
+            left: RoundBtn(LucideIcons.arrowLeft, label: 'Назад', variant: Variant.ghost, size: BtnSize.s, onTap: onBack),
             title: 'Моя коллекция',
             right: RoundBtn(LucideIcons.share2, label: 'Поделиться', variant: Variant.ghost, size: BtnSize.s, onTap: () {}),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 6, 24, 16),
-            child: Segmented(
-              dark: true,
-              value: _filter,
-              onChanged: (v) => setState(() => _filter = v),
-              options: const [
-                SegOption('all', 'Все', LucideIcons.snowflake),
-                SegOption('fav', 'Любимые', LucideIcons.heart),
-              ],
-            ),
-          ),
+          const SizedBox(height: 16),
           Expanded(
             child: GridView.builder(
               padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.paddingOf(context).bottom + 20),

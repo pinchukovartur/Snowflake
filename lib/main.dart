@@ -57,6 +57,7 @@ class _GameShellState extends State<GameShell> {
   int _level = 4;
   int _runKey = 0;
   List<Cut> _cuts = const [];
+  int _stars = 0;
   Paper _paper = const Paper();
 
   void _go(Screen s) => setState(() => _screen = s);
@@ -98,10 +99,11 @@ class _GameShellState extends State<GameShell> {
           game: _game,
           level: _level,
           onLevels: () => _go(Screen.levels),
-          onUnfold: (cuts, paper) => setState(() {
-            _cuts = cuts;
+          onUnfold: (shape, cutCount, paper) => setState(() {
+            _cuts = shape;
             _paper = paper;
-            _game.complete(_level, RevealScreen.starsFor(cuts.length));
+            _stars = RevealScreen.starsFor(cutCount);
+            _game.complete(_level, _stars);
             _screen = Screen.reveal;
           }),
         );
@@ -109,6 +111,7 @@ class _GameShellState extends State<GameShell> {
         return RevealScreen(
           level: _level,
           cuts: _cuts,
+          stars: _stars,
           paper: _paper,
           onNext: () => _go(Screen.levels),
           onReplay: () => _play(_level),

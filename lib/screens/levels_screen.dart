@@ -53,18 +53,6 @@ class LevelsScreen extends StatelessWidget {
               ]),
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.only(bottom: 16),
-            child: Segmented(
-              dark: true,
-              value: 'forest',
-              options: [
-                SegOption('forest', 'Лес', LucideIcons.trees),
-                SegOption('city', 'Город', LucideIcons.building2),
-                SegOption('north', 'Север', LucideIcons.mountainSnow),
-              ],
-            ),
-          ),
         ]),
       ),
     );
