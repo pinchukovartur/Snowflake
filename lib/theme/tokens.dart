@@ -58,7 +58,7 @@ abstract final class Motion {
   static const out = Cubic(.22, 1, .36, 1);
   static const press = Duration(milliseconds: 120);
   static const pop = Duration(milliseconds: 320);
-  static const unfold = Duration(milliseconds: 1400);
+  static const unfold = Duration(milliseconds: 2400);
 }
 
 const screenPad = 20.0;

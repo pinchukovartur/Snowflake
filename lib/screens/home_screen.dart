@@ -85,8 +85,6 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                   child: Row(
                     children: [
                       CurrencyPill(amount: g.coins),
-                      const SizedBox(width: 8),
-                      CurrencyPill(amount: g.stars, icon: LucideIcons.star, iconColor: C.sun500),
                       const Spacer(),
                       RoundBtn(LucideIcons.settings, label: 'Настройки', variant: Variant.ghost, size: BtnSize.s, onTap: _openSettings),
                     ],

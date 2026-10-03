@@ -42,13 +42,21 @@ class PaperColor {
   final Color color;
 }
 
+/// Shown six to a row: pale shades on top, their bold match below, columns
+/// in hue order.
 const paperColors = [
   PaperColor('white', 'Белая', Color(0xFFFFFFFF)),
-  PaperColor('ice', 'Голубая', Color(0xFFC4ECFF)),
   PaperColor('pink', 'Розовая', Color(0xFFFFC7D0)),
   PaperColor('sun', 'Жёлтая', Color(0xFFFFE08A)),
   PaperColor('mint', 'Мятная', Color(0xFFBFF0DC)),
+  PaperColor('ice', 'Голубая', Color(0xFFC4ECFF)),
   PaperColor('lilac', 'Сиреневая', Color(0xFFDCD2FF)),
+  PaperColor('black', 'Чёрная', Color(0xFF1E1F26)),
+  PaperColor('red', 'Красная', Color(0xFFE0405E)),
+  PaperColor('orange', 'Оранжевая', Color(0xFFFF9A3C)),
+  PaperColor('green', 'Зелёная', Color(0xFF2FB37E)),
+  PaperColor('blue', 'Синяя', Color(0xFF3E61B8)),
+  PaperColor('violet', 'Фиолетовая', Color(0xFF8A5CD6)),
 ];
 
 const paperPatterns = [
@@ -99,6 +107,49 @@ Cut stencilShape(String tool, double cx, double cy, double r) {
   return pts;
 }
 
+/// Whether a scissors stroke closes on itself, cutting out what it encloses,
+/// rather than slitting the paper along an open line.
+bool isLoop(List<Offset> stroke) {
+  var length = 0.0;
+  for (var k = 1; k < stroke.length; k++) {
+    length += (stroke[k] - stroke[k - 1]).distance;
+  }
+  final gap = (stroke.last - stroke.first).distance;
+  return gap < 0.08 && gap < length * 0.3;
+}
+
+/// A scissors slit along the open [line]: a band [width] wide, its ends
+/// stretched by [overshoot] so a slit stopping right at an edge still cuts through.
+Cut slit(List<Offset> line, {double width = 0.006, double overshoot = 0.015}) {
+  Offset dir(Offset from, Offset to) {
+    final d = to - from;
+    return d.distance == 0 ? Offset.zero : d / d.distance;
+  }
+
+  final n = line.length;
+  final pts = [
+    line.first - dir(line.first, line[1]) * overshoot,
+    ...line,
+    line.last + dir(line[n - 2], line.last) * overshoot,
+  ];
+  final left = <Offset>[], right = <Offset>[];
+  for (var k = 0; k < pts.length; k++) {
+    // Normal of the chord through the neighbours: smooth along a hand-drawn line.
+    final d = dir(pts[math.max(0, k - 1)], pts[math.min(pts.length - 1, k + 1)]);
+    final off = Offset(-d.dy, d.dx) * (width / 2);
+    left.add(pts[k] + off);
+    right.add(pts[k] - off);
+  }
+  final cut = [...left, ...right.reversed];
+  _slitLines[cut] = pts;
+  return cut;
+}
+
+final _slitLines = Expando<List<Offset>>('slit line');
+
+/// The line a cut made by [slit] runs along, or null for any other cut.
+List<Offset>? slitLine(Cut c) => _slitLines[c];
+
 Path cutPath(Cut c, double s, {bool close = true}) {
   final path = Path()..moveTo(c.first.dx * s, c.first.dy * s);
   for (var i = 1; i < c.length; i++) {
@@ -127,7 +178,10 @@ ui.Image _tile(Color color, String pattern, double t) {
   final rec = ui.PictureRecorder();
   final x = Canvas(rec);
   x.drawRect(Rect.fromLTWH(0, 0, t, t), Paint()..color = color);
-  const ink = Color(0x292E4A94); // rgba(46,74,148,.16)
+  // Navy on light paper, white on dark paper, where navy would vanish.
+  final dark = color.computeLuminance() < 0.2;
+  final ink = dark ? const Color(0x38FFFFFF) : const Color(0x292E4A94); // rgba(46,74,148,.16)
+  final inkLight = dark ? const Color(0x24FFFFFF) : const Color(0x1A2E4A94);
   switch (pattern) {
     case 'dots':
       x.drawCircle(Offset(t / 2, t / 2), t * 0.16, Paint()..color = ink);
@@ -140,7 +194,7 @@ ui.Image _tile(Color color, String pattern, double t) {
         x.drawLine(Offset(o, t), Offset(o + t, 0), p);
       }
     case 'checks':
-      final p = Paint()..color = const Color(0x1A2E4A94);
+      final p = Paint()..color = inkLight;
       x.drawRect(Rect.fromLTWH(0, 0, t / 2, t / 2), p);
       x.drawRect(Rect.fromLTWH(t / 2, t / 2, t / 2, t / 2), p);
     case 'sparkle':
@@ -156,11 +210,13 @@ ui.Image _tile(Color color, String pattern, double t) {
 }
 
 /// Draws the paper wedge (apex at current origin, pointing up) and erases cuts. s = unit radius in px.
+/// [pad] widens the wedge by about s·pad past each fold edge, right down to
+/// the apex, so mirrored copies overlap without seams.
 void drawWedge(Canvas canvas, double s, List<Cut> cuts, double half, Paint fill, {double pad = 0}) {
   final bounds = Rect.fromCircle(center: Offset.zero, radius: s * 1.3);
   canvas.saveLayer(bounds, Paint());
   final wedge = Path()
-    ..moveTo(0, 0)
+    ..moveTo(0, s * pad / math.sin(half))
     ..arcTo(Rect.fromCircle(center: Offset.zero, radius: s), -math.pi / 2 - half - pad, 2 * (half + pad), false)
     ..close();
   canvas.drawPath(wedge, fill);

@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 
 import 'geometry.dart';
 
-/// Mirrors a cut wedge into the full flake. `unfold` 0→1 fans the segments out
-/// for the reveal; creases fade in over the last 15%.
+/// Mirrors a cut wedge into the full flake. `unfold` 0→1 opens the folded
+/// paper fold by fold for the reveal; mirrored segments are lightly shaded.
 class SnowflakeView extends StatelessWidget {
   const SnowflakeView({
     super.key,
@@ -19,7 +19,7 @@ class SnowflakeView extends StatelessWidget {
     this.pattern = 'plain',
     this.glow = true,
     this.spin = 0,
-    this.creases = true,
+    this.shading = true,
   });
 
   final List<Cut>? cuts;
@@ -28,7 +28,7 @@ class SnowflakeView extends StatelessWidget {
   final double size, unfold, spin;
   final Color? color;
   final String pattern;
-  final bool glow, creases;
+  final bool glow, shading;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +41,7 @@ class SnowflakeView extends StatelessWidget {
         pattern: pattern,
         unfold: unfold,
         spin: spin,
-        creases: creases,
+        shading: shading,
         glow: glow,
         dpr: MediaQuery.devicePixelRatioOf(context),
       ),
@@ -88,21 +88,112 @@ ui.Image _wedgeImage(_WedgeKey k) {
 const _glowMargin = 24.0;
 
 class _FlakeKey {
-  _FlakeKey(this.wedge, this.size, this.glow, this.creases);
+  _FlakeKey(this.wedge, this.size, this.glow, this.shading);
   final _WedgeKey wedge;
   final double size;
-  final bool glow, creases;
+  final bool glow, shading;
 
   @override
-  bool operator ==(Object o) => o is _FlakeKey && o.wedge == wedge && o.size == size && o.glow == glow && o.creases == creases;
+  bool operator ==(Object o) => o is _FlakeKey && o.wedge == wedge && o.size == size && o.glow == glow && o.shading == shading;
 
   @override
-  int get hashCode => Object.hash(wedge, size, glow, creases);
+  int get hashCode => Object.hash(wedge, size, glow, shading);
 }
 
 // Fully unfolded, unrotated flakes (glow included) are baked once: the home
 // screen, gallery and falling flakes then cost a single drawImage per frame.
 final _flakeCache = <_FlakeKey, ui.Image>{};
+
+// ---- Unfolding ------------------------------------------------------------
+//
+// Segment positions are integers: position p is the wedge turned by p·step,
+// mirrored when p is odd; crease c lies between positions c and c+1. The folds
+// open last-first, each multiplying the visible run of segments: the final
+// half fold (×2), then folds' thirds (×3, a flap each side), then halves (×2).
+// For 6 folds that is 1 → 2 → 6 → 12 segments.
+
+/// Tint of mirrored segments, and the extra tint of a flap seen edge-on.
+const _sideShade = 0.14, _turnShade = 0.3;
+
+/// One turn of a layer over crease [crease] during [stage], landing on [side]
+/// of it (+1 = clockwise).
+class _Flip {
+  const _Flip(this.stage, this.crease, this.side);
+  final int stage, crease, side;
+}
+
+class _Layer {
+  const _Layer(this.pos, this.flips);
+  final int pos;
+
+  /// Innermost first: the order they apply to the flat segment.
+  final List<_Flip> flips;
+}
+
+class _UnfoldPlan {
+  const _UnfoldPlan(this.stages, this.layers);
+  final int stages;
+  final List<_Layer> layers;
+}
+
+final _plans = <int, _UnfoldPlan>{};
+
+_UnfoldPlan _unfoldPlan(int folds) => _plans.putIfAbsent(folds, () {
+      final factors = [2];
+      var f = folds;
+      for (final k in const [3, 2]) {
+        while (f % k == 0) {
+          factors.add(k);
+          f ~/= k;
+        }
+      }
+      if (f > 1) factors.add(f); // opens like an accordion
+      final runs = [(0, 0)];
+      for (final k in factors) {
+        final (lo, hi) = runs.last;
+        final m = hi - lo + 1;
+        runs.add((lo - (k - 1) ~/ 2 * m, hi + k ~/ 2 * m));
+      }
+      final (lo, hi) = runs.last;
+      return _UnfoldPlan(factors.length, [for (var p = lo; p <= hi; p++) _Layer(p, _flipsFor(p, runs))]);
+    });
+
+/// Folds position [pos] back to 0 stage by stage, reflecting it over the crease
+/// next to the run it came from.
+List<_Flip> _flipsFor(int pos, List<(int, int)> runs) {
+  final flips = <_Flip>[];
+  var p = pos;
+  for (var s = runs.length - 2; s >= 0; s--) {
+    final (lo, hi) = runs[s];
+    final m = hi - lo + 1;
+    while (p > hi) {
+      final c = hi + (p - hi - 1) ~/ m * m;
+      flips.add(_Flip(s, c, 1));
+      p = 2 * c + 1 - p;
+    }
+    while (p < lo) {
+      final c = lo - 1 - (lo - 1 - p) ~/ m * m;
+      flips.add(_Flip(s, c, -1));
+      p = 2 * c + 1 - p;
+    }
+  }
+  return flips;
+}
+
+/// Turns the paper on [side] of the line through the centre at angle [a] up
+/// towards the viewer by [phi]: 0 = flat in place, π = folded over the line.
+Matrix4 _turn(double a, int side, double phi) {
+  final dx = math.cos(a), dy = math.sin(a);
+  final nx = -dy * side, ny = dx * side;
+  final c = math.cos(phi), s = math.sin(phi);
+  // Basis (d, n, z): d stays, n → c·n + s·z, z → −s·n + c·z. Column-major.
+  return Matrix4(
+    dx * dx + c * nx * nx, dy * dx + c * ny * nx, s * nx, 0,
+    dx * dy + c * nx * ny, dy * dy + c * ny * ny, s * ny, 0,
+    -s * nx, -s * ny, c, 0,
+    0, 0, 0, 1,
+  );
+}
 
 class SnowflakePainter extends CustomPainter {
   SnowflakePainter({
@@ -112,7 +203,7 @@ class SnowflakePainter extends CustomPainter {
     required this.pattern,
     required this.unfold,
     required this.spin,
-    required this.creases,
+    required this.shading,
     required this.glow,
     required this.dpr,
   });
@@ -122,7 +213,7 @@ class SnowflakePainter extends CustomPainter {
   final Color color;
   final String pattern;
   final double unfold, spin, dpr;
-  final bool creases, glow;
+  final bool shading, glow;
 
   _WedgeKey _wedgeKey(double s) => _WedgeKey(cuts, folds, color, pattern, (s * dpr).round());
 
@@ -134,7 +225,7 @@ class SnowflakePainter extends CustomPainter {
       return;
     }
     final m = glow ? _glowMargin : 0.0;
-    final key = _FlakeKey(_wedgeKey(s), s, glow, creases);
+    final key = _FlakeKey(_wedgeKey(s), s, glow, shading);
     var img = _flakeCache.remove(key);
     if (img == null) {
       final rec = ui.PictureRecorder();
@@ -177,58 +268,73 @@ class SnowflakePainter extends CustomPainter {
     _paintFlake(canvas, s);
   }
 
+  /// Paper tinted towards night blue by [a]: mirrored segments face the light
+  /// at a slightly different angle, flaps turning over darken edge-on.
+  static Paint _shade(double a) {
+    final p = Paint()..filterQuality = FilterQuality.medium;
+    if (a > 0) p.colorFilter = ColorFilter.mode(Color.fromRGBO(46, 74, 148, math.min(a, 1)), BlendMode.srcATop);
+    return p;
+  }
+
   void _paintFlake(Canvas canvas, double s) {
     final img = _wedgeImage(_wedgeKey(s));
-    final half = wedgeHalfAngle(folds);
     final segs = folds * 2;
     final step = math.pi * 2 / segs;
-    final u = s / 2 * 0.96;
     final t = unfold.clamp(0.0, 1.0);
-    final count = t >= 1 ? segs : math.max(1, (segs * math.min(1, t * 1.2)).ceil());
     final src = Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble());
     final dst = Rect.fromCenter(center: Offset.zero, width: s, height: s);
-    final imgPaint = Paint()..filterQuality = FilterQuality.medium;
+    final flat = t >= 1;
 
-    canvas.saveLayer(Rect.fromLTWH(0, 0, s, s), Paint());
+    // Flaps lifted towards the viewer grow past the flake's box.
+    canvas.saveLayer(Rect.fromLTWH(0, 0, s, s).inflate(flat ? 0 : s * .3), Paint());
     canvas.translate(s / 2, s / 2);
     canvas.rotate(spin);
-    for (var i = 0; i < count; i++) {
-      canvas.save();
-      canvas.rotate(i * step * t);
-      if (i.isOdd) canvas.scale(-1, 1);
-      canvas.drawImageRect(img, src, dst, imgPaint);
-      canvas.restore();
-    }
-    if (creases && t > 0.85) {
-      final a = math.min(1.0, (t - 0.85) / 0.15);
-      final lw = math.max(1.0, s * dpr / 240) / dpr;
+    if (flat) {
+      final front = _shade(0), back = _shade(shading ? _sideShade : 0);
       for (var i = 0; i < segs; i++) {
-        final ang = -math.pi / 2 + half + i * step;
-        final dx = math.cos(ang), dy = math.sin(ang), nx = -dy, ny = dx;
-        final valley = i.isEven;
-        final l = u * 1.02;
-        canvas.drawLine(
-          Offset.zero,
-          Offset(dx * l, dy * l),
-          Paint()
-            ..blendMode = BlendMode.srcATop
-            ..strokeCap = StrokeCap.round
-            ..strokeWidth = lw * 1.6
-            ..color = Color.fromRGBO(46, 74, 148, (valley ? 0.22 : 0.12) * a),
-        );
-        final o = (valley ? 1 : -1) * lw * 1.3;
-        canvas.drawLine(
-          Offset(nx * o, ny * o),
-          Offset(dx * l + nx * o, dy * l + ny * o),
-          Paint()
-            ..blendMode = BlendMode.srcATop
-            ..strokeCap = StrokeCap.round
-            ..strokeWidth = lw
-            ..color = Color.fromRGBO(255, 255, 255, 0.85 * a),
-        );
+        canvas.save();
+        canvas.rotate(i * step);
+        if (i.isOdd) canvas.scale(-1, 1);
+        canvas.drawImageRect(img, src, dst, i.isOdd ? back : front);
+        canvas.restore();
       }
+    } else {
+      _paintFolded(canvas, img, src, dst, s, t);
     }
     canvas.restore();
+  }
+
+  /// The paper while it unfolds: each layer is the flat segment at its final
+  /// position, turned back over the creases it still has to open.
+  void _paintFolded(Canvas canvas, ui.Image img, Rect src, Rect dst, double s, double t) {
+    final plan = _unfoldPlan(folds);
+    final half = wedgeHalfAngle(folds), step = 2 * half;
+    final len = 1 / plan.stages;
+    final stage = math.min(plan.stages - 1, t ~/ len);
+    final e = Curves.easeInOut.transform(((t - stage * len) / len).clamp(0.0, 1.0));
+    final phi = math.pi * (1 - e);
+    final persp = Matrix4.identity()..setEntry(3, 2, -1 / (s * 2.5));
+    final side = shading ? _sideShade : 0.0;
+
+    bool moving(_Layer l) => l.flips.any((f) => f.stage == stage);
+    // Layers turning over now lie on top of the stack.
+    for (final l in [...plan.layers.where((l) => !moving(l)), ...plan.layers.where(moving)]) {
+      var m = Matrix4.rotationZ(l.pos * step);
+      if (l.pos.isOdd) m.multiply(Matrix4.diagonal3Values(-1, 1, 1));
+      // Each turn still to come mirrors the layer once more.
+      var pending = 0, active = 0;
+      for (final f in l.flips) {
+        if (f.stage < stage) continue;
+        f.stage == stage ? active++ : pending++;
+        m = _turn(-math.pi / 2 + half + f.crease * step, f.side, f.stage == stage ? phi : math.pi)..multiply(m);
+      }
+      final after = l.pos.isOdd != pending.isOdd, before = after != active.isOdd;
+      final a = side * ((before ? 1 - e : 0) + (after ? e : 0)) + (active > 0 ? _turnShade * math.sin(phi) : 0);
+      canvas.save();
+      canvas.transform((persp.clone()..multiply(m)).storage);
+      canvas.drawImageRect(img, src, dst, _shade(a));
+      canvas.restore();
+    }
   }
 
   @override
@@ -239,7 +345,7 @@ class SnowflakePainter extends CustomPainter {
       o.pattern != pattern ||
       o.unfold != unfold ||
       o.spin != spin ||
-      o.creases != creases ||
+      o.shading != shading ||
       o.glow != glow ||
       o.dpr != dpr;
 }

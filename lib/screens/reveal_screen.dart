@@ -7,25 +7,28 @@ import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
 import '../widgets/ds.dart';
 
-/// Unfolds the cut wedge (1.4s ease-out) and then pops the star result.
+/// Unfolds the cut wedge fold by fold (2.4s) and then pops the result card.
 class RevealScreen extends StatefulWidget {
   const RevealScreen({
     super.key,
-    required this.level,
     required this.cuts,
-    required this.stars,
+    required this.folds,
     required this.paper,
-    required this.onNext,
+    required this.saved,
+    required this.onDone,
     required this.onSave,
-    required this.onReplay,
+    required this.onBack,
   });
 
-  final int level, stars;
   final List<Cut> cuts;
+  final int folds;
   final Paper paper;
-  final VoidCallback onNext, onSave, onReplay;
 
-  static int starsFor(int cuts) => cuts >= 6 ? 3 : cuts >= 4 ? 2 : 1;
+  /// Whether this flake is in the collection; [onSave] toggles that.
+  final bool saved;
+
+  /// [onDone] moves on to a new flake; [onBack] returns to the cut board with the flake as it was before unfolding.
+  final VoidCallback onDone, onSave, onBack;
 
   @override
   State<RevealScreen> createState() => _RevealScreenState();
@@ -33,7 +36,8 @@ class RevealScreen extends StatefulWidget {
 
 class _RevealScreenState extends State<RevealScreen> with SingleTickerProviderStateMixin {
   late final _anim = AnimationController(vsync: this, duration: Motion.unfold);
-  late final _t = CurvedAnimation(parent: _anim, curve: Curves.easeOutCubic);
+  // Linear: each fold eases on its own in SnowflakePainter.
+  late final _t = _anim;
   bool _done = false;
 
   @override
@@ -52,7 +56,6 @@ class _RevealScreenState extends State<RevealScreen> with SingleTickerProviderSt
 
   @override
   Widget build(BuildContext context) {
-    final stars = widget.stars;
     return SkyBackground(
       child: SafeArea(
         child: Stack(children: [
@@ -70,6 +73,7 @@ class _RevealScreenState extends State<RevealScreen> with SingleTickerProviderSt
                     animation: _t,
                     builder: (_, _) => SnowflakeView(
                       cuts: widget.cuts,
+                      folds: widget.folds,
                       color: widget.paper.color,
                       pattern: widget.paper.pattern,
                       unfold: _t.value,
@@ -104,20 +108,23 @@ class _RevealScreenState extends State<RevealScreen> with SingleTickerProviderSt
                   child: DsDialog(
                     title: 'Отлично!',
                     actions: [
-                      Btn('Дальше', iconRight: LucideIcons.arrowRight, block: true, onTap: widget.onNext),
+                      Btn('Готово', block: true, onTap: widget.onDone),
                       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Expanded(child: Btn('В коллекцию', variant: Variant.secondary, icon: LucideIcons.heart, block: true, onTap: widget.onSave)),
+                        Btn('Назад', variant: Variant.light, onTap: widget.onBack),
                         const SizedBox(width: 10),
-                        RoundBtn(LucideIcons.rotateCcw, label: 'Ещё раз', onTap: widget.onReplay),
+                        Expanded(
+                          child: Btn(
+                            widget.saved ? 'В коллекции' : 'В коллекцию',
+                            variant: Variant.secondary,
+                            icon: widget.saved ? Icons.favorite : LucideIcons.heart,
+                            iconColor: widget.saved ? C.berry600 : null,
+                            block: true,
+                            onTap: widget.onSave,
+                          ),
+                        ),
                       ]),
                     ],
-                    child: Column(children: [
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: StarRating(value: stars, size: 44, arc: true),
-                      ),
-                      Text('Уровень ${widget.level} пройден. +${stars * 10}'),
-                    ]),
+                    child: const Text('Снежинка готова!'),
                   ),
                 ),
               ),

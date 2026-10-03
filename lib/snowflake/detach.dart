@@ -20,21 +20,7 @@ const _pad = 0.007;
 List<Cut> detachedPieces(List<Cut> cuts, List<Cut> fallen, int folds) {
   final half = wedgeHalfAngle(folds);
   final cosH = math.cos(half), sinH = math.sin(half);
-  final x0 = -(sinH + _pad), y0 = -1.0;
-  final cols = (-2 * x0 / _cell).ceil(), rows = ((1 + _pad / sinH) / _cell).ceil();
-
-  // 1 = paper, by cell centre.
-  final paper = Uint8List(cols * rows);
-  for (var j = 0; j < rows; j++) {
-    final y = y0 + (j + .5) * _cell;
-    for (var i = 0; i < cols; i++) {
-      final x = x0 + (i + .5) * _cell;
-      if (x * x + y * y <= 1 && x * cosH - y * sinH >= -_pad && -x * cosH - y * sinH >= -_pad) paper[j * cols + i] = 1;
-    }
-  }
-  for (final c in [...cuts, ...fallen]) {
-    _clearPolygon(paper, cols, rows, x0, y0, c);
-  }
+  final (paper, cols, rows, x0, y0) = _paperLeft([...cuts, ...fallen], folds);
 
   // 4-connected pieces; label = piece index + 1.
   final label = Int32List(cols * rows);
@@ -75,9 +61,40 @@ List<Cut> detachedPieces(List<Cut> cuts, List<Cut> fallen, int folds) {
   ];
 }
 
-/// Clears the cells whose centres lie inside [poly] (non-zero rule, like the cut paths).
-void _clearPolygon(Uint8List grid, int cols, int rows, double x0, double y0, Cut poly) {
-  if (poly.length < 3) return;
+/// Whether [cut] would take away any of the paper left after [gone] (cuts and
+/// fallen pieces): a cut wholly off the paper, or inside a hole, misses.
+bool cutsPaper(Cut cut, List<Cut> gone, int folds) {
+  final (paper, cols, rows, x0, y0) = _paperLeft(gone, folds);
+  return _clearPolygon(paper, cols, rows, x0, y0, cut) > 0;
+}
+
+/// The wedge rasterised (1 = paper, by cell centre) with [gone] cleared, and
+/// the grid's size and top-left corner in wedge units.
+(Uint8List, int, int, double, double) _paperLeft(List<Cut> gone, int folds) {
+  final half = wedgeHalfAngle(folds);
+  final cosH = math.cos(half), sinH = math.sin(half);
+  final x0 = -(sinH + _pad), y0 = -1.0;
+  final cols = (-2 * x0 / _cell).ceil(), rows = ((1 + _pad / sinH) / _cell).ceil();
+
+  final paper = Uint8List(cols * rows);
+  for (var j = 0; j < rows; j++) {
+    final y = y0 + (j + .5) * _cell;
+    for (var i = 0; i < cols; i++) {
+      final x = x0 + (i + .5) * _cell;
+      if (x * x + y * y <= 1 && x * cosH - y * sinH >= -_pad && -x * cosH - y * sinH >= -_pad) paper[j * cols + i] = 1;
+    }
+  }
+  for (final c in gone) {
+    _clearPolygon(paper, cols, rows, x0, y0, c);
+  }
+  return (paper, cols, rows, x0, y0);
+}
+
+/// Clears the cells whose centres lie inside [poly] (non-zero rule, like the
+/// cut paths); returns how many held paper.
+int _clearPolygon(Uint8List grid, int cols, int rows, double x0, double y0, Cut poly) {
+  if (poly.length < 3) return 0;
+  var cleared = 0;
   var minY = poly.first.dy, maxY = minY;
   for (final p in poly) {
     minY = math.min(minY, p.dy);
@@ -102,10 +119,12 @@ void _clearPolygon(Uint8List grid, int cols, int rows, double x0, double y0, Cut
       final from = math.max(0, ((xs[k].$1 - x0) / _cell - .5).ceil());
       final to = math.min(cols - 1, ((xs[k + 1].$1 - x0) / _cell - .5).floor());
       for (var i = from; i <= to; i++) {
+        cleared += grid[j * cols + i];
         grid[j * cols + i] = 0;
       }
     }
   }
+  return cleared;
 }
 
 /// Outer boundary of piece [id] along cell edges, pushed out by a cell so no

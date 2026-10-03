@@ -71,6 +71,7 @@ class Btn extends StatelessWidget {
     this.size = BtnSize.m,
     this.icon,
     this.iconRight,
+    this.iconColor,
     this.block = false,
     this.disabled = false,
     this.onTap,
@@ -80,6 +81,9 @@ class Btn extends StatelessWidget {
   final Variant variant;
   final BtnSize size;
   final IconData? icon, iconRight;
+
+  /// Tint for [icon] instead of the label colour, e.g. a filled heart.
+  final Color? iconColor;
   final bool block, disabled;
   final VoidCallback? onTap;
 
@@ -119,18 +123,21 @@ class Btn extends StatelessWidget {
               mainAxisSize: block ? MainAxisSize.max : MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (icon != null) ...[Icon(icon, size: s.icon, color: fg), const SizedBox(width: 10)],
+                if (icon != null) ...[Icon(icon, size: s.icon, color: disabled ? fg : iconColor ?? fg), const SizedBox(width: 10)],
                 Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.visible,
-                    softWrap: false,
-                    style: display(s.fs, color: fg).copyWith(
-                      letterSpacing: s.fs * 0.01,
-                      shadows: v.shadowText && !disabled
-                          ? const [Shadow(color: Color(0x2E000000), offset: Offset(0, 2))]
-                          : null,
+                  // A label too long for the button shrinks rather than spilling off-centre.
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: display(s.fs, color: fg).copyWith(
+                        letterSpacing: s.fs * 0.01,
+                        shadows: v.shadowText && !disabled
+                            ? const [Shadow(color: Color(0x2E000000), offset: Offset(0, 2))]
+                            : null,
+                      ),
                     ),
                   ),
                 ),
@@ -180,7 +187,9 @@ class RoundBtn extends StatelessWidget {
         enabled: !disabled,
         onTap: onTap,
         builder: (down) {
-          final pressed = (down || active) && !disabled;
+          final pressed = down && !disabled;
+          // An active (selected) button stands a little larger instead of sinking.
+          final grow = active && !disabled ? 1.12 : 1.0;
           return Padding(
             padding: EdgeInsets.only(bottom: s.lip),
             child: AnimatedContainer(
@@ -188,12 +197,12 @@ class RoundBtn extends StatelessWidget {
               curve: Motion.out,
               width: s.d,
               height: s.d,
-              transform: Matrix4.translationValues(0, pressed ? s.lip - 1 : 0, 0),
+              transformAlignment: Alignment.center,
+              transform: Matrix4.translationValues(0, pressed ? s.lip - 1 : 0, 0)..multiply(Matrix4.diagonal3Values(grow, grow, 1)),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: disabled ? C.snow200 : v.bg,
                 boxShadow: [
-                  if (active) const BoxShadow(color: C.ringFocus, spreadRadius: 4),
                   if (variant != Variant.ghost && !flat)
                     BoxShadow(color: disabled ? C.snow300 : v.lip, offset: Offset(0, pressed ? 1 : s.lip)),
                 ],
@@ -209,7 +218,7 @@ class RoundBtn extends StatelessWidget {
 
 // ---- Dialog --------------------------------------------------------------
 
-/// White card with an ice title ribbon and a berry close button.
+/// Pale ice card (the cut board's table colour) with an ice title ribbon and a berry close button.
 class DsDialog extends StatelessWidget {
   const DsDialog({super.key, this.title, required this.child, this.actions = const [], this.onClose});
 
@@ -232,7 +241,7 @@ class DsDialog extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(24, 44, 24, 24),
               decoration: BoxDecoration(
-                color: C.paper,
+                color: C.surfaceTable,
                 borderRadius: BorderRadius.circular(R.xl),
                 boxShadow: const [
                   BoxShadow(color: Color(0x59101A3F), offset: Offset(0, 18), blurRadius: 40),
@@ -264,7 +273,6 @@ class DsDialog extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: C.ice500,
                     borderRadius: BorderRadius.circular(26),
-                    boxShadow: const [BoxShadow(color: C.ice600, offset: Offset(0, 5))],
                   ),
                   child: Text(
                     title!,
@@ -320,18 +328,22 @@ Future<T?> showDsDialog<T>(BuildContext context, {required Widget Function(Build
 // ---- Hint bubble ---------------------------------------------------------
 
 class HintBubble extends StatelessWidget {
-  const HintBubble(this.text, {super.key, this.icon = LucideIcons.hand});
+  const HintBubble(this.text, {super.key, this.icon = LucideIcons.hand, this.tailUp = false});
   final String text;
   final IconData icon;
+
+  /// Tail on top, pointing at something above the bubble; otherwise below.
+  final bool tailUp;
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       clipBehavior: Clip.none,
-      alignment: Alignment.bottomCenter,
+      alignment: tailUp ? Alignment.topCenter : Alignment.bottomCenter,
       children: [
         Positioned(
-          bottom: -7,
+          top: tailUp ? -7 : null,
+          bottom: tailUp ? null : -7,
           child: Transform.rotate(
             angle: math.pi / 4,
             child: Container(
@@ -389,7 +401,7 @@ class DsSwitch extends StatelessWidget {
             curve: Motion.out,
             width: 64,
             height: 36,
-            decoration: BoxDecoration(color: checked ? C.mint500 : C.snow200, borderRadius: BorderRadius.circular(18)),
+            decoration: BoxDecoration(color: checked ? C.mint500 : C.snow300, borderRadius: BorderRadius.circular(18)),
             child: Stack(children: [
               // inset top shadow
               Positioned(
@@ -415,7 +427,7 @@ class DsSwitch extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: C.paper,
                     shape: BoxShape.circle,
-                    boxShadow: [BoxShadow(color: checked ? C.mint700 : C.snow300, offset: const Offset(0, 3))],
+                    boxShadow: [BoxShadow(color: checked ? C.mint700 : C.snow500, offset: const Offset(0, 3))],
                   ),
                 ),
               ),
@@ -428,10 +440,10 @@ class DsSwitch extends StatelessWidget {
 }
 
 class SegOption<T> {
-  const SegOption(this.value, this.label, this.icon);
+  const SegOption(this.value, this.label, [this.icon]);
   final T value;
   final String label;
-  final IconData icon;
+  final IconData? icon;
 }
 
 class Segmented<T> extends StatelessWidget {
@@ -470,8 +482,7 @@ class Segmented<T> extends StatelessWidget {
                   child: Builder(builder: (_) {
                     final fg = o.value == value ? C.night800 : (dark ? C.ice200 : C.snow700);
                     return Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Icon(o.icon, size: 20, color: fg),
-                      const SizedBox(width: 8),
+                      if (o.icon != null) ...[Icon(o.icon, size: 20, color: fg), const SizedBox(width: 8)],
                       Text(o.label, style: display(16, weight: FontWeight.w700, color: fg)),
                     ]);
                   }),
@@ -486,74 +497,6 @@ class Segmented<T> extends StatelessWidget {
 }
 
 // ---- Game ----------------------------------------------------------------
-
-class StarRating extends StatelessWidget {
-  const StarRating({super.key, required this.value, this.max = 3, this.size = 28, this.arc = false});
-  final int value, max;
-  final double size;
-  final bool arc;
-
-  @override
-  Widget build(BuildContext context) {
-    final mid = (max - 1) / 2;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        for (var i = 0; i < max; i++) ...[
-          if (i > 0) SizedBox(width: size * 0.12),
-          Builder(builder: (_) {
-            final big = arc && i == mid.round();
-            final s = big ? size * 1.3 : size;
-            Widget star = CustomPaint(size: Size.square(s), painter: _StarPainter(i < value));
-            if (arc) {
-              star = Transform.translate(
-                offset: Offset(0, big ? -size * 0.2 : 0),
-                child: Transform.rotate(angle: (i - mid) * 12 * math.pi / 180, child: star),
-              );
-            }
-            return star;
-          }),
-        ],
-      ],
-    );
-  }
-}
-
-class _StarPainter extends CustomPainter {
-  _StarPainter(this.on);
-  final bool on;
-
-  static final _path = Path()
-    ..moveTo(12, 2.5)
-    ..lineTo(14.9, 8.5)
-    ..lineTo(21.5, 9.3)
-    ..lineTo(16.6, 13.8)
-    ..lineTo(17.9, 20.3)
-    ..lineTo(12, 17.1)
-    ..lineTo(6.1, 20.3)
-    ..lineTo(7.4, 13.8)
-    ..lineTo(2.5, 9.3)
-    ..lineTo(9.1, 8.5)
-    ..close();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.scale(size.width / 24);
-    canvas.drawPath(_path, Paint()..color = on ? C.sun500 : C.snow200);
-    canvas.drawPath(
-      _path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..strokeJoin = StrokeJoin.round
-        ..color = on ? C.sun700 : C.snow300,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_StarPainter o) => o.on != on;
-}
 
 enum Tone { sun, mint, ice, berry }
 
@@ -657,53 +600,6 @@ class CurrencyPill extends StatelessWidget {
     );
   }
 }
-
-class LevelTile extends StatelessWidget {
-  const LevelTile({super.key, required this.number, this.stars = 0, this.state = LevelState.open, this.onTap, this.size = 76});
-  final int number, stars;
-  final LevelState state;
-  final VoidCallback? onTap;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    final locked = state == LevelState.locked, current = state == LevelState.current;
-    final bg = locked ? C.night600 : current ? C.berry600 : C.paper;
-    final lip = locked ? C.night900 : current ? C.berry800 : C.snow300;
-    final fg = locked ? C.ice200 : current ? Colors.white : C.night800;
-    return Column(mainAxisSize: MainAxisSize.min, children: [
-      _Pressable(
-        enabled: !locked,
-        onTap: onTap,
-        builder: (p) => AnimatedContainer(
-          duration: Motion.press,
-          width: size,
-          height: size,
-          alignment: Alignment.center,
-          transform: Matrix4.translationValues(0, p ? 4 : 0, 0),
-          decoration: BoxDecoration(
-            color: bg,
-            borderRadius: BorderRadius.circular(size * 0.32),
-            boxShadow: [
-              if (current) const BoxShadow(color: Color(0x59FFFFFF), spreadRadius: 5),
-              BoxShadow(color: lip, offset: Offset(0, p ? 2 : 6)),
-            ],
-          ),
-          child: locked
-              ? Icon(LucideIcons.lock, size: size * 0.36, color: fg)
-              : Text('$number', style: display((size * 0.4).roundToDouble(), color: fg, height: 1)),
-        ),
-      ),
-      const SizedBox(height: 6),
-      SizedBox(
-        height: 22,
-        child: Opacity(opacity: locked || current ? 0 : 1, child: StarRating(value: stars, size: 20)),
-      ),
-    ]);
-  }
-}
-
-enum LevelState { done, current, open, locked }
 
 // ---- Layout --------------------------------------------------------------
 

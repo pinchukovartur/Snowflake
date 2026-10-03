@@ -13,7 +13,7 @@ class GalleryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final list = game.saved;
+    final list = game.collection;
     return SkyBackground(
       child: SafeArea(
         bottom: false,
@@ -48,7 +48,7 @@ class GalleryScreen extends StatelessWidget {
                         pattern: s.pattern,
                         size: (c.maxWidth * .78).clamp(0, 140),
                       ),
-                      if (s.fav) const Positioned(top: 10, right: 10, child: Icon(LucideIcons.heart, size: 20, color: C.berry500)),
+                      if (s.fav) const Positioned(top: 10, right: 10, child: Icon(Icons.favorite, size: 20, color: C.berry600)),
                       Positioned(left: 12, bottom: 10, child: Text(s.name, style: display(13, color: C.ice200))),
                     ]);
                   }),

@@ -3,9 +3,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../theme/tokens.dart';
+import 'detach.dart';
 import 'geometry.dart';
 
-/// Interactive folded wedge: drag a loop to cut (tool `free`) or tap-and-drag
+/// Interactive folded wedge: drag a loop to cut a piece out or a line to slit
+/// the paper (tool `free`), or tap-and-drag
 /// to stamp a stencil (`circle`, `square`, `triangle`, `star`, `heart`, `drop`).
 /// Pieces appended to [fallen] drop off the board.
 ///
@@ -57,9 +59,17 @@ class _Drop {
   final AnimationController anim;
 }
 
+/// A cut that missed the paper: its outline fades away and nothing is cut.
+class _Miss {
+  _Miss(this.cut, this.anim);
+  final Cut cut;
+  final AnimationController anim;
+}
+
 class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   _Live? _live;
   final _drops = <_Drop>[];
+  final _misses = <_Miss>[];
 
   @override
   void didUpdateWidget(CutBoard old) {
@@ -81,6 +91,9 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   void dispose() {
     for (final d in _drops) {
       d.anim.dispose();
+    }
+    for (final m in _misses) {
+      m.anim.dispose();
     }
     super.dispose();
   }
@@ -123,11 +136,31 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
     final d = _live;
     setState(() => _live = null);
     if (d == null) return;
+    final Cut cut;
     if (d.stencil) {
-      widget.onCut(d.pts);
+      cut = d.pts;
     } else if (d.pts.length > 4) {
-      widget.onCut(d.pts);
+      cut = isLoop(d.pts) ? d.pts : slit(d.pts);
+    } else {
+      return;
     }
+    if (cutsPaper(cut, [...widget.cuts, ...widget.fallen], widget.folds)) {
+      widget.onCut(cut);
+    } else {
+      _fadeOut(cut);
+    }
+  }
+
+  void _fadeOut(Cut cut) {
+    final anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 700));
+    final miss = _Miss(cut, anim);
+    _misses.add(miss);
+    anim
+      ..addListener(() => setState(() {}))
+      ..forward().whenComplete(() {
+        if (mounted) setState(() => _misses.remove(miss));
+        anim.dispose();
+      });
   }
 
   @override
@@ -145,6 +178,7 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
             cuts: widget.cuts,
             fallen: widget.fallen,
             drops: [for (final d in _drops) (d.pieces, d.cuts, d.anim.value)],
+            misses: [for (final m in _misses) (m.cut, m.anim.value)],
             live: _live,
             half: wedgeHalfAngle(widget.folds),
             s: _s,
@@ -164,6 +198,7 @@ class _BoardPainter extends CustomPainter {
     required this.cuts,
     required this.fallen,
     required this.drops,
+    required this.misses,
     required this.live,
     required this.half,
     required this.s,
@@ -175,6 +210,7 @@ class _BoardPainter extends CustomPainter {
 
   final List<Cut> cuts, fallen;
   final List<(List<Cut> pieces, List<Cut> cuts, double t)> drops;
+  final List<(Cut cut, double t)> misses;
   final _Live? live;
   final double half, s;
   final Offset apex;
@@ -216,9 +252,24 @@ class _BoardPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2
         ..color = const Color(0x73E0405E);
+      // All halos first, so one cut's halo never covers another's line.
       for (final c in cuts) {
-        drawDashed(canvas, cutPath(c, s), ghost, 6, 6);
+        drawDashed(canvas, _outline(c), _halo(ghost), 6, 6);
       }
+      for (final c in cuts) {
+        drawDashed(canvas, _outline(c), ghost, 6, 6);
+      }
+    }
+
+    // Cuts that missed the paper: shown, then faded out.
+    for (final (c, t) in misses) {
+      final paint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..strokeCap = StrokeCap.round
+        ..color = C.berry600.withValues(alpha: 1 - t);
+      drawDashed(canvas, _outline(c), _halo(paint, alpha: 1 - t), 8, 6);
+      drawDashed(canvas, _outline(c), paint, 8, 6);
     }
 
     final l = live;
@@ -232,9 +283,12 @@ class _BoardPainter extends CustomPainter {
       final path = cutPath(l.pts, s, close: l.stencil);
       if (l.stencil) {
         canvas.drawPath(path, Paint()..color = const Color(0x2EE0405E));
+        drawDashed(canvas, path, _halo(stroke), 8, 6);
         drawDashed(canvas, path, stroke, 8, 6);
       } else {
+        canvas.drawPath(path, _halo(stroke));
         canvas.drawPath(path, stroke);
+        canvas.drawCircle(l.pts.first * s, 8, Paint()..color = Colors.white);
         canvas.drawCircle(l.pts.first * s, 6, Paint()..color = C.berry600);
       }
     }
@@ -259,12 +313,29 @@ class _BoardPainter extends CustomPainter {
     canvas.restore();
   }
 
+  /// White underlay a little wider than the red line [p], so cut marks still
+  /// read on red (or any dark) paper.
+  static Paint _halo(Paint p, {double alpha = 1}) => Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = p.strokeWidth + 3
+    ..strokeJoin = StrokeJoin.round
+    ..strokeCap = StrokeCap.round
+    ..color = Colors.white.withValues(alpha: alpha);
+
+  /// Dashed-outline path of [c]; a slit, a hairline band, is one line rather than both of its edges.
+  Path _outline(Cut c) {
+    final line = slitLine(c);
+    return line != null ? cutPath(line, s, close: false) : cutPath(c, s);
+  }
+
   @override
   bool shouldRepaint(_BoardPainter o) =>
       !identical(o.cuts, cuts) ||
       !identical(o.fallen, fallen) ||
       drops.isNotEmpty ||
       o.drops.isNotEmpty ||
+      misses.isNotEmpty ||
+      o.misses.isNotEmpty ||
       o.live != live ||
       o.color != color ||
       o.pattern != pattern ||
