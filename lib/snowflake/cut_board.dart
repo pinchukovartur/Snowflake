@@ -101,9 +101,22 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   /// Top-left of the [CutBoard.widthFor] × height box, set on layout.
   Offset _origin = Offset.zero;
 
-  double get _s => widget.height * 0.94;
+  /// Pinch zoom: the unzoomed board maps to the view as `p · _zoom + _pan`.
+  double _zoom = 1;
+  Offset _pan = Offset.zero;
+  static const _maxZoom = 4.0;
+
+  /// Fingers on the board, by pointer id.
+  final _pointers = <int, Offset>{};
+
+  /// A second finger turned the touch into a pinch; no cutting until every
+  /// finger is lifted.
+  bool _pinching = false;
+  ({double dist, Offset mid, double zoom, Offset pan})? _pinchFrom;
+
+  double get _s => widget.height * 0.94 * _zoom;
   double get _width => CutBoard.widthFor(widget.height, widget.folds);
-  Offset get _apex => _origin + Offset(_width / 2, widget.height - 8);
+  Offset get _apex => (_origin + Offset(_width / 2, widget.height - 8)) * _zoom + _pan;
 
   /// Where a cut may start: the paper's bounds plus [CutBoard.touchMargin].
   Rect get _touchZone {
@@ -116,12 +129,25 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   Cut _stamp(Offset c, Offset p) => stencilShape(widget.tool, c.dx, c.dy, ((p - c).distance).clamp(0.05, 0.3));
 
   void _down(PointerDownEvent e) {
-    if (widget.disabled || !_touchZone.contains(e.localPosition)) return;
+    _pointers[e.pointer] = e.localPosition;
+    if (_pointers.length >= 2) {
+      // Whatever the first finger started is dropped, not cut.
+      setState(() => _live = null);
+      _pinching = true;
+      _startPinch();
+      return;
+    }
+    if (_pinching || widget.disabled || !_touchZone.contains(e.localPosition)) return;
     final p = _toUnit(e.localPosition);
     setState(() => _live = widget.tool == 'free' ? _Live([p]) : _Live(_stamp(p, p), center: p, stencil: true));
   }
 
   void _move(PointerMoveEvent e) {
+    if (_pointers.containsKey(e.pointer)) _pointers[e.pointer] = e.localPosition;
+    if (_pinching) {
+      if (_pointers.length >= 2) _pinchTo();
+      return;
+    }
     final d = _live;
     if (d == null) return;
     final p = _toUnit(e.localPosition);
@@ -132,7 +158,16 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
     if ((p - d.pts.last).distance > 0.008) setState(() => _live = _Live([...d.pts, p]));
   }
 
-  void _up([PointerEvent? _]) {
+  void _up(PointerEvent e) {
+    _pointers.remove(e.pointer);
+    if (_pinching) {
+      if (_pointers.isEmpty) {
+        _pinching = false;
+      } else if (_pointers.length >= 2) {
+        _startPinch();
+      }
+      return;
+    }
     final d = _live;
     setState(() => _live = null);
     if (d == null) return;
@@ -149,6 +184,32 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
     } else {
       _fadeOut(cut);
     }
+  }
+
+  (Offset, Offset) get _twoFingers {
+    final it = _pointers.values.iterator..moveNext();
+    final a = it.current;
+    it.moveNext();
+    return (a, it.current);
+  }
+
+  void _startPinch() {
+    final (a, b) = _twoFingers;
+    _pinchFrom = (dist: math.max((a - b).distance, 1.0), mid: (a + b) / 2, zoom: _zoom, pan: _pan);
+  }
+
+  /// Scales by how far the fingers spread and keeps the point that was under
+  /// their midpoint under it, so two fingers also drag the board around.
+  void _pinchTo() {
+    final from = _pinchFrom;
+    if (from == null) return;
+    final (a, b) = _twoFingers;
+    final zoom = (from.zoom * (a - b).distance / from.dist).clamp(1.0, _maxZoom);
+    final anchor = (from.mid - from.pan) / from.zoom;
+    setState(() {
+      _zoom = zoom;
+      _pan = zoom == 1 ? Offset.zero : (a + b) / 2 - anchor * zoom;
+    });
   }
 
   void _fadeOut(Cut cut) {
@@ -172,20 +233,23 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
         onPointerMove: _move,
         onPointerUp: _up,
         onPointerCancel: _up,
-        child: CustomPaint(
-          size: c.biggest,
-          painter: _BoardPainter(
-            cuts: widget.cuts,
-            fallen: widget.fallen,
-            drops: [for (final d in _drops) (d.pieces, d.cuts, d.anim.value)],
-            misses: [for (final m in _misses) (m.cut, m.anim.value)],
-            live: _live,
-            half: wedgeHalfAngle(widget.folds),
-            s: _s,
-            apex: _apex,
-            color: widget.color,
-            pattern: widget.pattern,
-            showGhosts: widget.showGhosts,
+        // A zoomed-in wedge stays inside the board.
+        child: ClipRect(
+          child: CustomPaint(
+            size: c.biggest,
+            painter: _BoardPainter(
+              cuts: widget.cuts,
+              fallen: widget.fallen,
+              drops: [for (final d in _drops) (d.pieces, d.cuts, d.anim.value)],
+              misses: [for (final m in _misses) (m.cut, m.anim.value)],
+              live: _live,
+              half: wedgeHalfAngle(widget.folds),
+              s: _s,
+              apex: _apex,
+              color: widget.color,
+              pattern: widget.pattern,
+              showGhosts: widget.showGhosts,
+            ),
           ),
         ),
       );

@@ -226,32 +226,16 @@ class _CutScreenState extends State<CutScreen> {
         children: [
           // Night header with rounded bottom corners.
           Container(
-            padding: EdgeInsets.only(top: pad.top, bottom: 12),
+            padding: EdgeInsets.only(top: pad.top, bottom: 4),
             decoration: const BoxDecoration(
               color: C.night800,
               borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
             ),
-            child: Column(
-              children: [
-                TopBar(
-                  left: RoundBtn(LucideIcons.house, label: 'Домой', variant: Variant.ghost, size: BtnSize.s, onTap: widget.onHome),
-                  title: 'Снежинка',
-                  // As wide as the home button, keeping the title centred.
-                  right: const SizedBox(width: 44),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(28, 6, 28, 0),
-                  // Cuts made on this flake.
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(LucideIcons.scissors, size: 20, color: C.ice200),
-                      const SizedBox(width: 8),
-                      Text('${_cuts.length}', style: display(18)),
-                    ],
-                  ),
-                ),
-              ],
+            child: TopBar(
+              left: RoundBtn(LucideIcons.house, label: 'Домой', variant: Variant.ghost, size: BtnSize.s, onTap: widget.onHome),
+              title: 'Снежинка',
+              // As wide as the home button, keeping the title centred.
+              right: const SizedBox(width: 44),
             ),
           ),
           Expanded(
@@ -307,11 +291,18 @@ class _CutScreenState extends State<CutScreen> {
                       ),
                       Positioned(
                         top: 10,
-                        child: Segmented<int>(
-                          options: const [SegOption(4, '4'), SegOption(6, '6')],
-                          value: _folds,
-                          onChanged: _refold,
-                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          // Cuts made on this flake, next to the fold choice.
+                          const Icon(LucideIcons.scissors, size: 20, color: C.snow700),
+                          const SizedBox(width: 6),
+                          Text('${_cuts.length}', style: display(16, weight: FontWeight.w700, color: C.night800)),
+                          const SizedBox(width: 12),
+                          Segmented<int>(
+                            options: const [SegOption(4, '4'), SegOption(6, '6')],
+                            value: _folds,
+                            onChanged: _refold,
+                          ),
+                        ]),
                       ),
                       Positioned(
                         top: 14,

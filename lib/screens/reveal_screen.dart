@@ -59,36 +59,36 @@ class _RevealScreenState extends State<RevealScreen> with SingleTickerProviderSt
     return SkyBackground(
       child: SafeArea(
         child: Stack(children: [
+          // Makes room for the card: a slow, eased glide up (half the padding).
           AnimatedPadding(
-            duration: Motion.pop,
-            curve: Motion.out,
-            padding: EdgeInsets.only(bottom: _done ? 330 : 0),
+            duration: const Duration(milliseconds: 550),
+            curve: Curves.easeInOutCubic,
+            padding: EdgeInsets.only(bottom: _done ? 200 : 0),
             child: Center(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                TweenAnimationBuilder<double>(
-                  tween: Tween(end: _done ? 240 : 320),
-                  duration: Motion.pop,
-                  curve: Motion.out,
-                  builder: (_, size, _) => AnimatedBuilder(
-                    animation: _t,
-                    builder: (_, _) => SnowflakeView(
-                      cuts: widget.cuts,
-                      folds: widget.folds,
-                      color: widget.paper.color,
-                      pattern: widget.paper.pattern,
-                      unfold: _t.value,
-                      size: size,
-                      spin: _t.value * 0.6,
-                    ),
+                AnimatedBuilder(
+                  animation: _t,
+                  builder: (_, _) => SnowflakeView(
+                    cuts: widget.cuts,
+                    folds: widget.folds,
+                    color: widget.paper.color,
+                    pattern: widget.paper.pattern,
+                    unfold: _t.value,
+                    size: 320,
+                    spin: _t.value * 0.6,
                   ),
                 ),
-                if (!_done) ...[
-                  const SizedBox(height: 20),
-                  FadeTransition(
+                const SizedBox(height: 20),
+                // Fades out rather than leaving: removing it would shrink the
+                // centred column and drop the flake before it glides up.
+                AnimatedOpacity(
+                  opacity: _done ? 0 : 1,
+                  duration: Motion.pop,
+                  child: FadeTransition(
                     opacity: _t,
                     child: Text('Раскрываем…', style: display(30, weight: FontWeight.w900, shadows: drop(3))),
                   ),
-                ],
+                ),
               ]),
             ),
           ),
