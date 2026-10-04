@@ -1,15 +1,18 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../theme/tokens.dart';
+import '../widgets/ds.dart';
 import 'detach.dart';
 import 'geometry.dart';
 
 /// Interactive folded wedge: drag a loop to cut a piece out or a line to slit
-/// the paper (tool `free`), or tap-and-drag
-/// to stamp a stencil (`circle`, `square`, `triangle`, `star`, `heart`, `drop`).
-/// Pieces appended to [fallen] drop off the board.
+/// the paper (tool `free`). A stencil tool (`circle`, `square`, `triangle`,
+/// `star`, `heart`, `drop`) puts its shape beside the wedge: drag it about,
+/// turn it by the ring around it, resize it by the arrows outside the ring, and cut
+/// it out with the scissors button, as many times as you like. Pieces appended to [fallen] drop off the board.
 ///
 /// Fills its constraints with the wedge centred in a [widthFor] × [height] box;
 /// a cut can start up to [touchMargin] away from the paper.
@@ -45,12 +48,14 @@ class CutBoard extends StatefulWidget {
   State<CutBoard> createState() => _CutBoardState();
 }
 
+/// A scissors stroke in progress.
 class _Live {
-  const _Live(this.pts, {this.center, this.stencil = false});
+  const _Live(this.pts);
   final Cut pts;
-  final Offset? center;
-  final bool stencil;
 }
+
+/// What a finger is doing to the stencil.
+enum _StencilDrag { move, resize, rotate }
 
 /// Pieces falling off, drawn as the paper was when they let go.
 class _Drop {
@@ -74,6 +79,12 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   @override
   void didUpdateWidget(CutBoard old) {
     super.didUpdateWidget(old);
+    // A new shape (or a reshaped wedge) starts again beside the paper.
+    if (old.tool != widget.tool || old.folds != widget.folds) {
+      _stencilAt = null;
+      _stencilR = _stencilR0;
+      _stencilTurn = 0;
+    }
     final f = widget.fallen, o = old.fallen;
     if (f.length <= o.length || (o.isNotEmpty && !identical(f[o.length - 1], o.last))) return;
     final anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
@@ -126,20 +137,106 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
 
   Offset _toUnit(Offset local) => (local - _apex) / _s;
 
-  Cut _stamp(Offset c, Offset p) => stencilShape(widget.tool, c.dx, c.dy, ((p - c).distance).clamp(0.05, 0.3));
+  // ---- Stencil ------------------------------------------------------------
+
+  bool get _stencilTool => widget.tool != 'free';
+
+  /// Stencil centre and radius in wedge units; null centre = not placed yet.
+  Offset? _stencilAt;
+  static const _stencilR0 = 0.12;
+  double _stencilR = _stencilR0;
+
+  /// Stencil rotation, radians clockwise.
+  double _stencilTurn = 0;
+
+  /// The rotation ring sits just outside the shape; the handle rides on it.
+  static const _ring = 1.35;
+
+  /// How far up the wedge the stencil starts and the scissors button sits:
+  /// low, where the wedge is narrow and there is room either side.
+  static const _stencilRise = 0.18;
+
+  /// Distance in px from the board's side to the scissors button's centre
+  /// (a large round button, 72 across, 20 in from the edge); the stencil
+  /// starts as far in from the other side.
+  static const _sideInset = 20 + 36.0;
+
+  /// Left of the wedge where it narrows, mirroring the scissors button on the
+  /// right, but with the whole ring on the board and never on the paper.
+  Offset get _stencilCentre {
+    const y = -_stencilRise;
+    final edge = -y * math.tan(wedgeHalfAngle(widget.folds));
+    final unit = widget.height * 0.94;
+    final left = -(_origin.dx + _width / 2) / unit; // the board's left side
+    final mirror = left + _sideInset / unit;
+    // Pulled in if the ring (wider than the button) would run off the board.
+    final onBoard = left + _stencilR * _ring + 12 / unit;
+    return _stencilAt ??= Offset(math.min(math.max(mirror, onBoard), -edge - _stencilR * _ring - 0.02), y);
+  }
+
+  Cut get _stencil {
+    final c = _stencilCentre;
+    final cos = math.cos(_stencilTurn), sin = math.sin(_stencilTurn);
+    return [
+      for (final q in stencilShape(widget.tool, c.dx, c.dy, _stencilR))
+        c + Offset((q.dx - c.dx) * cos - (q.dy - c.dy) * sin, (q.dx - c.dx) * sin + (q.dy - c.dy) * cos),
+    ];
+  }
+
+  /// Resize handle: just outside the ring at the lower-right, a fixed
+  /// [_handleGap] px beyond it whatever the zoom.
+  static const _handleGap = 24.0;
+  Offset get _handle => _stencilCentre + const Offset(math.sqrt1_2, math.sqrt1_2) * (_stencilR * _ring + _handleGap / _s);
+
+  _StencilDrag? _drag;
+  Offset _dragLast = Offset.zero;
+
+  void _cutStencil() {
+    if (widget.disabled) return;
+    final cut = _stencil;
+    if (cutsPaper(cut, [...widget.cuts, ...widget.fallen], widget.folds)) {
+      widget.onCut(cut);
+    } else {
+      _fadeOut(cut);
+    }
+  }
 
   void _down(PointerDownEvent e) {
     _pointers[e.pointer] = e.localPosition;
     if (_pointers.length >= 2) {
       // Whatever the first finger started is dropped, not cut.
-      setState(() => _live = null);
+      setState(() {
+        _live = null;
+        _drag = null;
+      });
       _pinching = true;
       _startPinch();
       return;
     }
-    if (_pinching || widget.disabled || !_touchZone.contains(e.localPosition)) return;
+    if (_pinching || widget.disabled) return;
     final p = _toUnit(e.localPosition);
-    setState(() => _live = widget.tool == 'free' ? _Live([p]) : _Live(_stamp(p, p), center: p, stencil: true));
+    if (_stencilTool) {
+      // The handle resizes and the ring turns; a touch anywhere else drags the
+      // stencil along, so even a small one need not be hit exactly.
+      final nearHandle = (e.localPosition - (_apex + _handle * _s)).distance < 32;
+      final fromCentre = (e.localPosition - (_apex + _stencilCentre * _s)).distance;
+      final onRing = (fromCentre - _stencilR * _ring * _s).abs() < 22;
+      _drag = nearHandle
+          ? _StencilDrag.resize
+          : onRing
+              ? _StencilDrag.rotate
+              : _StencilDrag.move;
+      if (_drag == _StencilDrag.rotate) {
+        // A tap on the ring turns the stencil's top to point at it at once;
+        // dragging on from there keeps turning.
+        final a = p - _stencilCentre;
+        setState(() => _stencilTurn = math.atan2(a.dy, a.dx) + math.pi / 2);
+      }
+      _dragLast = p;
+      return;
+    }
+    if (!_touchZone.contains(e.localPosition)) return;
+    setState(() => _live = _Live([p]));
   }
 
   void _move(PointerMoveEvent e) {
@@ -148,13 +245,25 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
       if (_pointers.length >= 2) _pinchTo();
       return;
     }
+    final p = _toUnit(e.localPosition);
+    switch (_drag) {
+      case _StencilDrag.move:
+        setState(() => _stencilAt = _stencilCentre + (p - _dragLast));
+        _dragLast = p;
+        return;
+      case _StencilDrag.resize:
+        setState(() => _stencilR = (((p - _stencilCentre).distance - _handleGap / _s) / _ring).clamp(0.04, 0.35));
+        return;
+      case _StencilDrag.rotate:
+        // Turns by the angle the finger swept round the centre.
+        final a = p - _stencilCentre, b = _dragLast - _stencilCentre;
+        setState(() => _stencilTurn += math.atan2(a.dy, a.dx) - math.atan2(b.dy, b.dx));
+        _dragLast = p;
+        return;
+      case null:
+    }
     final d = _live;
     if (d == null) return;
-    final p = _toUnit(e.localPosition);
-    if (d.stencil) {
-      setState(() => _live = _Live(_stamp(d.center!, p), center: d.center, stencil: true));
-      return;
-    }
     if ((p - d.pts.last).distance > 0.008) setState(() => _live = _Live([...d.pts, p]));
   }
 
@@ -168,17 +277,11 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
       }
       return;
     }
+    _drag = null;
     final d = _live;
     setState(() => _live = null);
-    if (d == null) return;
-    final Cut cut;
-    if (d.stencil) {
-      cut = d.pts;
-    } else if (d.pts.length > 4) {
-      cut = isLoop(d.pts) ? d.pts : slit(d.pts);
-    } else {
-      return;
-    }
+    if (d == null || d.pts.length <= 4) return;
+    final cut = isLoop(d.pts) ? d.pts : slit(d.pts);
     if (cutsPaper(cut, [...widget.cuts, ...widget.fallen], widget.folds)) {
       widget.onCut(cut);
     } else {
@@ -228,7 +331,7 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (_, c) {
       _origin = Offset((c.maxWidth - _width) / 2, (c.maxHeight - widget.height) / 2);
-      return Listener(
+      final board = Listener(
         onPointerDown: _down,
         onPointerMove: _move,
         onPointerUp: _up,
@@ -243,6 +346,9 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
               drops: [for (final d in _drops) (d.pieces, d.cuts, d.anim.value)],
               misses: [for (final m in _misses) (m.cut, m.anim.value)],
               live: _live,
+              stencil: _stencilTool
+                  ? (shape: _stencil, centre: _stencilCentre, ring: _stencilR * _ring, turn: _stencilTurn, handle: _handle)
+                  : null,
               half: wedgeHalfAngle(widget.folds),
               s: _s,
               apex: _apex,
@@ -253,6 +359,18 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
           ),
         ),
       );
+      if (!_stencilTool) return board;
+      // Over the board, so its taps never reach the stencil drag. Right of the
+      // wedge, centred level with where the stencil starts on the left.
+      final rowY = _origin.dy + widget.height - 8 - _stencilRise * widget.height * 0.94;
+      return Stack(children: [
+        Positioned.fill(child: board),
+        Positioned(
+          right: _sideInset - 36,
+          top: rowY - 36,
+          child: RoundBtn(LucideIcons.scissors, label: 'Вырезать', variant: Variant.soft, size: BtnSize.l, disabled: widget.disabled, onTap: _cutStencil),
+        ),
+      ]);
     });
   }
 }
@@ -264,6 +382,7 @@ class _BoardPainter extends CustomPainter {
     required this.drops,
     required this.misses,
     required this.live,
+    required this.stencil,
     required this.half,
     required this.s,
     required this.apex,
@@ -276,6 +395,10 @@ class _BoardPainter extends CustomPainter {
   final List<(List<Cut> pieces, List<Cut> cuts, double t)> drops;
   final List<(Cut cut, double t)> misses;
   final _Live? live;
+
+  /// The stencil's outline, rotation ring (and how far it is turned) and
+  /// resize handle, while a stencil tool is on.
+  final ({Cut shape, Offset centre, double ring, double turn, Offset handle})? stencil;
   final double half, s;
   final Offset apex;
   final Color color;
@@ -336,25 +459,47 @@ class _BoardPainter extends CustomPainter {
       drawDashed(canvas, _outline(c), paint, 8, 6);
     }
 
+    final stroke = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeJoin = StrokeJoin.round
+      ..strokeCap = StrokeCap.round
+      ..color = C.berry600;
+
+    final st = stencil;
+    if (st != null) {
+      final (:shape, :centre, :ring, :turn, :handle) = st;
+      // Ring to grab for turning, on a soft band in the wedge's shadow colour.
+      // Centred, not dropped: an offset would read as the cut landing lower.
+      canvas.drawCircle(
+        centre * s,
+        ring * s,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 9
+          ..color = const Color(0x292E4A94),
+      );
+      final ringLine = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = const Color(0x59E0405E);
+      canvas.drawCircle(centre * s, ring * s, _halo(ringLine));
+      canvas.drawCircle(centre * s, ring * s, ringLine);
+      _paintTurn(canvas, centre * s, ring * s, turn);
+      final path = cutPath(shape, s);
+      canvas.drawPath(path, Paint()..color = const Color(0x2EE0405E));
+      drawDashed(canvas, path, _halo(stroke), 8, 6);
+      drawDashed(canvas, path, stroke, 8, 6);
+      _paintResize(canvas, handle * s);
+    }
+
     final l = live;
     if (l != null && l.pts.length > 1) {
-      final stroke = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 4
-        ..strokeJoin = StrokeJoin.round
-        ..strokeCap = StrokeCap.round
-        ..color = C.berry600;
-      final path = cutPath(l.pts, s, close: l.stencil);
-      if (l.stencil) {
-        canvas.drawPath(path, Paint()..color = const Color(0x2EE0405E));
-        drawDashed(canvas, path, _halo(stroke), 8, 6);
-        drawDashed(canvas, path, stroke, 8, 6);
-      } else {
-        canvas.drawPath(path, _halo(stroke));
-        canvas.drawPath(path, stroke);
-        canvas.drawCircle(l.pts.first * s, 8, Paint()..color = Colors.white);
-        canvas.drawCircle(l.pts.first * s, 6, Paint()..color = C.berry600);
-      }
+      final path = cutPath(l.pts, s, close: false);
+      canvas.drawPath(path, _halo(stroke));
+      canvas.drawPath(path, stroke);
+      canvas.drawCircle(l.pts.first * s, 8, Paint()..color = Colors.white);
+      canvas.drawCircle(l.pts.first * s, 6, Paint()..color = C.berry600);
     }
 
     // Loose pieces fall away, tumbling outwards and fading.
@@ -375,6 +520,80 @@ class _BoardPainter extends CustomPainter {
       }
     }
     canvas.restore();
+  }
+
+  /// Turn gauge on the ring: a notch at the stencil's own upright, and an arc
+  /// from there clockwise round to where that upright now points.
+  void _paintTurn(Canvas canvas, Offset c, double r, double turn) {
+    // Always measured clockwise, 0…360°, so the arc never flips direction.
+    final t = turn % (2 * math.pi);
+    // Whole degrees, as labelled; a hair short of 360° reads (and draws) as 0.
+    final deg = (t * 180 / math.pi).round() % 360;
+    const up = -math.pi / 2;
+    // As fine as the ring's own line.
+    final notch = Paint()
+      ..strokeWidth = 1.5
+      ..color = const Color(0x59E0405E);
+    final dir = Offset(math.cos(up), math.sin(up));
+    canvas.drawLine(c + dir * (r - 9), c + dir * (r + 9), _halo(notch));
+    canvas.drawLine(c + dir * (r - 9), c + dir * (r + 9), notch);
+    if (deg != 0) {
+      final arc = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6
+        ..strokeCap = StrokeCap.round
+        ..color = C.berry600;
+      final rect = Rect.fromCircle(center: c, radius: r);
+      canvas.drawArc(rect, up, t, false, _halo(arc));
+      canvas.drawArc(rect, up, t, false, arc);
+    }
+    // Where the upright points now; on the notch while unturned.
+    final end = Offset(math.cos(up + t), math.sin(up + t));
+    canvas.drawCircle(c + end * r, 6, Paint()..color = Colors.white);
+    canvas.drawCircle(c + end * r, 4, Paint()..color = C.berry600);
+
+    // Centred just above the ring.
+    // White outline under the figures, like the halo under the arrows.
+    TextPainter text(TextStyle style) =>
+        TextPainter(text: TextSpan(text: '$deg°', style: style), textDirection: TextDirection.ltr)..layout();
+    final outline = text(display(14).copyWith(
+      foreground: Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..strokeJoin = StrokeJoin.round
+        ..color = Colors.white,
+    ));
+    final label = text(display(14, color: C.berry700));
+    final at = c + Offset(-label.width / 2, -r - 12 - label.height);
+    outline.paint(canvas, at);
+    label.paint(canvas, at);
+  }
+
+  /// Resize handle: a diagonal double arrow pointing out from and in to the
+  /// stencil, on a white halo so it reads over paper.
+  void _paintResize(Canvas canvas, Offset at) {
+    const d = Offset(math.sqrt1_2, math.sqrt1_2);
+    const n = Offset(-math.sqrt1_2, math.sqrt1_2);
+    const len = 11.0, head = 6.0;
+    final path = Path()
+      ..moveTo((at - d * len).dx, (at - d * len).dy)
+      ..lineTo((at + d * len).dx, (at + d * len).dy);
+    for (final sgn in const [1.0, -1.0]) {
+      final tip = at + d * (len * sgn);
+      final back = tip - d * (head * sgn);
+      path
+        ..moveTo((back + n * head).dx, (back + n * head).dy)
+        ..lineTo(tip.dx, tip.dy)
+        ..lineTo((back - n * head).dx, (back - n * head).dy);
+    }
+    Paint line(double w, Color c) => Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = c;
+    canvas.drawPath(path, line(7, Colors.white));
+    canvas.drawPath(path, line(3, C.berry600));
   }
 
   /// White underlay a little wider than the red line [p], so cut marks still
@@ -401,6 +620,8 @@ class _BoardPainter extends CustomPainter {
       misses.isNotEmpty ||
       o.misses.isNotEmpty ||
       o.live != live ||
+      o.stencil != stencil ||
+      o.apex != apex ||
       o.color != color ||
       o.pattern != pattern ||
       o.s != s;

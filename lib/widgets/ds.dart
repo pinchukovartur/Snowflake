@@ -8,7 +8,7 @@ import '../theme/tokens.dart';
 
 // ---- Buttons -------------------------------------------------------------
 
-enum Variant { primary, secondary, reward, success, light, ghost }
+enum Variant { primary, secondary, reward, success, light, soft, ghost }
 
 class _V {
   const _V(this.bg, this.lip, this.fg, {this.shadowText = false});
@@ -22,6 +22,8 @@ const _variants = {
   Variant.reward: _V(C.sun500, C.sun700, C.night800),
   Variant.success: _V(C.mint500, C.mint700, C.night800),
   Variant.light: _V(C.paper, C.snow300, C.night800),
+  // Pale berry, matching the stencil outline on the cut board.
+  Variant.soft: _V(C.berry100, C.berry300, C.berry700),
   Variant.ghost: _V(C.surfaceGlass, Colors.transparent, Colors.white),
 };
 

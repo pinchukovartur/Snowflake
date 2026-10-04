@@ -272,7 +272,7 @@ class _CutScreenState extends State<CutScreen> {
                               child: HintBubble(
                                 _tool == 'free'
                                     ? 'Обведи пальцем кусочек, чтобы вырезать'
-                                    : 'Нажми на бумагу, потяни — и трафарет станет больше',
+                                    : 'Двигай трафарет и жми на ножницы',
                                 tailUp: true,
                               ),
                             ),
