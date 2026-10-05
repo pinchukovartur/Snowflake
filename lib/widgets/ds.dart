@@ -296,6 +296,7 @@ class DsDialog extends StatelessWidget {
 }
 
 /// Modal dialog over a night-900/60% blurred scrim, popping in with a bounce.
+/// A tap on the scrim closes it unless [dismissible] is false.
 Future<T?> showDsDialog<T>(BuildContext context, {required Widget Function(BuildContext) builder, bool dismissible = true}) {
   return showGeneralDialog<T>(
     context: context,
@@ -306,23 +307,29 @@ Future<T?> showDsDialog<T>(BuildContext context, {required Widget Function(Build
     pageBuilder: (ctx, _, _) => builder(ctx),
     transitionBuilder: (ctx, anim, _, child) {
       final pop = CurvedAnimation(parent: anim, curve: Motion.bounce, reverseCurve: Curves.easeIn);
-      return BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 2 * anim.value, sigmaY: 2 * anim.value),
-        child: ColoredBox(
-          color: Color.fromRGBO(16, 26, 63, .6 * anim.value),
-          child: SafeArea(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: FadeTransition(
-                  opacity: anim,
-                  child: ScaleTransition(scale: Tween(begin: .6, end: 1.0).animate(pop), child: Material(type: MaterialType.transparency, child: child)),
-                ),
+      return Stack(children: [
+        // The scrim only paints: taps beside the card fall through to the
+        // route's barrier, which closes the dialog.
+        Positioned.fill(
+          child: IgnorePointer(
+            child: BackdropFilter(
+              filter: ui.ImageFilter.blur(sigmaX: 2 * anim.value, sigmaY: 2 * anim.value),
+              child: ColoredBox(color: Color.fromRGBO(16, 26, 63, .6 * anim.value)),
+            ),
+          ),
+        ),
+        SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: FadeTransition(
+                opacity: anim,
+                child: ScaleTransition(scale: Tween(begin: .6, end: 1.0).animate(pop), child: Material(type: MaterialType.transparency, child: child)),
               ),
             ),
           ),
         ),
-      );
+      ]);
     },
   );
 }
