@@ -1,6 +1,6 @@
 # Снежинки (Snowflake) — Privacy Policy
 
-_Last updated: 5 October 2026 · Applies to the Android app `com.Pinchukov.Snowflake`_
+_Last updated: 5 October 2026 (rev. 2) · Applies to the Android app `com.Pinchukov.Snowflake`_
 
 Published page: https://pinchukovartur.github.io/Snowflake/privacy-policy.html
 
@@ -8,20 +8,26 @@ Published page: https://pinchukovartur.github.io/Snowflake/privacy-policy.html
 
 ## English
 
-**Снежинки does not collect, store or share any personal data.** The app has no
+**Снежинки does not collect or share any personal data.** The app has no
 user accounts, no analytics, no advertising and no in-app purchases. The only
 network request it makes is downloading two fonts from Google Fonts.
 
 ### What the app stores
 
-Nothing personal. Your levels, stars, snowflake collection and settings (music,
-sounds, vibration) are kept only in the device's memory while the app is open,
-and are discarded when you close it. They are never written to storage or sent
-anywhere.
+Nothing personal. So that your work isn't lost between launches, the app saves
+in its own private storage on your device, using the standard Android
+preferences mechanism:
 
-The only files the app saves are the two font files it downloads (see below).
-They are kept in the app's own private storage so they don't have to be
-downloaded again, and contain no information about you.
+- the snowflakes in your collection (the shapes you cut, paper colour and
+  pattern, and the name the game gives them, such as "Snowflake 1");
+- your settings (music, sounds, vibration);
+- an in-game snowflake counter;
+- whether you have already made your first cut, so the hint isn't shown again.
+
+This data never leaves your device and is not sent anywhere.
+
+The app also keeps the two font files it downloads (see below), so they don't
+have to be downloaded again. They contain no information about you.
 
 ### Network access and third parties
 
@@ -56,9 +62,10 @@ Parents or guardians with questions can contact us at the address below.
 
 ### Deleting your data
 
-The app keeps no personal data to delete. Uninstalling it removes the
-downloaded font files along with it. You can also clear them at any time
-through Android Settings → Apps → Снежинки → Storage → Clear data.
+The app keeps no personal data. Uninstalling it removes your collection,
+settings and the downloaded fonts along with it. You can also clear them at any
+time through Android Settings → Apps → Снежинки → Storage → Clear data, or
+delete individual snowflakes from the collection inside the game.
 
 ### Permissions
 
@@ -81,21 +88,27 @@ Questions about this policy: pinchukovartur@gmail.com
 
 ## Русский
 
-**«Снежинки» не собирают, не хранят и не передают никаких персональных
-данных.** В приложении нет учётных записей, аналитики, рекламы и встроенных
+**«Снежинки» не собирают и не передают никаких персональных данных.** В приложении нет учётных записей, аналитики, рекламы и встроенных
 покупок. Единственный сетевой запрос, который оно делает, — загрузка двух
 шрифтов из Google Fonts.
 
 ### Что приложение сохраняет
 
-Ничего личного. Пройденные уровни, звёзды, коллекция снежинок и настройки
-(музыка, звуки, вибрация) хранятся только в памяти устройства, пока приложение
-открыто, и стираются при его закрытии. Они не записываются в хранилище и
-никуда не отправляются.
+Ничего личного. Чтобы ваши работы не терялись между запусками, приложение
+сохраняет в собственном приватном хранилище на устройстве, используя
+стандартный механизм настроек Android:
 
-Единственные файлы, которые приложение сохраняет, — два загруженных файла
-шрифтов (см. ниже). Они лежат в собственном приватном хранилище приложения,
-чтобы не скачивать их повторно, и не содержат никакой информации о вас.
+- снежинки из вашей коллекции (вырезанные формы, цвет и узор бумаги и
+  название, которое даёт игра, например «Снежинка 1»);
+- настройки (музыка, звуки, вибрация);
+- внутриигровой счётчик снежинок;
+- отметку о том, что вы уже сделали первый вырез, чтобы подсказка больше не
+  показывалась.
+
+Эти данные не покидают устройство и никуда не отправляются.
+
+Также приложение хранит два загруженных файла шрифтов (см. ниже), чтобы не
+скачивать их повторно. Они не содержат никакой информации о вас.
 
 ### Доступ к сети и третьи лица
 
@@ -130,10 +143,10 @@ Fonts (`fonts.gstatic.com`) — сервиса компании Google LLC. Эт
 
 ### Удаление данных
 
-Персональных данных, которые нужно удалять, приложение не хранит. При удалении
-приложения вместе с ним удаляются и загруженные файлы шрифтов. Также их можно
-очистить в любой момент: Настройки Android → Приложения → Снежинки →
-Хранилище → Очистить данные.
+Персональных данных приложение не хранит. При удалении приложения вместе с ним
+удаляются коллекция, настройки и загруженные шрифты. Также их можно очистить в
+любой момент: Настройки Android → Приложения → Снежинки → Хранилище → Очистить
+данные, а отдельные снежинки — удалить из коллекции прямо в игре.
 
 ### Разрешения
 

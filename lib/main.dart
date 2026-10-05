@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_state.dart';
 import 'screens/cut_screen.dart';
@@ -9,8 +10,9 @@ import 'screens/reveal_screen.dart';
 import 'snowflake/geometry.dart';
 import 'theme/tokens.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -19,11 +21,12 @@ void main() {
     systemNavigationBarColor: Colors.transparent,
     systemNavigationBarIconBrightness: Brightness.light,
   ));
-  runApp(const SnowflakeApp());
+  runApp(SnowflakeApp(game: GameState(prefs)));
 }
 
 class SnowflakeApp extends StatelessWidget {
-  const SnowflakeApp({super.key});
+  const SnowflakeApp({super.key, required this.game});
+  final GameState game;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +37,7 @@ class SnowflakeApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: C.night800, brightness: Brightness.dark),
         scaffoldBackgroundColor: C.night800,
       ),
-      home: const GameShell(),
+      home: GameShell(game: game),
     );
   }
 }
@@ -43,14 +46,15 @@ enum Screen { home, cut, reveal, gallery }
 
 /// Router + game state, mirrors ui_kits/app/App.jsx.
 class GameShell extends StatefulWidget {
-  const GameShell({super.key});
+  const GameShell({super.key, required this.game});
+  final GameState game;
 
   @override
   State<GameShell> createState() => _GameShellState();
 }
 
 class _GameShellState extends State<GameShell> {
-  final _game = GameState();
+  late final _game = widget.game;
   Screen _screen = Screen.home;
   int _runKey = 0;
   var _session = CutSession();
