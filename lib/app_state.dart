@@ -51,8 +51,8 @@ class Paper {
 }
 
 
-/// Game state (currency, collection, settings), kept in the app's preferences
-/// so it survives restarts.
+/// Game state (currency, collection, settings, the home window), kept in the
+/// app's preferences so it survives restarts.
 class GameState extends ChangeNotifier {
   GameState(this._prefs) {
     coins = _prefs.getInt(_kCoins) ?? coins;
@@ -72,6 +72,23 @@ class GameState extends ChangeNotifier {
         debugPrint('Collection not restored: $e');
       }
     }
+    // Panes refer to flakes by their place in [saved], so this follows it.
+    final win = _prefs.getString(_kWindow);
+    if (win != null) {
+      try {
+        (jsonDecode(win) as Map).forEach((k, v) {
+          final pane = int.parse(k as String), i = v as int?;
+          if (i == null) {
+            window[pane] = null;
+          } else if (i >= 0 && i < saved.length) {
+            window[pane] = saved[i];
+          }
+        });
+      } catch (e) {
+        window.clear();
+        debugPrint('Window not restored: $e');
+      }
+    }
   }
 
   final SharedPreferences _prefs;
@@ -82,6 +99,7 @@ class GameState extends ChangeNotifier {
   static const _kVibration = 'settings.vibration';
   static const _kHasCut = 'hint.hasCut';
   static const _kCollection = 'collection.v1';
+  static const _kWindow = 'window.v1';
 
   int coins = 128;
 
@@ -96,6 +114,10 @@ class GameState extends ChangeNotifier {
   }
 
   bool _hasCut = false;
+
+  /// The home screen has shown the game's title since launch; coming back to
+  /// it leaves the window clear.
+  bool titleShown = false;
 
   final saved = <SavedFlake>[
     const SavedFlake(name: 'Кружево', preset: 'lace'),
@@ -120,14 +142,44 @@ class GameState extends ChangeNotifier {
   void save(SavedFlake f) {
     saved.insert(0, f);
     _storeCollection();
+    _storeWindow();
     notifyListeners();
   }
 
   void remove(SavedFlake f) {
     saved.remove(f);
+    window.removeWhere((_, w) => identical(w, f));
     _storeCollection();
+    _storeWindow();
     notifyListeners();
   }
 
   void _storeCollection() => _prefs.setString(_kCollection, jsonEncode([for (final f in saved) f.toJson()]));
+
+  /// What fills the home window, by pane index (row by row, left sash first):
+  /// a flake, or null for a pane the player chose to leave clear. Panes not
+  /// here are still to fill.
+  final window = <int, SavedFlake?>{};
+
+  /// Hangs [f] in [pane], or leaves the pane clear when [f] is null. A flake
+  /// hangs in one pane at most.
+  void hang(int pane, SavedFlake? f) {
+    window[pane] = f;
+    _storeWindow();
+    notifyListeners();
+  }
+
+  /// Whether [f] hangs in some pane of the window.
+  bool isHung(SavedFlake f) => window.values.any((w) => identical(w, f));
+
+  void unhang(int pane) {
+    window.remove(pane);
+    _storeWindow();
+    notifyListeners();
+  }
+
+  /// Panes as indices into [saved] (null = left clear); kept in step with it.
+  void _storeWindow() => _prefs.setString(_kWindow, jsonEncode({
+        for (final MapEntry(:key, :value) in window.entries) '$key': value == null ? null : saved.indexOf(value),
+      }));
 }

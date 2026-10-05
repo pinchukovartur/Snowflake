@@ -8,12 +8,13 @@ import '../theme/tokens.dart';
 
 // ---- Buttons -------------------------------------------------------------
 
-enum Variant { primary, secondary, reward, success, light, soft, ghost }
+enum Variant { primary, secondary, reward, success, light, soft, dark, ghost }
 
 class _V {
-  const _V(this.bg, this.lip, this.fg, {this.shadowText = false});
+  const _V(this.bg, this.lip, this.fg, {this.shadowText = false, this.border});
   final Color bg, lip, fg;
   final bool shadowText;
+  final Color? border;
 }
 
 const _variants = {
@@ -24,6 +25,8 @@ const _variants = {
   Variant.light: _V(C.paper, C.snow300, C.night800),
   // Pale berry, matching the stencil outline on the cut board.
   Variant.soft: _V(C.berry100, C.berry300, C.berry700),
+  // Dark glass like CurrencyPill, for controls over busy backgrounds.
+  Variant.dark: _V(Color(0x8C101A3F), Colors.transparent, Colors.white, border: Color(0x40C4ECFF)),
   Variant.ghost: _V(C.surfaceGlass, Colors.transparent, Colors.white),
 };
 
@@ -117,7 +120,8 @@ class Btn extends StatelessWidget {
             decoration: BoxDecoration(
               color: disabled ? C.snow200 : v.bg,
               borderRadius: BorderRadius.circular(s.r),
-              boxShadow: variant == Variant.ghost
+              border: v.border != null && !disabled ? Border.all(color: v.border!, width: 2) : null,
+              boxShadow: v.lip == Colors.transparent
                   ? null
                   : [BoxShadow(color: disabled ? C.snow300 : v.lip, offset: Offset(0, lipH))],
             ),
@@ -204,8 +208,9 @@ class RoundBtn extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: disabled ? C.snow200 : v.bg,
+                border: v.border != null && !disabled ? Border.all(color: v.border!, width: 2) : null,
                 boxShadow: [
-                  if (variant != Variant.ghost && !flat)
+                  if (v.lip != Colors.transparent && !flat)
                     BoxShadow(color: disabled ? C.snow300 : v.lip, offset: Offset(0, pressed ? 1 : s.lip)),
                 ],
               ),
@@ -614,8 +619,11 @@ class CurrencyPill extends StatelessWidget {
 
 /// Night sky gradient with the repeating snow-dot pattern.
 class SkyBackground extends StatelessWidget {
-  const SkyBackground({super.key, required this.child});
+  const SkyBackground({super.key, required this.child, this.softDots = false});
   final Widget child;
+
+  /// Blurs the snow dots, as when the sky is seen through frosted glass.
+  final bool softDots;
 
   @override
   Widget build(BuildContext context) {
@@ -628,12 +636,15 @@ class SkyBackground extends StatelessWidget {
           stops: [0, .7, 1],
         ),
       ),
-      child: CustomPaint(painter: _SnowDotsPainter(), child: child),
+      child: CustomPaint(painter: _SnowDotsPainter(soft: softDots), child: child),
     );
   }
 }
 
 class _SnowDotsPainter extends CustomPainter {
+  _SnowDotsPainter({required this.soft});
+  final bool soft;
+
   static const _layers = [
     (tile: 120.0, fx: .20, fy: .30, r: 1.75, a: .55),
     (tile: 80.0, fx: .70, fy: .60, r: 1.25, a: .35),
@@ -644,6 +655,7 @@ class _SnowDotsPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     for (final l in _layers) {
       final p = Paint()..color = Color.fromRGBO(255, 255, 255, l.a);
+      if (soft) p.maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
       for (var y = 0.0; y < size.height; y += l.tile) {
         for (var x = 0.0; x < size.width; x += l.tile) {
           canvas.drawCircle(Offset(x + l.tile * l.fx, y + l.tile * l.fy), l.r, p);
@@ -653,7 +665,7 @@ class _SnowDotsPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_SnowDotsPainter oldDelegate) => false;
+  bool shouldRepaint(_SnowDotsPainter oldDelegate) => oldDelegate.soft != soft;
 }
 
 class TopBar extends StatelessWidget {
