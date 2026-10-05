@@ -43,3 +43,15 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Project extras
+.flutter-plugins
+.fvm/
+*.apk
+*.aab
+*.ipa
+*.dSYM.zip
+.env
+.env.*
+.claude/settings.local.json
+Thumbs.db

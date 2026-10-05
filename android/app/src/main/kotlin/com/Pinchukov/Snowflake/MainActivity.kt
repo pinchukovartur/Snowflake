@@ -1,4 +1,4 @@
-package com.redbarkgames.snowflake
+package com.Pinchukov.Snowflake
 
 import io.flutter.embedding.android.FlutterActivity
 
