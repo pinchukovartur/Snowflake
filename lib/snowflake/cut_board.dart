@@ -1,10 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../theme/tokens.dart';
-import '../widgets/ds.dart';
 import 'detach.dart';
 import 'geometry.dart';
 
@@ -30,6 +28,10 @@ class CutBoard extends StatefulWidget {
     this.pattern = 'plain',
     this.disabled = false,
     this.showGhosts = true,
+    this.stencilReset = 0,
+    this.stencilCut = 0,
+    this.topInset = 0,
+    this.bottomInset = 0,
   });
 
   final List<Cut> cuts, fallen;
@@ -40,6 +42,19 @@ class CutBoard extends StatefulWidget {
   final Color color;
   final String pattern;
   final bool disabled, showGhosts;
+
+  /// Bump to send the stencil back to where it starts, at its first size and
+  /// turn.
+  final int stencilReset;
+
+  /// Bump to cut the stencil out where it stands (the scissors button lives
+  /// with the stencil list, outside the board).
+  final int stencilCut;
+
+  /// Room at the top and foot taken by controls laid over the board: the
+  /// wedge (as drawn: arc to apex) centres in the space between them, while
+  /// the board itself, and its clip, runs on underneath.
+  final double topInset, bottomInset;
 
   static double widthFor(double height, int folds) =>
       math.max(2 * math.sin(wedgeHalfAngle(folds)) * height * 0.94 + 40, 160).ceilToDouble();
@@ -79,11 +94,17 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   @override
   void didUpdateWidget(CutBoard old) {
     super.didUpdateWidget(old);
-    // A new shape (or a reshaped wedge) starts again beside the paper.
-    if (old.tool != widget.tool || old.folds != widget.folds) {
+    // A new shape (or a reshaped wedge, or a reset) starts again beside the paper.
+    if (old.tool != widget.tool || old.folds != widget.folds || old.stencilReset != widget.stencilReset) {
       _stencilAt = null;
       _stencilR = _stencilR0;
       _stencilTurn = 0;
+    }
+    if (old.stencilCut != widget.stencilCut) {
+      // After this frame: cutting reports back to the parent, which is building.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _cutStencil();
+      });
     }
     final f = widget.fallen, o = old.fallen;
     if (f.length <= o.length || (o.isNotEmpty && !identical(f[o.length - 1], o.last))) return;
@@ -152,26 +173,11 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   /// The rotation ring sits just outside the shape; the handle rides on it.
   static const _ring = 1.35;
 
-  /// How far up the wedge the stencil starts and the scissors button sits:
-  /// low, where the wedge is narrow and there is room either side.
-  static const _stencilRise = 0.18;
-
-  /// Distance in px from the board's side to the scissors button's centre
-  /// (a large round button, 72 across, 20 in from the edge); the stencil
-  /// starts as far in from the other side.
-  static const _sideInset = 20 + 36.0;
-
-  /// Left of the wedge where it narrows, mirroring the scissors button on the
-  /// right, but with the whole ring on the board and never on the paper.
+  /// Where the stencil starts: the middle of the paper, the wedge's centroid
+  /// (2·sin h / 3h of the radius up from the apex, for half-angle h).
   Offset get _stencilCentre {
-    const y = -_stencilRise;
-    final edge = -y * math.tan(wedgeHalfAngle(widget.folds));
-    final unit = widget.height * 0.94;
-    final left = -(_origin.dx + _width / 2) / unit; // the board's left side
-    final mirror = left + _sideInset / unit;
-    // Pulled in if the ring (wider than the button) would run off the board.
-    final onBoard = left + _stencilR * _ring + 12 / unit;
-    return _stencilAt ??= Offset(math.min(math.max(mirror, onBoard), -edge - _stencilR * _ring - 0.02), y);
+    final h = wedgeHalfAngle(widget.folds);
+    return _stencilAt ??= Offset(0, -2 * math.sin(h) / (3 * h));
   }
 
   Cut get _stencil {
@@ -330,7 +336,9 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (_, c) {
-      _origin = Offset((c.maxWidth - _width) / 2, (c.maxHeight - widget.height) / 2);
+      // The drawn wedge spans 0.06·h − 8 … h − 8 of its box; centre that span.
+      final mid = (widget.topInset + c.maxHeight - widget.bottomInset) / 2;
+      _origin = Offset((c.maxWidth - _width) / 2, mid - 0.53 * widget.height + 8);
       final board = Listener(
         onPointerDown: _down,
         onPointerMove: _move,
@@ -359,18 +367,7 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
           ),
         ),
       );
-      if (!_stencilTool) return board;
-      // Over the board, so its taps never reach the stencil drag. Right of the
-      // wedge, centred level with where the stencil starts on the left.
-      final rowY = _origin.dy + widget.height - 8 - _stencilRise * widget.height * 0.94;
-      return Stack(children: [
-        Positioned.fill(child: board),
-        Positioned(
-          right: _sideInset - 36,
-          top: rowY - 36,
-          child: RoundBtn(LucideIcons.scissors, label: 'Вырезать', variant: Variant.soft, size: BtnSize.l, disabled: widget.disabled, onTap: _cutStencil),
-        ),
-      ]);
+      return board;
     });
   }
 }
@@ -572,6 +569,7 @@ class _BoardPainter extends CustomPainter {
   /// Resize handle: a diagonal double arrow pointing out from and in to the
   /// stencil, on a white halo so it reads over paper.
   void _paintResize(Canvas canvas, Offset at) {
+    // Along the diagonal out to the lower-right.
     const d = Offset(math.sqrt1_2, math.sqrt1_2);
     const n = Offset(-math.sqrt1_2, math.sqrt1_2);
     const len = 11.0, head = 6.0;

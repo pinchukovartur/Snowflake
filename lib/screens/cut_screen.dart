@@ -12,15 +12,42 @@ import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
 import '../widgets/ds.dart';
 
-const _tools = [
-  ('free', LucideIcons.scissors, 'Ножницы'),
+/// Height of the tool row laid over the foot of the board (a small round
+/// button, as in the stencil list, and its lip, plus the gap below).
+const _toolsH = 44 + 4 + 12.0;
+
+/// Where the board starts, under the top row: just below the fold toggle
+/// (row padding 12, the home button 64 + lip 6, a 12 gap, the folds mark
+/// 22 + 4, and the 52-tall toggle).
+const _boardTop = 12 + 70 + 12 + 26 + 52.0;
+
+/// Room kept above the wedge on the board: the rest of the top row (to the
+/// foot of the 176-tall example panel) and 12 clear.
+const _toggleFoot = 12 + 176 - _boardTop + 12;
+
+/// Height of the stencil list: just the picked stencil's circle, a small
+/// 44 button grown ×1.12 when on (≈ 49.3).
+const _stencilsH = 50.0;
+
+/// Room around a 44 button inside the list, so the grown circle fills it.
+const _stencilsPad = (_stencilsH - 44) / 2;
+
+/// Top of the stencil list above the tools, from the board's foot. Its row is
+/// centred on the 78-tall scissors button beside it, so the list itself sits
+/// (78 − 50) / 2 = 14 above the row's foot.
+const _stencilsTop = _toolsH - 8 + 14 + _stencilsH;
+
+/// Stencil shapes, picked from the list the stencil button opens.
+const _stencils = [
+  ('star', LucideIcons.star, 'Звезда'),
   ('circle', LucideIcons.circle, 'Круг'),
   ('triangle', LucideIcons.triangle, 'Треугольник'),
   ('square', LucideIcons.square, 'Квадрат'),
-  ('star', LucideIcons.star, 'Звезда'),
   ('heart', LucideIcons.heart, 'Сердце'),
+  ('drop', LucideIcons.droplet, 'Капля'),
+  ('diamond', LucideIcons.diamond, 'Ромб'),
+  ('hexagon', LucideIcons.hexagon, 'Шестиугольник'),
 ];
-
 
 /// Cuts on the board and the pieces each one dropped, in step, on paper
 /// folded [folds] times.
@@ -43,6 +70,9 @@ class CutSession {
   /// tool choices aren't steps.
   final past = <CutState>[], future = <CutState>[];
   String tool = 'free';
+
+  /// The stencil last picked, shown on the stencil button.
+  String stencil = 'star';
   Paper paper = const Paper();
 }
 
@@ -67,18 +97,40 @@ class _CutScreenState extends State<CutScreen> {
   int get _folds => _s.folds;
   String get _tool => _s.tool;
   set _tool(String t) => _s.tool = t;
+
+  /// The list of stencils is open above the toolbar.
+  bool _stencilsOpen = false;
+
+  /// Bumped by the scissors button to cut the stencil out.
+  int _stencilCut = 0;
+
+  /// The example flake shown in the top-right panel.
+  int _example = 0;
+
+  void _pickStencil(String id) => setState(() {
+    if (_tool == id) {
+      // The stencil already out goes back to where it starts.
+      _stencilReset++;
+    } else {
+      _tool = id;
+      _s.stencil = id;
+    }
+  });
   Paper get _paper => _s.paper;
+
+  /// Bumped by tapping the stencil already chosen, to put it back where it starts.
+  int _stencilReset = 0;
   set _paper(Paper p) => _s.paper = p;
 
   CutState get _state => (cuts: _cuts, drops: _drops, folds: _folds);
 
   void _show(CutState st) => setState(() {
-        _s
-          ..cuts = st.cuts
-          ..drops = st.drops
-          ..fallen = [for (final d in st.drops) ...d]
-          ..folds = st.folds;
-      });
+    _s
+      ..cuts = st.cuts
+      ..drops = st.drops
+      ..fallen = [for (final d in st.drops) ...d]
+      ..folds = st.folds;
+  });
 
   /// A new step: remembered for undo, and whatever was undone is dropped.
   void _step(CutState next) {
@@ -89,7 +141,6 @@ class _CutScreenState extends State<CutScreen> {
 
   void _addCut(Cut c) {
     if (widget.game.vibration) HapticFeedback.lightImpact();
-    widget.game.hasCut = true;
     final cuts = [..._cuts, c];
     _step((cuts: cuts, drops: [..._drops, detachedPieces(cuts, _fallen, _folds)], folds: _folds));
   }
@@ -114,7 +165,14 @@ class _CutScreenState extends State<CutScreen> {
     _show(_s.future.removeLast());
   }
 
+  /// The paper dialog is up; the palette tool shows as on meanwhile.
+  bool _paperOpen = false;
+
   void _openPaper() {
+    setState(() {
+      _stencilsOpen = false;
+      _paperOpen = true;
+    });
     showDsDialog(
       context,
       builder: (ctx) {
@@ -134,16 +192,18 @@ class _CutScreenState extends State<CutScreen> {
                 children: [
                   const SizedBox(height: 4),
                   // Solid drop shadow like the colour swatches', so white paper reads on the white card.
-                  Stack(children: [
-                    Transform.translate(
-                      offset: const Offset(0, 5),
-                      child: ColorFiltered(
-                        colorFilter: const ColorFilter.mode(C.snow300, BlendMode.srcIn),
-                        child: SnowflakeView(preset: 'classic', size: 170, color: _paper.color, pattern: _paper.pattern, glow: false),
+                  Stack(
+                    children: [
+                      Transform.translate(
+                        offset: const Offset(0, 5),
+                        child: ColorFiltered(
+                          colorFilter: const ColorFilter.mode(C.snow300, BlendMode.srcIn),
+                          child: SnowflakeView(preset: 'classic', size: 170, color: _paper.color, pattern: _paper.pattern, glow: false),
+                        ),
                       ),
-                    ),
-                    SnowflakeView(preset: 'classic', size: 170, color: _paper.color, pattern: _paper.pattern, glow: false),
-                  ]),
+                      SnowflakeView(preset: 'classic', size: 170, color: _paper.color, pattern: _paper.pattern, glow: false),
+                    ],
+                  ),
                   const SizedBox(height: 20),
                   // Pastels, then bold colours, six to a row.
                   for (var r = 0; r < paperColors.length; r += 6) ...[
@@ -214,7 +274,9 @@ class _CutScreenState extends State<CutScreen> {
           },
         );
       },
-    );
+    ).then((_) {
+      if (mounted) setState(() => _paperOpen = false);
+    });
   }
 
   @override
@@ -224,124 +286,234 @@ class _CutScreenState extends State<CutScreen> {
       color: C.surfaceTable,
       child: Column(
         children: [
-          // Night header with rounded bottom corners.
-          Container(
-            padding: EdgeInsets.only(top: pad.top, bottom: 4),
-            decoration: const BoxDecoration(
-              color: C.night800,
-              borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-            ),
-            child: TopBar(
-              left: RoundBtn(LucideIcons.house, label: 'Домой', variant: Variant.ghost, size: BtnSize.s, onTap: widget.onHome),
-              title: 'Снежинка',
-              // As wide as the home button, keeping the title centred.
-              right: const SizedBox(width: 44),
-            ),
-          ),
+          // Night strip behind the status bar.
+          Container(height: pad.top, color: C.night800),
+          // The board runs up under the top row to just below the fold toggle,
+          // so a cut can start that high; the row's own controls (and the
+          // example panel) sit over it and keep their touches.
           Expanded(
-            child: LayoutBuilder(
-              builder: (_, c) {
-                final h = math.min(410.0, c.maxHeight - 24);
-                return SizedBox.fromSize(
-                  size: c.biggest,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Positioned.fill(
-                        child: CutBoard(
-                          height: h,
-                          // Cuts may start well off the paper, so a slit can run in from outside.
-                          touchMargin: 120,
-                          folds: _folds,
-                          cuts: _cuts,
-                          fallen: _fallen,
-                          tool: _tool,
-                          color: _paper.color,
-                          pattern: _paper.pattern,
-                          onCut: _addCut,
-                        ),
-                      ),
-                      if (!widget.game.hasCut)
-                        Positioned(
-                          // Under the wedge's apex (CutBoard centres an h-high box, apex 8 above its bottom).
-                          top: math.min((c.maxHeight + h) / 2 + 6, c.maxHeight - 84),
-                          left: 16,
-                          right: 16,
-                          child: IgnorePointer(
-                            child: Center(
-                              child: HintBubble(
-                                _tool == 'free'
-                                    ? 'Обведи пальцем кусочек, чтобы вырезать'
-                                    : 'Двигай трафарет и жми на ножницы',
-                                tailUp: true,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  top: _boardTop,
+                  child: LayoutBuilder(
+                    builder: (_, c) {
+                      // The wedge sits midway between the fold toggle and the stencil
+                      // list, with at least 12 clear above and below.
+                      final h = math.min(410.0, (c.maxHeight - _toggleFoot - _stencilsTop - 24) / 0.94);
+                      final apexY = (_toggleFoot + c.maxHeight - _stencilsTop) / 2 + 0.47 * h;
+                      return SizedBox.fromSize(
+                        size: c.biggest,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Positioned.fill(
+                              child: CutBoard(
+                                height: h,
+                                topInset: _toggleFoot,
+                                bottomInset: _stencilsTop,
+                                // Cuts may start well off the paper, so a slit can run in from outside.
+                                touchMargin: 120,
+                                folds: _folds,
+                                cuts: _cuts,
+                                fallen: _fallen,
+                                tool: _tool,
+                                stencilReset: _stencilReset,
+                                stencilCut: _stencilCut,
+                                color: _paper.color,
+                                pattern: _paper.pattern,
+                                onCut: _addCut,
                               ),
                             ),
+                            if (!widget.game.hintDismissed)
+                              Positioned(
+                                // Under the wedge's apex (CutBoard centres an h-high box, apex 8 above its bottom).
+                                top: math.min(apexY + 14, c.maxHeight - _toolsH - 84),
+                                left: 16,
+                                right: 16,
+                                child: IgnorePointer(child: Center(child: HintBubble(_tool == 'free' ? 'Обведи пальцем кусочек, чтобы вырезать' : 'Двигай трафарет и жми на ножницы', tailUp: true))),
+                              ),
+                            // With a stencil out: its list (when open), scrolled
+                            // sideways, and the scissors that cut it, at the right.
+                            if (_tool != 'free' && !_paperOpen)
+                              Positioned(
+                                left: 16,
+                                right: 16,
+                                bottom: _toolsH - 8,
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: !_stencilsOpen
+                                          ? const SizedBox()
+                                          : Container(
+                                              height: _stencilsH,
+                                              decoration: BoxDecoration(
+                                                color: C.paper,
+                                                borderRadius: BorderRadius.circular(26),
+                                                boxShadow: const [BoxShadow(color: C.snow300, offset: Offset(0, 4))],
+                                              ),
+                                              clipBehavior: Clip.antiAlias,
+                                              child: ListView.separated(
+                                                scrollDirection: Axis.horizontal,
+                                                padding: const EdgeInsets.all(_stencilsPad),
+                                                itemCount: _stencils.length,
+                                                separatorBuilder: (_, _) => const SizedBox(width: 2),
+                                                itemBuilder: (_, i) {
+                                                  final (id, icon, label) = _stencils[i];
+                                                  // Just the 44 circle in the layout: the button's
+                                                  // lip room (flat here anyway) hangs below it.
+                                                  return SizedBox.square(
+                                                    dimension: 44,
+                                                    child: OverflowBox(
+                                                      alignment: Alignment.topCenter,
+                                                      maxHeight: 48,
+                                                      child: RoundBtn(
+                                                        icon,
+                                                        label: label,
+                                                        size: BtnSize.s,
+                                                        variant: _tool == id ? Variant.secondary : Variant.light,
+                                                        active: _tool == id,
+                                                        // Flat even when picked: the colour alone marks it.
+                                                        flat: true,
+                                                        onTap: () => _pickStencil(id),
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    RoundBtn(LucideIcons.scissors, label: 'Вырезать', variant: Variant.soft, size: BtnSize.l, onTap: () => setState(() => _stencilCut++)),
+                                  ],
+                                ),
+                              ),
+                            // Tools float over the board's foot, so nothing hides the paper
+                            // between them and the action row.
+                            Positioned(
+                              left: 24,
+                              right: 24,
+                              bottom: 12,
+                              child: Builder(
+                                builder: (_) {
+                                  // The paper dialog takes over: neither cutting tool shows as on meanwhile.
+                                  final stencilOn = _tool != 'free' && !_paperOpen;
+                                  final scissorsOn = _tool == 'free' && !_paperOpen;
+                                  final (_, stencilIcon, _) = _stencils.firstWhere((t) => t.$1 == _s.stencil);
+                                  // Centred: stencils, scissors in the middle, paper.
+                                  return Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      // Shows the last stencil; opens the list of all of them.
+                                      RoundBtn(
+                                        stencilIcon,
+                                        label: 'Трафареты',
+                                        size: BtnSize.s,
+                                        variant: stencilOn || _stencilsOpen ? Variant.secondary : Variant.light,
+                                        active: stencilOn,
+                                        // From the scissors it takes out the last stencil (a circle at
+                                        // first) along with the list; after that it only opens and
+                                        // closes the list.
+                                        onTap: () => setState(() {
+                                          if (_tool != 'free') {
+                                            _stencilsOpen = !_stencilsOpen;
+                                          } else {
+                                            _tool = _s.stencil;
+                                            _stencilsOpen = true;
+                                          }
+                                        }),
+                                      ),
+                                      const SizedBox(width: 20),
+                                      RoundBtn(
+                                        LucideIcons.scissors,
+                                        label: 'Ножницы',
+                                        size: BtnSize.s,
+                                        variant: scissorsOn ? Variant.secondary : Variant.light,
+                                        active: scissorsOn,
+                                        onTap: () => setState(() {
+                                          _tool = 'free';
+                                          _stencilsOpen = false;
+                                        }),
+                                      ),
+                                      const SizedBox(width: 20),
+                                      RoundBtn(
+                                        LucideIcons.palette,
+                                        label: 'Бумага',
+                                        size: BtnSize.s,
+                                        variant: _paperOpen ? Variant.secondary : Variant.light,
+                                        active: _paperOpen,
+                                        onTap: _openPaper,
+                                      ),
+                                    ],
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(screenPad, 12, screenPad, 0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Home, and below it this flake's folds and cut count.
+                      Expanded(
+                        child: Padding(
+                          // Flush with the top of the example panel.
+                          padding: EdgeInsets.zero,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Btn('Домой', icon: LucideIcons.house, variant: Variant.orange, size: BtnSize.l, fontSize: 26, padX: 12, block: true, onTap: widget.onHome),
+                              const SizedBox(height: 12),
+                              // Folds and cuts of this flake, each under its mark.
+                              Row(
+                                children: [
+                                  Column(
+                                    children: [
+                                      const Icon(_foldsIcon, size: 22, color: C.snow700),
+                                      const SizedBox(height: 4),
+                                      Segmented<int>(options: const [SegOption(4, '4'), SegOption(6, '6')], value: _folds, onChanged: _refold),
+                                    ],
+                                  ),
+                                  const SizedBox(width: 14),
+                                  // Lets touches through to the board. Fixed width, so the
+                                  // scissors stay put however many digits the count has.
+                                  IgnorePointer(
+                                    child: SizedBox(
+                                      width: 40,
+                                      child: Column(
+                                        children: [
+                                          const Icon(LucideIcons.scissors, size: 22, color: C.snow700),
+                                          const SizedBox(height: 4),
+                                          SizedBox(
+                                            height: 52,
+                                            child: Center(
+                                              child: Text(
+                                                '${_cuts.length}',
+                                                style: display(18, weight: FontWeight.w700, color: C.night800),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                      Positioned(
-                        top: 14,
-                        left: 16,
-                        child: RoundBtn(
-                          LucideIcons.rotateCcw,
-                          label: 'Начать заново',
-                          size: BtnSize.s,
-                          disabled: _cuts.isEmpty,
-                          onTap: _reset,
-                        ),
                       ),
-                      Positioned(
-                        top: 10,
-                        child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          // Cuts made on this flake, next to the fold choice.
-                          const Icon(LucideIcons.scissors, size: 20, color: C.snow700),
-                          const SizedBox(width: 6),
-                          Text('${_cuts.length}', style: display(16, weight: FontWeight.w700, color: C.night800)),
-                          const SizedBox(width: 12),
-                          Segmented<int>(
-                            options: const [SegOption(4, '4'), SegOption(6, '6')],
-                            value: _folds,
-                            onChanged: _refold,
-                          ),
-                        ]),
-                      ),
-                      Positioned(
-                        top: 14,
-                        right: 16,
-                        child: RoundBtn(
-                          LucideIcons.palette,
-                          label: 'Бумага',
-                          variant: Variant.secondary,
-                          size: BtnSize.s,
-                          onTap: _openPaper,
-                        ),
-                      ),
+                      const SizedBox(width: 12),
+                      _ExamplePanel(index: _example, onStep: (d) => setState(() => _example = (_example + d) % _examples.length)),
                     ],
                   ),
-                );
-              },
-            ),
-          ),
-          Container(
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
-            decoration: BoxDecoration(
-              color: C.paper,
-              borderRadius: BorderRadius.circular(26),
-              boxShadow: const [BoxShadow(color: C.snow300, offset: Offset(0, 4))],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                for (final (id, icon, label) in _tools)
-                  RoundBtn(
-                    icon,
-                    label: label,
-                    size: BtnSize.s,
-                    variant: _tool == id ? Variant.secondary : Variant.light,
-                    active: _tool == id,
-                    flat: _tool != id,
-                    onTap: () => setState(() => _tool = id),
-                  ),
+                ),
               ],
             ),
           ),
@@ -349,25 +521,17 @@ class _CutScreenState extends State<CutScreen> {
             padding: EdgeInsets.fromLTRB(24, 0, 24, pad.bottom + 14),
             child: Row(
               children: [
-                RoundBtn(
-                  LucideIcons.undo2,
-                  label: 'Отменить',
-                  disabled: _s.past.isEmpty,
-                  onTap: _undo,
-                ),
-                const SizedBox(width: 14),
-                RoundBtn(
-                  LucideIcons.redo2,
-                  label: 'Вернуть',
-                  disabled: _s.future.isEmpty,
-                  onTap: _redo,
-                ),
-                const SizedBox(width: 14),
+                RoundBtn(LucideIcons.rotateCcw, label: 'Начать заново', size: BtnSize.s, disabled: _cuts.isEmpty, onTap: _reset),
+                const SizedBox(width: 10),
+                RoundBtn(LucideIcons.undo2, label: 'Отменить', size: BtnSize.s, disabled: _s.past.isEmpty, onTap: _undo),
+                const SizedBox(width: 10),
+                RoundBtn(LucideIcons.redo2, label: 'Вернуть', size: BtnSize.s, disabled: _s.future.isEmpty, onTap: _redo),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Btn(
                     'Раскрыть',
+                    // No icon: with three round buttons beside it, the word needs the room.
                     size: BtnSize.l,
-                    icon: LucideIcons.sparkles,
                     block: true,
                     disabled: _cuts.isEmpty,
                     onTap: () => widget.onUnfold([..._cuts, ..._fallen], _folds, _paper),
@@ -380,6 +544,102 @@ class _CutScreenState extends State<CutScreen> {
       ),
     );
   }
+}
+
+/// Sample flakes for the example panel: what the presets, folds and papers can make.
+const _examples = [
+  (preset: 'lace', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
+  (preset: 'star', folds: 6, color: Color(0xFFFFC7D0), pattern: 'dots'),
+  (preset: 'classic', folds: 4, color: Color(0xFFC4ECFF), pattern: 'sparkle'),
+  (preset: 'lace', folds: 4, color: Color(0xFFFFE08A), pattern: 'stripes'),
+  (preset: 'star', folds: 4, color: Color(0xFFBFF0DC), pattern: 'plain'),
+  (preset: 'classic', folds: 6, color: Color(0xFFDCD2FF), pattern: 'checks'),
+  (preset: 'lace', folds: 6, color: Color(0xFFE0405E), pattern: 'dots'),
+  (preset: 'star', folds: 6, color: Color(0xFF3E61B8), pattern: 'sparkle'),
+];
+
+/// Mark for the number of folds, wherever it is shown.
+const _foldsIcon = LucideIcons.layers2;
+
+/// One example flake at a time, stepped through with the arrows, with how
+/// many folds and cuts it took.
+class _ExamplePanel extends StatelessWidget {
+  const _ExamplePanel({required this.index, required this.onStep});
+  final int index;
+  final ValueChanged<int> onStep;
+
+  @override
+  Widget build(BuildContext context) {
+    final e = _examples[index];
+    final cuts = snowflakePresets[e.preset]?.length ?? 0;
+    Widget arrow(int step) => GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onStep(step),
+      child: SizedBox(width: 36, height: 60, child: CustomPaint(painter: _ChevronPainter(step))),
+    );
+    // Wider than tall: the arrows get room beside the flake instead of over it.
+    return Container(
+      width: 204,
+      height: 176,
+      decoration: BoxDecoration(color: C.night800, borderRadius: BorderRadius.circular(28)),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SnowflakeView(preset: e.preset, folds: e.folds, color: e.color, pattern: e.pattern, size: 140, glow: false),
+          Positioned(left: 0, child: arrow(-1)),
+          Positioned(right: 0, child: arrow(1)),
+          Positioned(
+            right: 8,
+            bottom: 8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+              decoration: BoxDecoration(color: const Color(0xCC101A3F), borderRadius: BorderRadius.circular(12)),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(_foldsIcon, size: 18, color: Colors.white),
+                  const SizedBox(width: 4),
+                  Text('${e.folds}', style: display(16, color: Colors.white)),
+                  const SizedBox(width: 12),
+                  const Icon(LucideIcons.scissors, size: 18, color: Colors.white),
+                  const SizedBox(width: 4),
+                  Text('$cuts', style: display(16, color: Colors.white)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A chevron pointing left (`step` −1) or right (+1), red on a white halo
+/// like the cut lines on the board.
+class _ChevronPainter extends CustomPainter {
+  _ChevronPainter(this.step);
+  final int step;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final dx = 6.0 * step, dy = 11.0;
+    final path = Path()
+      ..moveTo(c.dx - dx, c.dy - dy)
+      ..lineTo(c.dx + dx, c.dy)
+      ..lineTo(c.dx - dx, c.dy + dy);
+    Paint line(double w, Color color) => Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..color = color;
+    canvas.drawPath(path, line(8, Colors.white));
+    canvas.drawPath(path, line(4, C.berry600));
+  }
+
+  @override
+  bool shouldRepaint(_ChevronPainter o) => o.step != step;
 }
 
 /// A square of paper in [color] and [pattern] filling its width, for the
@@ -422,10 +682,7 @@ class _PaperSwatchPainter extends CustomPainter {
     // The pattern tile is a bitmap: lay it out in device pixels so it stays crisp.
     canvas.save();
     canvas.scale(1 / dpr);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Offset.zero & size * dpr, Radius.circular(_radius * dpr)),
-      makePaperFill(color, pattern, 100 * dpr),
-    );
+    canvas.drawRRect(RRect.fromRectAndRadius(Offset.zero & size * dpr, Radius.circular(_radius * dpr)), makePaperFill(color, pattern, 100 * dpr));
     canvas.restore();
     canvas.drawRRect(
       r.deflate(1),

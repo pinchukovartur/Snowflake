@@ -69,7 +69,7 @@ const paperPatterns = [
 
 double wedgeHalfAngle(int folds) => math.pi / (2 * folds);
 
-/// Stencil polygon in wedge units. tool: circle | square | triangle | star | heart | drop
+/// Stencil polygon in wedge units. tool: circle | square | triangle | star | heart | drop | diamond | hexagon
 Cut stencilShape(String tool, double cx, double cy, double r) {
   final pts = <Offset>[];
   void p(double a, double rr) => pts.add(Offset(cx + math.cos(a) * rr, cy + math.sin(a) * rr));
@@ -102,6 +102,14 @@ Cut stencilShape(String tool, double cx, double cy, double r) {
       for (var i = 0; i < 28; i++) {
         final t = i / 28 * math.pi * 2;
         pts.add(Offset(cx + math.sin(t) * math.sin(t / 2) * r * 0.9, cy - math.cos(t) * r));
+      }
+    case 'diamond':
+      for (final (a, rr) in const [(-90, 1.0), (0, 0.62), (90, 1.0), (180, 0.62)]) {
+        p(a * math.pi / 180, r * rr);
+      }
+    case 'hexagon':
+      for (var i = 0; i < 6; i++) {
+        p(-math.pi / 2 + i * math.pi / 3, r);
       }
   }
   return pts;

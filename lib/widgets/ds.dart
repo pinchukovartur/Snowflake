@@ -8,7 +8,7 @@ import '../theme/tokens.dart';
 
 // ---- Buttons -------------------------------------------------------------
 
-enum Variant { primary, secondary, reward, success, light, soft, dark, ghost }
+enum Variant { primary, secondary, reward, success, light, soft, orange, dark, ghost }
 
 class _V {
   const _V(this.bg, this.lip, this.fg, {this.shadowText = false, this.border});
@@ -25,6 +25,8 @@ const _variants = {
   Variant.light: _V(C.paper, C.snow300, C.night800),
   // Pale berry, matching the stencil outline on the cut board.
   Variant.soft: _V(C.berry100, C.berry300, C.berry700),
+  // Warm orange (the orange paper's), standing out against the night panels.
+  Variant.orange: _V(Color(0xFFFF9A3C), Color(0xFFD26A12), Colors.white, shadowText: true),
   // Dark glass like CurrencyPill, for controls over busy backgrounds.
   Variant.dark: _V(Color(0x8C101A3F), Colors.transparent, Colors.white, border: Color(0x40C4ECFF)),
   Variant.ghost: _V(C.surfaceGlass, Colors.transparent, Colors.white),
@@ -79,10 +81,15 @@ class Btn extends StatelessWidget {
     this.iconColor,
     this.block = false,
     this.disabled = false,
+    this.fontSize,
+    this.padX,
     this.onTap,
   });
 
   final String label;
+
+  /// Overrides of [size]'s label size and side padding, for a one-off button.
+  final double? fontSize, padX;
   final Variant variant;
   final BtnSize size;
   final IconData? icon, iconRight;
@@ -115,7 +122,7 @@ class Btn extends StatelessWidget {
             curve: Motion.out,
             height: s.h,
             width: block ? double.infinity : null,
-            padding: EdgeInsets.symmetric(horizontal: s.px),
+            padding: EdgeInsets.symmetric(horizontal: padX ?? s.px),
             transform: Matrix4.translationValues(0, pressed ? s.lip - 2 : 0, 0),
             decoration: BoxDecoration(
               color: disabled ? C.snow200 : v.bg,
@@ -138,8 +145,8 @@ class Btn extends StatelessWidget {
                       label,
                       maxLines: 1,
                       softWrap: false,
-                      style: display(s.fs, color: fg).copyWith(
-                        letterSpacing: s.fs * 0.01,
+                      style: display(fontSize ?? s.fs, color: fg).copyWith(
+                        letterSpacing: (fontSize ?? s.fs) * 0.01,
                         shadows: v.shadowText && !disabled
                             ? const [Shadow(color: Color(0x2E000000), offset: Offset(0, 2))]
                             : null,

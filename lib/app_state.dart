@@ -59,7 +59,6 @@ class GameState extends ChangeNotifier {
     music = _prefs.getBool(_kMusic) ?? music;
     sfx = _prefs.getBool(_kSfx) ?? sfx;
     vibration = _prefs.getBool(_kVibration) ?? vibration;
-    _hasCut = _prefs.getBool(_kHasCut) ?? false;
     final raw = _prefs.getString(_kCollection);
     if (raw != null) {
       try {
@@ -97,7 +96,6 @@ class GameState extends ChangeNotifier {
   static const _kMusic = 'settings.music';
   static const _kSfx = 'settings.sfx';
   static const _kVibration = 'settings.vibration';
-  static const _kHasCut = 'hint.hasCut';
   static const _kCollection = 'collection.v1';
   static const _kWindow = 'window.v1';
 
@@ -105,19 +103,19 @@ class GameState extends ChangeNotifier {
 
   bool music = true, sfx = true, vibration = false;
 
-  /// The player has made a cut at least once, so the cutting hint stays hidden.
-  bool get hasCut => _hasCut;
-  set hasCut(bool v) {
-    if (v == _hasCut) return;
-    _hasCut = v;
-    _prefs.setBool(_kHasCut, v);
-  }
-
-  bool _hasCut = false;
-
   /// The home screen has shown the game's title since launch; coming back to
   /// it leaves the window clear.
   bool titleShown = false;
+
+  /// The player has touched the cut board since launch, so its hint stays
+  /// hidden until the next launch (not stored).
+  bool hintDismissed = false;
+
+  void dismissHint() {
+    if (hintDismissed) return;
+    hintDismissed = true;
+    notifyListeners();
+  }
 
   final saved = <SavedFlake>[
     const SavedFlake(name: 'Кружево', preset: 'lace'),

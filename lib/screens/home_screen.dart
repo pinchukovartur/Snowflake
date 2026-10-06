@@ -10,6 +10,11 @@ import '../theme/tokens.dart';
 import '../widgets/ds.dart';
 import '../widgets/frosted_window.dart';
 
+
+/// The coin counter is off until coins are earned and spent somewhere;
+/// the coins themselves are still kept (see GameState.coins).
+const _showCoins = false;
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.game, required this.onPlay, required this.onGallery});
   final GameState game;
@@ -246,7 +251,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   padding: const EdgeInsets.fromLTRB(screenPad, 8, screenPad, 8),
                   child: Row(
                     children: [
-                      CurrencyPill(amount: g.coins),
+                      if (_showCoins) CurrencyPill(amount: g.coins),
                       const Spacer(),
                       RoundBtn(LucideIcons.settings, label: 'Настройки', variant: Variant.dark, size: BtnSize.s, onTap: _openSettings),
                     ],

@@ -102,17 +102,22 @@ class _GameShellState extends State<GameShell> {
           onGallery: () => _go(Screen.gallery),
         );
       case Screen.cut:
-        return CutScreen(
-          game: _game,
-          session: _session,
-          onHome: () => _go(Screen.home),
-          onUnfold: (shape, folds, paper) => setState(() {
-            _cuts = shape;
-            _folds = folds;
-            _paper = paper;
-            _savedFlake = null;
-            _screen = Screen.reveal;
-          }),
+        // Any touch on the screen puts the hint away until the next launch.
+        return Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (_) => _game.dismissHint(),
+          child: CutScreen(
+            game: _game,
+            session: _session,
+            onHome: () => _go(Screen.home),
+            onUnfold: (shape, folds, paper) => setState(() {
+              _cuts = shape;
+              _folds = folds;
+              _paper = paper;
+              _savedFlake = null;
+              _screen = Screen.reveal;
+            }),
+          ),
         );
       case Screen.reveal:
         return RevealScreen(
