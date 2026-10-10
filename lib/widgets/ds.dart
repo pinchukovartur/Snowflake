@@ -468,11 +468,14 @@ class SegOption<T> {
 }
 
 class Segmented<T> extends StatelessWidget {
-  const Segmented({super.key, required this.options, required this.value, this.onChanged, this.dark = false});
+  const Segmented({super.key, required this.options, required this.value, this.onChanged, this.dark = false, this.fontSize = 16});
   final List<SegOption<T>> options;
   final T value;
   final ValueChanged<T>? onChanged;
   final bool dark;
+
+  /// Label size; the segments keep their height whatever it is.
+  final double fontSize;
 
   @override
   Widget build(BuildContext context) {
@@ -504,7 +507,7 @@ class Segmented<T> extends StatelessWidget {
                     final fg = o.value == value ? C.night800 : (dark ? C.ice200 : C.snow700);
                     return Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
                       if (o.icon != null) ...[Icon(o.icon, size: 20, color: fg), const SizedBox(width: 8)],
-                      Text(o.label, style: display(16, weight: FontWeight.w700, color: fg)),
+                      Text(o.label, style: display(fontSize, weight: FontWeight.w700, color: fg)),
                     ]);
                   }),
                 ),
@@ -626,8 +629,15 @@ class CurrencyPill extends StatelessWidget {
 
 /// Night sky gradient with the repeating snow-dot pattern.
 class SkyBackground extends StatelessWidget {
-  const SkyBackground({super.key, required this.child, this.softDots = false});
+  const SkyBackground({super.key, required this.child, this.softDots = false, this.colors = night});
   final Widget child;
+
+  /// The night sky, top to bottom.
+  static const night = [C.night800, C.night600, C.night500];
+
+  /// Sky colours, at the stops of [night]; darker ones for a sky seen through
+  /// hazy glass, so it comes out as dark as [night].
+  final List<Color> colors;
 
   /// Blurs the snow dots, as when the sky is seen through frosted glass.
   final bool softDots;
@@ -635,12 +645,12 @@ class SkyBackground extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [C.night800, C.night600, C.night500],
-          stops: [0, .7, 1],
+          colors: colors,
+          stops: const [0, .7, 1],
         ),
       ),
       child: CustomPaint(painter: _SnowDotsPainter(soft: softDots), child: child),

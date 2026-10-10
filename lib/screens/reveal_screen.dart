@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -6,8 +8,9 @@ import '../snowflake/geometry.dart';
 import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
 import '../widgets/ds.dart';
+import '../widgets/flake_turn_zoom.dart';
 
-/// Unfolds the cut wedge fold by fold (2.4s) and then pops the result card.
+/// Unfolds the cut wedge fold by fold and then pops the result card.
 class RevealScreen extends StatefulWidget {
   const RevealScreen({
     super.key,
@@ -34,11 +37,14 @@ class RevealScreen extends StatefulWidget {
   State<RevealScreen> createState() => _RevealScreenState();
 }
 
-class _RevealScreenState extends State<RevealScreen> with SingleTickerProviderStateMixin {
-  late final _anim = AnimationController(vsync: this, duration: Motion.unfold);
-  // Linear: each fold eases on its own in SnowflakePainter.
-  late final _t = _anim;
+class _RevealScreenState extends State<RevealScreen> with TickerProviderStateMixin, FlakeTurnZoom {
+  // Stretched where flaps open one after the other, so each keeps its pace;
+  // linear, as each fold eases on its own in SnowflakePainter.
+  late final _anim = AnimationController(vsync: this, duration: Motion.unfold * unfoldSpan(widget.folds));
   bool _done = false;
+
+  @override
+  double get flakeRadius => 160;
 
   @override
   void initState() {
@@ -59,6 +65,7 @@ class _RevealScreenState extends State<RevealScreen> with SingleTickerProviderSt
     return SkyBackground(
       child: SafeArea(
         child: Stack(children: [
+          turnZoomGestures(),
           // Makes room for the card: a slow, eased glide up (half the padding).
           AnimatedPadding(
             duration: const Duration(milliseconds: 550),
@@ -66,16 +73,18 @@ class _RevealScreenState extends State<RevealScreen> with SingleTickerProviderSt
             padding: EdgeInsets.only(bottom: _done ? 200 : 0),
             child: Center(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                AnimatedBuilder(
-                  animation: _t,
-                  builder: (_, _) => SnowflakeView(
+                turnZoomFlake(
+                  also: _anim,
+                  (turn) => SnowflakeView(
                     cuts: widget.cuts,
                     folds: widget.folds,
                     color: widget.paper.color,
                     pattern: widget.paper.pattern,
-                    unfold: _t.value,
+                    unfold: _anim.value,
                     size: 320,
-                    spin: _t.value * 0.6,
+                    // One turn of the flake's own symmetry (2π / folds), so it comes to rest
+                    // as every flake does, a crease upright.
+                    spin: _anim.value * 2 * math.pi / widget.folds + turn,
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -85,7 +94,7 @@ class _RevealScreenState extends State<RevealScreen> with SingleTickerProviderSt
                   opacity: _done ? 0 : 1,
                   duration: Motion.pop,
                   child: FadeTransition(
-                    opacity: _t,
+                    opacity: _anim,
                     child: Text('Раскрываем…', style: display(30, weight: FontWeight.w900, shadows: drop(3))),
                   ),
                 ),

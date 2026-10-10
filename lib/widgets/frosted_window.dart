@@ -25,16 +25,22 @@ class WindowFrame extends StatelessWidget {
       Rect.fromLTRB(inner.center.dx, base, inner.right, inner.bottom).deflate(_stile),
     ];
     return [
-      for (var r = 0; r < rows; r++)
-        for (final g in glasses)
-          Rect.fromLTRB(
-            g.left,
-            g.top + r * g.height / rows + (r > 0 ? _bar / 2 : 0),
-            g.right,
-            g.top + (r + 1) * g.height / rows - (r < rows - 1 ? _bar / 2 : 0),
-          ),
+      for (final (top, bottom) in _rowSpans(glasses.first.top, glasses.first.bottom, rows))
+        for (final g in glasses) Rect.fromLTRB(g.left, top, g.right, bottom),
     ];
   }
+
+  /// Height of a frame [width] wide with [rows] rows of panes [paneHeight] tall.
+  static double heightFor(double width, int rows, double paneHeight) =>
+      _fixedHeight(width) + rows * paneHeight + [for (var r = 1; r < rows; r++) _barAbove(r)].fold(0.0, (a, b) => a + b);
+
+  /// How tall each of [rows] panes comes out in a frame of [size].
+  static double paneHeightFor(Size size, int rows) => heightFor(size.width, rows, 0) <= size.height
+      ? (size.height - heightFor(size.width, rows, 0)) / rows
+      : 0;
+
+  /// The casing, fanlight and sash rails: the frame's height without its panes and bars.
+  static double _fixedHeight(double width) => 2 * _casing + (width - 2 * _casing) * _archRise + 2 * _stile;
 
   /// Middle height of pane row [row] (0 = the top one under the arch).
   static double paneMiddle(Size size, int rows, int row) => paneRects(size, rows)[row * 2].center.dy;
@@ -91,6 +97,31 @@ const _wood = Color(0xFF7D98C6), _woodLight = Color(0xFFB4C8E8), _woodDark = Col
 /// them meet in the middle), and the glazing bars.
 const _casing = 16.0, _stile = 9.0, _bar = 7.0;
 
+/// Every [_group] rows the bar is [_groupBar] wide, setting the window out in
+/// bands the player can fill each on a theme of their own.
+const _group = 3, _groupBar = 18.0;
+
+/// Width of the bar above pane row [r] (r ≥ 1).
+double _barAbove(int r) => r % _group == 0 ? _groupBar : _bar;
+
+/// Top and bottom of each of [rows] pane rows in glass running from [top] to
+/// [bottom], the bars between them taken out.
+List<(double, double)> _rowSpans(double top, double bottom, int rows) {
+  var bars = 0.0;
+  for (var r = 1; r < rows; r++) {
+    bars += _barAbove(r);
+  }
+  final h = (bottom - top - bars) / rows;
+  final spans = <(double, double)>[];
+  var y = top;
+  for (var r = 0; r < rows; r++) {
+    if (r > 0) y += _barAbove(r);
+    spans.add((y, y + h));
+    y += h;
+  }
+  return spans;
+}
+
 /// Panes across each sash: one, so only the middle stile divides the window
 /// upright.
 const _cols = 1;
@@ -120,28 +151,29 @@ class _FramePainter extends CustomPainter {
     ];
     for (final sash in sashes) {
       final glass = sash.deflate(_stile);
-      final paneW = glass.width / _cols, paneH = glass.height / _rows;
+      final paneW = glass.width / _cols;
+      final spans = _rowSpans(glass.top, glass.bottom, _rows);
       // Snow on the sill outside every bar and the bottom rail, a drift per
       // pane: behind the glass, so the wood hides its foot.
       for (var r = 1; r <= _rows; r++) {
         final last = r == _rows;
-        final top = last ? glass.bottom : glass.top + r * paneH - _bar / 2;
+        final top = last ? glass.bottom : spans[r - 1].$2;
         for (var c = 0; c < _cols; c++) {
           final x0 = glass.left + c * paneW + (c > 0 ? _bar / 2 : 0);
           final x1 = glass.left + (c + 1) * paneW - (c < _cols - 1 ? _bar / 2 : 0);
-          _snow(canvas, x0, x1, top, last ? _stile : _bar, seed++);
+          _snow(canvas, x0, x1, top, last ? _stile : _barAbove(r), seed++);
         }
       }
-      for (var r = 0; r < _rows; r++) {
+      for (final (top, bottom) in spans) {
         for (var c = 0; c < _cols; c++) {
-          _shadeGlass(canvas, Rect.fromLTWH(glass.left + c * paneW, glass.top + r * paneH, paneW, paneH));
+          _shadeGlass(canvas, Rect.fromLTRB(glass.left + c * paneW, top, glass.left + (c + 1) * paneW, bottom));
         }
       }
       for (var c = 1; c < _cols; c++) {
         _woodBar(canvas, Rect.fromCenter(center: Offset(glass.left + c * paneW, glass.center.dy), width: _bar, height: glass.height));
       }
       for (var r = 1; r < _rows; r++) {
-        _woodBar(canvas, Rect.fromCenter(center: Offset(glass.center.dx, glass.top + r * paneH), width: glass.width, height: _bar));
+        _woodBar(canvas, Rect.fromLTRB(glass.left, spans[r - 1].$2, glass.right, spans[r].$1));
       }
       _woodRing(canvas, sash, glass);
     }

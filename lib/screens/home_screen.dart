@@ -15,6 +15,11 @@ import '../widgets/frosted_window.dart';
 /// the coins themselves are still kept (see GameState.coins).
 const _showCoins = false;
 
+/// The night, darker under the window: the glass's white haze (about 11% where
+/// it is clear of glints) lifts it back to the other screens' sky. Each is
+/// `(c − 255·a) / (1 − a)` of [SkyBackground.night], for a = .11.
+const _skyUnderHaze = [Color(0xFF001047), Color(0xFF153487), Color(0xFF264EAF)];
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.game, required this.onPlay, required this.onGallery});
   final GameState game;
@@ -97,8 +102,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   bool get _titleUp => _showTitle && !_title.isCompleted;
 
-  /// Pane rows in each sash of the window.
-  static const _rows = 8;
+  /// Pane rows in each sash of the window, in bands of three.
+  static const _rows = 24;
+
+  /// The panes are as tall as when eight rows filled two screens.
+  static double _frameHeight(Size view) =>
+      WindowFrame.heightFor(view.width, _rows, WindowFrame.paneHeightFor(Size(view.width, view.height * 2), 8));
 
   /// Lets the player fill window [pane] with a flake from the collection or
   /// leave it clear, or take down what is there. Flakes hanging in other
@@ -132,7 +141,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             mainAxisSpacing: 10,
             crossAxisSpacing: 10,
             children: [
-              for (final f in g.collection)
+              for (final f in g.saved)
                 if (identical(f, current) || !g.isHung(f))
                   _PickTile(flake: f, selected: identical(f, current), onTap: () => choose(ctx, f))
                 else
@@ -163,6 +172,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final hazeHeight = _playMiddle + _hazeFade + bottomInset;
     return SkyBackground(
       softDots: true,
+      colors: _skyUnderHaze,
       child: Stack(
         children: [
           Positioned.fill(
@@ -170,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               child: _Snowfall(ticker: _ticker, hazeHeight: hazeHeight, hazeFade: _hazeFade),
             ),
           ),
-          // The snow outside stays put; the frame, two screens tall, scrolls
+          // The snow outside stays put; the frame, taller than the screen, scrolls
           // past with the title on its top half, and a sill under it as tall
           // as the buttons, so the bottom row can come up clear of them.
           Positioned.fill(
@@ -178,49 +188,52 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             child: ScrollConfiguration(
               behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
               child: LayoutBuilder(
-                builder: (_, c) => SingleChildScrollView(
-                  child: Column(children: [
-                    SizedBox(
-                      height: c.maxHeight * 2,
-                      child: Stack(children: [
-                        const Positioned.fill(child: WindowFrame(rows: _rows, onSill: true)),
-                        // Each pane holds a flake from the collection, or a plus to
-                        // hang one; the top row waits while the title is up.
-                        for (final (i, pane) in WindowFrame.paneRects(Size(c.maxWidth, c.maxHeight * 2), _rows).indexed)
-                          if (i >= 2 || !_titleUp)
-                            Positioned.fromRect(
-                              rect: pane,
-                              child: _Pane(flake: g.window[i], clear: g.window.containsKey(i) && g.window[i] == null, onTap: () => _pick(i)),
-                            ),
-                        if (_titleUp)
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            // Centred in the top pane under the arch, clear of the bars.
-                            top: WindowFrame.paneMiddle(Size(c.maxWidth, c.maxHeight * 2), _rows, 0),
-                            child: FractionalTranslation(
-                              translation: const Offset(0, -.5),
-                              child: FadeTransition(
-                                opacity: _titleOpacity,
-                                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                                  Text(
-                                    'Снежинки',
-                                    style: display(56, weight: FontWeight.w900, height: 1, shadows: drop(5)).copyWith(letterSpacing: -.56),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Сложи. Вырежи. Раскрой.',
-                                    style: body(17, weight: FontWeight.w800, color: C.ice200),
-                                  ),
-                                ]),
+                builder: (_, c) {
+                  final frame = Size(c.maxWidth, _frameHeight(c.biggest));
+                  return SingleChildScrollView(
+                    child: Column(children: [
+                      SizedBox(
+                        height: frame.height,
+                        child: Stack(children: [
+                          const Positioned.fill(child: WindowFrame(rows: _rows, onSill: true)),
+                          // Each pane holds a flake from the collection, or a plus to
+                          // hang one; the top row waits while the title is up.
+                          for (final (i, pane) in WindowFrame.paneRects(frame, _rows).indexed)
+                            if (i >= 2 || !_titleUp)
+                              Positioned.fromRect(
+                                rect: pane,
+                                child: _Pane(flake: g.window[i], clear: g.window.containsKey(i) && g.window[i] == null, onTap: () => _pick(i)),
+                              ),
+                          if (_titleUp)
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              // Centred in the top pane under the arch, clear of the bars.
+                              top: WindowFrame.paneMiddle(frame, _rows, 0),
+                              child: FractionalTranslation(
+                                translation: const Offset(0, -.5),
+                                child: FadeTransition(
+                                  opacity: _titleOpacity,
+                                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                    Text(
+                                      'Снежинки',
+                                      style: display(56, weight: FontWeight.w900, height: 1, shadows: drop(5)).copyWith(letterSpacing: -.56),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'Сложи. Вырежи. Раскрой.',
+                                      style: body(17, weight: FontWeight.w800, color: C.ice200),
+                                    ),
+                                  ]),
+                                ),
                               ),
                             ),
-                          ),
-                      ]),
-                    ),
-                    SizedBox(height: _buttonsHeight + 16 + bottomInset, child: const WindowSill()),
-                  ]),
-                ),
+                        ]),
+                      ),
+                      SizedBox(height: _buttonsHeight + 16 + bottomInset, child: const WindowSill()),
+                    ]),
+                  );
+                },
               ),
             ),
           ),
@@ -439,21 +452,18 @@ class _Pane extends StatelessWidget {
     return LayoutBuilder(
       builder: (_, c) => Semantics(
         button: true,
-        label: f.name,
+        label: 'Снежинка',
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
           child: Center(
             child: SnowflakeView(
               cuts: f.cuts,
-              preset: f.preset,
+             
               folds: f.folds,
               color: f.color,
               pattern: f.pattern,
               size: math.min(c.maxWidth, c.maxHeight) * .78,
-              // No glow: it would show through the cut-outs as a pale veil,
-              // where the night outside should be.
-              glow: false,
             ),
           ),
         ),
@@ -478,7 +488,7 @@ class _PickTile extends StatelessWidget {
       button: true,
       enabled: onTap != null,
       selected: selected,
-      label: f?.name ?? 'Пусто',
+      label: f == null ? 'Пусто' : 'Снежинка',
       child: GestureDetector(
         onTap: onTap,
         child: Opacity(
@@ -495,12 +505,11 @@ class _PickTile extends StatelessWidget {
                     ? Text('Пусто', style: display(15, color: C.ice200))
                     : SnowflakeView(
                         cuts: f.cuts,
-                        preset: f.preset,
+                       
                         folds: f.folds,
                         color: f.color,
                         pattern: f.pattern,
                         size: c.maxWidth * .74,
-                        glow: false,
                       ),
               ),
             ),

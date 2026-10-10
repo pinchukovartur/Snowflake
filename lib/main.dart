@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_state.dart';
 import 'screens/cut_screen.dart';
+import 'screens/flake_screen.dart';
 import 'screens/gallery_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/reveal_screen.dart';
@@ -42,7 +43,7 @@ class SnowflakeApp extends StatelessWidget {
   }
 }
 
-enum Screen { home, cut, reveal, gallery }
+enum Screen { home, cut, reveal, gallery, flake }
 
 /// Router + game state, mirrors ui_kits/app/App.jsx.
 class GameShell extends StatefulWidget {
@@ -56,14 +57,15 @@ class GameShell extends StatefulWidget {
 class _GameShellState extends State<GameShell> {
   late final _game = widget.game;
   Screen _screen = Screen.home;
+
+  /// The collection flake open on its own.
+  SavedFlake? _shownFlake;
   int _runKey = 0;
   var _session = CutSession();
   List<Cut> _cuts = const [];
   int _folds = 6;
   Paper _paper = const Paper();
 
-  /// The revealed flake as saved to the collection, while it is there.
-  SavedFlake? _savedFlake;
 
   void _go(Screen s) => setState(() => _screen = s);
 
@@ -80,6 +82,8 @@ class _GameShellState extends State<GameShell> {
         SystemNavigator.pop();
       case Screen.reveal:
         _go(Screen.cut);
+      case Screen.flake:
+        _go(Screen.gallery);
       case Screen.cut:
       case Screen.gallery:
         _go(Screen.home);
@@ -114,7 +118,7 @@ class _GameShellState extends State<GameShell> {
               _cuts = shape;
               _folds = folds;
               _paper = paper;
-              _savedFlake = null;
+              _game.setLast(SavedFlake(cuts: shape, folds: folds, color: paper.color, pattern: paper.pattern, fav: true));
               _screen = Screen.reveal;
             }),
           ),
@@ -124,23 +128,25 @@ class _GameShellState extends State<GameShell> {
           cuts: _cuts,
           folds: _folds,
           paper: _paper,
-          saved: _savedFlake != null,
+          saved: _game.lastSaved,
           onDone: _newFlake,
           onBack: () => _go(Screen.cut),
           // Stays on the card: the player may still go back and change the flake.
-          onSave: () {
-            final f = _savedFlake;
-            if (f != null) {
-              _game.remove(f);
-              _savedFlake = null;
-            } else {
-              final n = _game.saved.where((f) => f.own).length + 1;
-              _game.save(_savedFlake = SavedFlake(name: 'Снежинка $n', cuts: _cuts, folds: _folds, color: _paper.color, pattern: _paper.pattern, fav: true));
-            }
-          },
+          // Checked against the collection, so unfolding the same flake again
+          // finds it already saved instead of saving a copy.
+          onSave: () => _game.lastSaved ? _game.unsaveLast() : _game.saveLast(),
         );
       case Screen.gallery:
-        return GalleryScreen(game: _game, onBack: () => _go(Screen.home));
+        return GalleryScreen(
+          game: _game,
+          onBack: () => _go(Screen.home),
+          onOpen: (f) {
+            _shownFlake = f;
+            _go(Screen.flake);
+          },
+        );
+      case Screen.flake:
+        return FlakeScreen(flake: _shownFlake!, onBack: () => _go(Screen.gallery));
     }
   }
 

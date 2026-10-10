@@ -18,23 +18,304 @@ final Map<String, List<Cut>> snowflakePresets = {
     [[0, -0.28], [0.05, -0.35], [0, -0.42], [-0.05, -0.35]],
     [[-0.22, -0.16], [-0.03, -0.22], [-0.22, -0.3]],
   ]),
-  'star': _p([
-    [[0.3, -0.2], [0.02, -0.6], [0.3, -0.9]],
-    [[-0.3, -0.35], [-0.1, -0.45], [-0.3, -0.55]],
-    [[-0.3, -0.8], [-0.14, -0.9], [-0.3, -1.1]],
-    [[0.05, -1.1], [0.02, -0.95], [0.2, -1.1]],
-  ]),
-  'lace': _p([
-    [[0.3, -0.25], [0.1, -0.3], [0.3, -0.35]],
-    [[0.3, -0.55], [0.08, -0.6], [0.3, -0.65]],
-    [[0.3, -0.82], [0.1, -0.86], [0.3, -0.9]],
-    [[-0.3, -0.4], [-0.09, -0.46], [-0.3, -0.52]],
-    [[-0.3, -0.7], [-0.1, -0.75], [-0.3, -0.8]],
-    [[-0.06, -0.62], [0, -0.54], [0.05, -0.62], [0, -0.7]],
-    [[0, -0.15], [0.03, -0.19], [0, -0.23], [-0.03, -0.19]],
-    [[-0.12, -1.1], [-0.05, -0.93], [0.02, -1.1]],
-  ]),
+  // Halloween: six-fold only (built for a 15° half-wedge).
+  'web': _web(),
+  'pumpkins': _pumpkins(),
+  'spiders': _spiders(),
+  'bats': _bats(),
+  'ghosts': _ghosts(),
+  'hats': _hats(),
+  // Classic paper flakes, six-fold: an arm with side branches on every
+  // other fold.
+  'fern': _branched(hole: .27, ring: .40, branches: [.50, .64, .78], lean: .7, reach: .17),
+  'starburst': _branched(ring: .30, branches: [.44, .66], lean: 1.0, reach: .21, branch: .075),
+  'leafy': _branched(ring: .26, branches: [.38, .56, .74], lean: .45, reach: .23, branch: .08, spine: .08),
+  'forked': _forked(),
+  'chevrons': _chevrons(),
+  // New Year pack (not offered yet), four-fold.
+  'snowmen': _snowmen(),
+  'spiky': _branched(hole: .1, ring: .34, branches: [.50, .72], lean: 1.4, reach: .19, branch: .055),
 };
+
+/// Half-angle of a six-fold wedge, which the Halloween presets are drawn for.
+const _h6 = math.pi / 12;
+
+/// A point [r] out from the centre, [phi] clockwise from the wedge's middle.
+Offset _polar(double r, double phi) => Offset(r * math.sin(phi), -r * math.cos(phi));
+
+/// A classic flake's arm along the wedge's right fold (so six arms unfold),
+/// [spine] wide each side, from the solid middle out to the rim: side
+/// branches leave it at [branches] (along the arm), [branch] wide, leaning
+/// out towards the tip by [lean] (along the arm per unit out), cut off
+/// [reach] from the spine. The middle is solid out to [ring], with a [hole]
+/// in it if not 0.
+List<Cut> _branched({double hole = 0, required double ring, required List<double> branches, required double lean, required double reach, double branch = .065, double spine = .07}) {
+  // Along the arm (u) and out from it into the wedge (v).
+  final d = _polar(1, _h6), n = Offset(-math.cos(_h6), -math.sin(_h6));
+  Offset at(double u, double v) => d * u + n * v;
+  final dir = Offset(lean, 1) / Offset(lean, 1).distance;
+  Offset out(double u, double v, double t) => at(u + dir.dx * t, v + dir.dy * t);
+  const far = 2.0;
+  final cuts = <Cut>[];
+  // Beyond the branches' ends, all the way along the arm.
+  cuts.add([at(ring, spine + reach), at(1.4, spine + reach), at(1.4, far), at(ring * .6, far), at(ring * .6, ring * .6 * .577)]);
+  // Between the branches, and between the last one and the tip.
+  final starts = [ring + .02, for (final b in branches) b + branch / dir.dy];
+  final ends = [...branches, 1.4];
+  for (var i = 0; i < starts.length; i++) {
+    final u0 = starts[i], u1 = ends[i];
+    if (u1 <= u0) continue;
+    cuts.add([at(u0, spine), at(u1, spine), out(u1, spine, far), out(u0, spine, far)]);
+  }
+  if (hole > 0) cuts.add(_circle(Offset.zero, hole, 24));
+  return cuts;
+}
+
+/// Everything but [keep] (a closed outline, in wedge units) cut away: one
+/// contour round the board, joined to [keep] run the other way, so the
+/// non-zero fill leaves it standing.
+Cut _keepOnly(List<Offset> keep) {
+  double area(List<Offset> p) {
+    var a = 0.0;
+    for (var i = 0; i < p.length; i++) {
+      final q = p[i], r = p[(i + 1) % p.length];
+      a += q.dx * r.dy - r.dx * q.dy;
+    }
+    return a;
+  }
+
+  // Joined below the apex, where the bridge out to it is off the paper.
+  const outer = [Offset(0, .5), Offset(2, .5), Offset(2, -2), Offset(-2, -2), Offset(-2, .5)];
+  final k = area(keep).sign == area(outer).sign ? keep.reversed.toList() : keep;
+  return [outer.first, ...k, k.first, ...outer];
+}
+
+/// A classic flake with forked, swallow-tailed arms on every other fold, a
+/// small branched arm on the folds between, and a frame joining them.
+Cut _forkedKeep() {
+  // Along the big arm (u) and out from it into the wedge (v); along the small
+  // arm on the left fold (r) and out from it into the wedge (t).
+  final d = _polar(1, _h6), n = Offset(-math.cos(_h6), -math.sin(_h6));
+  final d2 = _polar(1, -_h6), n2 = Offset(math.cos(_h6), -math.sin(_h6));
+  Offset a(double u, double v) => d * u + n * v;
+  Offset b(double r, double t) => d2 * r + n2 * t;
+  const w = .055, w2 = .035;
+  return [
+    Offset.zero,
+    // Up the big arm's fold to the notch between its prongs, out to a prong.
+    a(.84, 0), a(.99, .12), a(.9, w + .03),
+    // Down its edge, past a side branch.
+    a(.82, w), a(.88, .15), a(.84, .17), a(.74, w),
+    // The frame across to the small arm.
+    a(.62, w), b(.64, w2),
+    // Up the small arm, past its branch, to its tip on the fold.
+    b(.68, w2), b(.74, .11), b(.71, .125), b(.75, w2 + .01), b(.8, 0),
+    // Back down the fold, the frame's other edge, and the big arm to the hub.
+    b(.56, 0), a(.54, w), a(.3, w), b(.26, 0),
+  ];
+}
+
+List<Cut> _forked() => [_keepOnly(_forkedKeep())];
+
+/// Eight snowmen round a hub, four-fold: on every other fold one waving its
+/// arms, on the folds between one with a ring cut through its body.
+List<Cut> _snowmen() {
+  const h = math.pi / 8;
+  // Along the right fold (u) and out from it (v); along the left fold (r)
+  // and out from it (t).
+  final d = _polar(1, h), n = Offset(-math.cos(h), -math.sin(h));
+  final d2 = _polar(1, -h), n2 = Offset(math.cos(h), -math.sin(h));
+  Offset a(double u, double v) => d * u + n * v;
+  Offset b(double r, double t) => d2 * r + n2 * t;
+  // Half a circle on a fold, centred [c] along it, from [from] to [to]
+  // degrees off the fold's outward direction.
+  Iterable<Offset> arc(Offset Function(double, double) at, double c, double rad, double from, double to) sync* {
+    const steps = 10;
+    for (var i = 0; i <= steps; i++) {
+      final th = (from + (to - from) * i / steps) * math.pi / 180;
+      yield at(c + rad * math.cos(th), rad * math.sin(th));
+    }
+  }
+
+  const hub = .16, spoke = .04;
+  final keep = <Offset>[
+    Offset.zero,
+    // Up the right fold to the top of the waving snowman's hat, then down
+    // its side: hat, head, body with a raised arm.
+    a(.99, 0), a(.99, .07), a(.91, .07), a(.91, .14), a(.875, .14), a(.865, .085),
+    ...arc(a, .76, .115, 30, 150),
+    ...arc(a, .52, .165, 22, 55),
+    a(.66, .2), a(.71, .215), a(.705, .24), a(.675, .232), a(.69, .265), a(.665, .272), a(.648, .232), a(.6, .21),
+    ...arc(a, .52, .165, 80, 165),
+    // Its spoke into the hub, round to the other spoke, and up the snowman
+    // with the ring: body, head, hat, to its top on the left fold.
+    a(.36, spoke), a(hub, spoke), b(hub, spoke), b(.37, spoke),
+    ...arc(b, .52, .155, 165, 22),
+    ...arc(b, .745, .105, 150, 30),
+    b(.845, .13), b(.875, .13), b(.875, .065), b(.95, .065), b(.95, 0),
+  ];
+  return [_keepOnly(keep), _circle(b(.52, 0), .07, 20)];
+}
+
+/// A twelve-pointed star of nested chevrons, six-fold: star outlines one
+/// inside another, a point in the middle of every wedge, held together by a
+/// spine down each point and a solid star in the middle.
+List<Cut> _chevrons() {
+  // A star outline scaled by [s]: its point on the wedge's middle, its
+  // valleys on the folds (side −1 left, 1 right).
+  const tip = .99, valley = .64, spine = .03, band = .075;
+  Offset point(double s) => _polar(tip * s, 0);
+  Offset valleyAt(double s, int side) => _polar(valley * s, side * _h6);
+  // Along the outline from the point towards a valley: where it leaves the
+  // spine, and on past the fold (so a cut there runs off the paper).
+  Offset offSpine(double s, int side) {
+    final p = point(s), v = valleyAt(s, side);
+    return p + (v - p) * (spine / v.dx.abs());
+  }
+
+  Offset pastFold(double s, int side) {
+    final p = point(s), v = valleyAt(s, side);
+    return v + (v - p) * .4;
+  }
+
+  // Outer edges of the rings, outside in; the last runs into the solid middle.
+  const rings = [1.0, .8, .6, .42];
+  final cuts = <Cut>[
+    // Off the paper beyond the outermost outline.
+    [_polar(1.6, -.6), pastFold(1, -1), point(1), pastFold(1, 1), _polar(1.6, .6)],
+  ];
+  for (var i = 0; i + 1 < rings.length; i++) {
+    final a = rings[i] - band, b = rings[i + 1];
+    for (final side in const [-1, 1]) {
+      cuts.add([offSpine(a, side), pastFold(a, side), pastFold(b, side), offSpine(b, side)]);
+    }
+  }
+  return cuts;
+}
+
+Cut _circle(Offset c, double r, [int n = 14]) => [for (var i = 0; i < n; i++) c + Offset(math.cos(i * 2 * math.pi / n), math.sin(i * 2 * math.pi / n)) * r];
+
+// ---- Halloween figures ---------------------------------------------------
+//
+// Six figures round a ring, six-fold: each stands on the wedge's right fold
+// (half of it drawn, the fold mirroring the rest), joined to its neighbours
+// by a band round the middle, which is cut out.
+
+/// Along the wedge's right fold (u) and out from it towards the left (v).
+Offset _a(double u, double v) => _polar(1, _h6) * u + Offset(-math.cos(_h6), -math.sin(_h6)) * v;
+
+/// [r] out from the middle, [phi] round from the right fold towards the left.
+Offset _round(double r, double phi) => _polar(r, _h6 - phi);
+
+/// Half a circle on the right fold, centred [c] along it, from [from] to
+/// [to] degrees off the fold's outward direction.
+List<Offset> _arc(double c, double rad, double from, double to, [int steps = 12]) => [
+      for (var i = 0; i <= steps; i++) _a(c + rad * math.cos((from + (to - from) * i / steps) * math.pi / 180), rad * math.sin((from + (to - from) * i / steps) * math.pi / 180)),
+    ];
+
+/// A limb [w] wide along [path] (in wedge units), out on one side and back
+/// on the other, to splice into an outline; [out] picks the side to go out on.
+List<Offset> _limb(List<Offset> path, double w, {bool out = true}) {
+  Offset side(int i) {
+    final d = path[math.min(i + 1, path.length - 1)] - path[math.max(i - 1, 0)];
+    final n = Offset(-d.dy, d.dx) / d.distance * (w / 2);
+    return out ? n : -n;
+  }
+
+  return [
+    for (var i = 0; i < path.length; i++) path[i] + side(i),
+    for (var i = path.length - 1; i >= 0; i--) path[i] - side(i),
+  ];
+}
+
+/// A figure on the right fold joined into a ring: [half] runs from the top of
+/// the figure on the fold down its left side; it is cut short where it first
+/// comes inside the ring's outer edge [outer], which carries on round to the
+/// left fold, back along the inner edge [inner], and in to the fold.
+Cut _onRing(List<Offset> half, {double inner = .25, double outer = .42}) {
+  final keep = <Offset>[];
+  for (final p in half) {
+    if (p.distance < outer && keep.isNotEmpty) break;
+    keep.add(p);
+  }
+  // Where it met the ring, as an angle round from the right fold.
+  final last = keep.last;
+  final phi = (_h6 - math.atan2(last.dx, -last.dy)).clamp(0.0, 2 * _h6);
+  const steps = 8;
+  return _keepOnly([
+    _round(inner, 0),
+    ...keep,
+    for (var i = 0; i <= steps; i++) _round(outer, phi + (2 * _h6 - phi) * i / steps),
+    for (var i = steps; i >= 0; i--) _round(inner, 2 * _h6 * i / steps),
+  ]);
+}
+
+/// Jack-o'-lanterns with a stem, triangle eyes and a toothy grin.
+List<Cut> _pumpkins() => [
+      _onRing([_a(1, 0), _a(1, .05), _a(.955, .055), ..._arc(.64, .32, 12, 178)]),
+      [_a(.82, .06), _a(.71, .18), _a(.71, .04)],
+      [_a(.6, -.01), _a(.62, .08), _a(.58, .11), _a(.61, .17), _a(.53, .16), _a(.51, .08), _a(.53, -.01)],
+    ];
+
+/// Spiders on their legs, three a side, reaching out to their neighbours.
+List<Cut> _spiders() => [
+      _onRing([
+        ..._arc(.76, .15, 0, 105, 8),
+        ..._limb([_a(.72, .145), _a(.86, .27), _a(1, .24)], .034),
+        ..._limb([_a(.68, .125), _a(.74, .31), _a(.82, .37)], .034),
+        ..._limb([_a(.64, .11), _a(.6, .3), _a(.66, .37)], .034),
+        ..._arc(.58, .1, 55, 150, 8),
+        // A thread down into the ring.
+        _a(.46, .04), _a(.36, .04),
+      ]),
+    ];
+
+/// Bats with pointed ears and scalloped wings.
+List<Cut> _bats() => [
+      _onRing([
+        _a(.9, 0), _a(.98, .06), _a(.88, .09), _a(.82, .07),
+        _a(.88, .18), _a(.92, .3), _a(.86, .4),
+        _a(.78, .34), _a(.77, .27), _a(.7, .29), _a(.69, .21), _a(.62, .21), _a(.62, .13), _a(.55, .1), _a(.45, .07),
+      ]),
+    ];
+
+/// Little ghosts, arms out, with round eyes and an "o" of a mouth.
+List<Cut> _ghosts() => [
+      _onRing([
+        ..._arc(.74, .2, 0, 95, 10),
+        _a(.68, .25), _a(.7, .36), _a(.63, .37), _a(.62, .22),
+        _a(.56, .21), _a(.52, .15), _a(.48, .18), _a(.45, .1), _a(.4, .1),
+      ]),
+      _circle(_a(.8, .07), .035, 12),
+      _circle(_a(.68, 0), .045, 14),
+    ];
+
+/// Witches' hats, broad brims round the ring, a band round each.
+List<Cut> _hats() => [
+      _onRing([_a(.99, 0), _a(.88, .04), _a(.76, .1), _a(.66, .14), _a(.65, .33), _a(.58, .34), _a(.56, .26), _a(.55, .14), _a(.45, .12)]),
+      [_a(.69, -.01), _a(.69, .08), _a(.64, .085), _a(.64, -.01)],
+    ];
+
+/// A cobweb: threads sagging between spokes on every fold and down the
+/// middle of each wedge, with a solid hub and rim.
+List<Cut> _web() {
+  const rings = [.12, .27, .42, .57, .72, .86, .97];
+  const thread = .012, spoke = 1.3 * math.pi / 180;
+  final cuts = <Cut>[];
+  for (var i = 0; i + 1 < rings.length; i++) {
+    final r0 = rings[i] + thread, r1 = rings[i + 1] - thread;
+    for (final (a0, a1) in [(-_h6 + spoke, -spoke), (spoke, _h6 - spoke)]) {
+      // Threads sag in towards the hub halfway between the spokes.
+      double sag(double r, double t) => r * (1 - .06 * math.sin(math.pi * t));
+      const steps = 6;
+      cuts.add([
+        for (var k = 0; k <= steps; k++) _polar(sag(r1, k / steps), a0 + (a1 - a0) * k / steps),
+        for (var k = steps; k >= 0; k--) _polar(sag(r0, k / steps), a0 + (a1 - a0) * k / steps),
+      ]);
+    }
+  }
+  return cuts;
+}
 
 class PaperColor {
   const PaperColor(this.id, this.name, this.color);
@@ -69,7 +350,8 @@ const paperPatterns = [
 
 double wedgeHalfAngle(int folds) => math.pi / (2 * folds);
 
-/// Stencil polygon in wedge units. tool: circle | square | triangle | star | heart | drop | diamond | hexagon
+/// Stencil polygon in wedge units, for the stencil named [tool]; the names
+/// are the cases below.
 Cut stencilShape(String tool, double cx, double cy, double r) {
   final pts = <Offset>[];
   void p(double a, double rr) => pts.add(Offset(cx + math.cos(a) * rr, cy + math.sin(a) * rr));
