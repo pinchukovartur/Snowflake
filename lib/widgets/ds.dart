@@ -175,9 +175,23 @@ class RoundBtn extends StatelessWidget {
     this.flat = false,
     this.disabled = false,
     this.onTap,
-  });
+  }) : glyph = null;
+
+  /// A round button showing [glyph] (a character or two) instead of an icon.
+  const RoundBtn.text(
+    String this.glyph, {
+    super.key,
+    required this.label,
+    this.variant = Variant.light,
+    this.size = BtnSize.m,
+    this.active = false,
+    this.flat = false,
+    this.disabled = false,
+    this.onTap,
+  }) : icon = LucideIcons.circle;
 
   final IconData icon;
+  final String? glyph;
   final String label;
   final Variant variant;
   final BtnSize size;
@@ -221,7 +235,9 @@ class RoundBtn extends StatelessWidget {
                     BoxShadow(color: disabled ? C.snow300 : v.lip, offset: Offset(0, pressed ? 1 : s.lip)),
                 ],
               ),
-              child: Icon(icon, size: s.i, color: disabled ? C.snow500 : v.fg),
+              child: glyph != null
+                  ? Center(child: Text(glyph!, style: display(s.i * 1.15, weight: FontWeight.w400, color: disabled ? C.snow500 : v.fg, height: 1)))
+                  : Icon(icon, size: s.i, color: disabled ? C.snow500 : v.fg),
             ),
           );
         },

@@ -29,7 +29,17 @@ class GalleryScreen extends StatelessWidget {
           Btn('Оставить', variant: Variant.light, block: true, onTap: () => Navigator.pop(ctx)),
         ],
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          SnowflakeView(cuts: f.cuts, folds: f.folds, color: f.color, pattern: f.pattern, size: 120),
+          // Solid drop shadow, as in the paper dialog, so white paper reads on the white card.
+          Stack(children: [
+            Transform.translate(
+              offset: const Offset(0, 3),
+              child: ColorFiltered(
+                colorFilter: const ColorFilter.mode(C.snow300, BlendMode.srcIn),
+                child: SnowflakeView(cuts: f.cuts, folds: f.folds, color: f.color, pattern: f.pattern, size: 120),
+              ),
+            ),
+            SnowflakeView(cuts: f.cuts, folds: f.folds, color: f.color, pattern: f.pattern, size: 120),
+          ]),
           const SizedBox(height: 12),
           const Text('Эта снежинка пропадёт из коллекции.'),
         ]),

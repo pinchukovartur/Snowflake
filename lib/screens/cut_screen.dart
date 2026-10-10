@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../app_state.dart';
@@ -187,6 +188,18 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
   }
 
   /// Leaves the event: the paper goes back to how it was before it.
+  /// Whether the intro is still bringing its flake in: until its wedge has
+  /// settled on the paper.
+  bool get _introArriving => _introRunning && _introAt < _settledAt;
+
+  /// A tap while the flake comes in skips to the moment its wedge lies on
+  /// the paper; the rest plays on from there.
+  void _skipIntro() {
+    final i = _intro;
+    if (i == null || !_introArriving) return;
+    i.forward(from: _settledAt / _introSecs);
+  }
+
   void _endEvent() {
     final e = _s._event;
     if (e == null) return;
@@ -274,8 +287,8 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
 
   void _pickStencil(String id) => setState(() {
     if (_tool == id) {
-      // The stencil already out goes back to where it starts.
-      _stencilReset++;
+      // The stencil already out: the list has done its job and closes.
+      _stencilsOpen = false;
     } else {
       _tool = id;
       _s.stencil = id;
@@ -283,8 +296,6 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
   });
   Paper get _paper => _s.paper;
 
-  /// Bumped by tapping the stencil already chosen, to put it back where it starts.
-  int _stencilReset = 0;
   set _paper(Paper p) => _s.paper = p;
 
   CutState get _state => (cuts: _cuts, drops: _drops, folds: _folds);
@@ -360,7 +371,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                   Stack(
                     children: [
                       Transform.translate(
-                        offset: const Offset(0, 5),
+                        offset: const Offset(0, 3),
                         child: ColorFiltered(
                           colorFilter: const ColorFilter.mode(C.snow300, BlendMode.srcIn),
                           child: SnowflakeView(preset: 'classic', size: 170, color: _paper.color, pattern: _paper.pattern),
@@ -508,7 +519,6 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                     cuts: _cuts,
                                     fallen: _fallen,
                                     tool: _tool,
-                                    stencilReset: _stencilReset,
                                     stencilCut: _stencilCut,
                                     color: _paper.color,
                                     pattern: _paper.pattern,
@@ -651,6 +661,8 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                     ),
                   ),
                 ),
+                // Over the board while the event's flake comes in: a tap skips ahead.
+                if (_introArriving) Positioned.fill(child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: _skipIntro)),
                 Padding(
                   padding: EdgeInsets.fromLTRB(screenPad, 12, _eventRight(MediaQuery.sizeOf(context).width), 0),
                   child: Row(
@@ -660,7 +672,9 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                       Expanded(
                         child: AbsorbPointer(
                           absorbing: _introRunning,
+                          // Only as tall as it needs: below it the board keeps its touches.
                           child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
                               Btn('Домой', icon: LucideIcons.house, variant: Variant.orange, size: BtnSize.l, fontSize: 26, padX: 12, block: true, onTap: widget.onHome),
@@ -722,8 +736,8 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  RoundBtn(
-                                    LucideIcons.circleHelp,
+                                  RoundBtn.text(
+                                    '?',
                                     label: 'Подсказка',
                                     disabled: _s._helps == 0 || _helping || _introRunning,
                                     onTap: _useHelp,
@@ -876,6 +890,11 @@ class _EventPanelState extends State<_EventPanel> {
   void initState() {
     super.initState();
     _startTimer();
+    // The title is fitted to the display face; measured again once it has
+    // loaded (asking for both weights here starts them loading).
+    GoogleFonts.pendingFonts([_titleStyle(true), _titleStyle(false)]).then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -960,29 +979,38 @@ class _EventPanelState extends State<_EventPanel> {
                     // Set a little lower than its place in the column, the flake left where it is.
                     Transform.translate(
                       offset: const Offset(0, 4),
-                      child: e.loud
+                      child: LayoutBuilder(
+                        builder: (ctx, c) {
+                          final style = _titleStyle(e.loud);
+                          // Wraps between words as usual, made smaller only if the longest
+                          // word would not fit on a line: never broken inside a word.
+                          final size = _wordsFit(e.title, style, c.maxWidth, MediaQuery.textScalerOf(ctx));
+                          if (!e.loud) {
+                            return Text(e.title, textAlign: TextAlign.center, style: style.copyWith(fontSize: size, color: Colors.white));
+                          }
                           // Purple on a white outline, the outline drawn first underneath.
-                          ? Stack(children: [
-                              Text(
-                                e.title,
-                                textAlign: TextAlign.center,
-                                // The display face, but painted as a stroke (a style can't carry
-                                // both a colour and a foreground paint).
-                                style: TextStyle(
-                                  fontFamily: display(17, weight: FontWeight.w900).fontFamily,
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w900,
-                                  height: 1.1,
-                                  foreground: Paint()
-                                    ..style = PaintingStyle.stroke
-                                    ..strokeWidth = 3.5
-                                    ..strokeJoin = StrokeJoin.round
-                                    ..color = Colors.white,
-                                ),
+                          return Stack(children: [
+                            Text(
+                              e.title,
+                              textAlign: TextAlign.center,
+                              // The display face, but painted as a stroke (a style can't carry
+                              // both a colour and a foreground paint).
+                              style: TextStyle(
+                                fontFamily: style.fontFamily,
+                                fontSize: size,
+                                fontWeight: FontWeight.w900,
+                                height: 1.1,
+                                foreground: Paint()
+                                  ..style = PaintingStyle.stroke
+                                  ..strokeWidth = 3.5 * size / 17
+                                  ..strokeJoin = StrokeJoin.round
+                                  ..color = Colors.white,
                               ),
-                              Text(e.title, textAlign: TextAlign.center, style: display(17, weight: FontWeight.w900, color: const Color(0xFF7B3FD1), height: 1.1)),
-                            ])
-                          : Text(e.title, textAlign: TextAlign.center, style: display(16, color: Colors.white, height: 1.1)),
+                            ),
+                            Text(e.title, textAlign: TextAlign.center, style: style.copyWith(fontSize: size, color: const Color(0xFF7B3FD1))),
+                          ]);
+                        },
+                      ),
                     ),
                   ],
                 ),
@@ -995,6 +1023,35 @@ class _EventPanelState extends State<_EventPanel> {
       ),
     );
   }
+}
+
+/// An event title's face: heavier and bigger when [loud].
+TextStyle _titleStyle(bool loud) => loud ? display(17, weight: FontWeight.w900, height: 1.1) : display(16, height: 1.1);
+
+/// The font size, at most [style]'s, at which every word of [text] fits in
+/// [width] (with room for an outline), as the system's text [scaler] will
+/// enlarge it. Android scales small text up more than large, so it is found
+/// in a few steps rather than by one ratio. Measured in the real face only
+/// once it has loaded (see [_EventPanelState.initState]).
+double _wordsFit(String text, TextStyle style, double width, TextScaler scaler) {
+  double widest(double size) {
+    var w = 0.0;
+    for (final word in text.split(' ')) {
+      final p = TextPainter(text: TextSpan(text: word, style: style.copyWith(fontSize: size)), textDirection: TextDirection.ltr, textScaler: scaler, maxLines: 1)..layout();
+      w = math.max(w, p.width);
+      p.dispose();
+    }
+    return w;
+  }
+
+  final room = width - 6;
+  var size = style.fontSize!;
+  for (var i = 0; i < 8; i++) {
+    final w = widest(size);
+    if (w <= room) break;
+    size *= room / w;
+  }
+  return size;
 }
 
 /// A chevron pointing left (`step` −1) or right (+1), red on a white halo

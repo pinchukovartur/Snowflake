@@ -20,6 +20,15 @@ const _showCoins = false;
 /// `(c − 255·a) / (1 − a)` of [SkyBackground.night], for a = .11.
 const _skyUnderHaze = [Color(0xFF001047), Color(0xFF153487), Color(0xFF264EAF)];
 
+/// What the window looks out on. Set by hand for each release: autumn now,
+/// winter in the next update.
+enum Season { autumn, winter }
+
+const season = Season.autumn;
+
+/// The autumn view: a sunny sky with a maple in leaf, seen through the glass.
+const _autumnView = 'assets/Autumn_Window_Bg.png';
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.game, required this.onPlay, required this.onGallery});
   final GameState game;
@@ -170,123 +179,131 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final g = widget.game;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final hazeHeight = _playMiddle + _hazeFade + bottomInset;
-    return SkyBackground(
-      softDots: true,
-      colors: _skyUnderHaze,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: RepaintBoundary(
-              child: _Snowfall(ticker: _ticker, hazeHeight: hazeHeight, hazeFade: _hazeFade),
-            ),
-          ),
-          // The snow outside stays put; the frame, taller than the screen, scrolls
-          // past with the title on its top half, and a sill under it as tall
-          // as the buttons, so the bottom row can come up clear of them.
-          Positioned.fill(
-            // Stops dead at either end: no overscroll stretch or glow.
-            child: ScrollConfiguration(
-              behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
-              child: LayoutBuilder(
-                builder: (_, c) {
-                  final frame = Size(c.maxWidth, _frameHeight(c.biggest));
-                  return SingleChildScrollView(
-                    child: Column(children: [
-                      SizedBox(
-                        height: frame.height,
-                        child: Stack(children: [
-                          const Positioned.fill(child: WindowFrame(rows: _rows, onSill: true)),
-                          // Each pane holds a flake from the collection, or a plus to
-                          // hang one; the top row waits while the title is up.
-                          for (final (i, pane) in WindowFrame.paneRects(frame, _rows).indexed)
-                            if (i >= 2 || !_titleUp)
-                              Positioned.fromRect(
-                                rect: pane,
-                                child: _Pane(flake: g.window[i], clear: g.window.containsKey(i) && g.window[i] == null, onTap: () => _pick(i)),
-                              ),
-                          if (_titleUp)
-                            Positioned(
-                              left: 0,
-                              right: 0,
-                              // Centred in the top pane under the arch, clear of the bars.
-                              top: WindowFrame.paneMiddle(frame, _rows, 0),
-                              child: FractionalTranslation(
-                                translation: const Offset(0, -.5),
-                                child: FadeTransition(
-                                  opacity: _titleOpacity,
-                                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                                    Text(
-                                      'Снежинки',
-                                      style: display(56, weight: FontWeight.w900, height: 1, shadows: drop(5)).copyWith(letterSpacing: -.56),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Text(
-                                      'Сложи. Вырежи. Раскрой.',
-                                      style: body(17, weight: FontWeight.w800, color: C.ice200),
-                                    ),
-                                  ]),
-                                ),
+    final view = Stack(
+      children: [
+        // Outside the window: snow falling in the night in winter; in autumn a
+        // still, sunny day, the picture centred and a fifth taller than the
+        // screen, so the tree's edge and the sun's rays show through.
+        Positioned.fill(
+          child: season == Season.winter
+              ? RepaintBoundary(child: _Snowfall(ticker: _ticker, hazeHeight: hazeHeight, hazeFade: _hazeFade))
+              : LayoutBuilder(
+                  builder: (_, c) => ClipRect(
+                    child: OverflowBox(
+                      maxWidth: c.maxHeight * 1.2,
+                      maxHeight: c.maxHeight * 1.2,
+                      child: Image.asset(_autumnView, fit: BoxFit.cover),
+                    ),
+                  ),
+                ),
+        ),
+        // The view outside stays put; the frame, taller than the screen, scrolls
+        // past with the title on its top half, and a sill under it as tall
+        // as the buttons, so the bottom row can come up clear of them.
+        Positioned.fill(
+          // Stops dead at either end: no overscroll stretch or glow.
+          child: ScrollConfiguration(
+            behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
+            child: LayoutBuilder(
+              builder: (_, c) {
+                final frame = Size(c.maxWidth, _frameHeight(c.biggest));
+                return SingleChildScrollView(
+                  child: Column(children: [
+                    SizedBox(
+                      height: frame.height,
+                      child: Stack(children: [
+                        const Positioned.fill(child: WindowFrame(rows: _rows, onSill: true, snow: season == Season.winter)),
+                        // Each pane holds a flake from the collection, or a plus to
+                        // hang one; the top row waits while the title is up.
+                        for (final (i, pane) in WindowFrame.paneRects(frame, _rows).indexed)
+                          if (i >= 2 || !_titleUp)
+                            Positioned.fromRect(
+                              rect: pane,
+                              child: _Pane(flake: g.window[i], clear: g.window.containsKey(i) && g.window[i] == null, onTap: () => _pick(i)),
+                            ),
+                        if (_titleUp)
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            // Centred in the top pane under the arch, clear of the bars.
+                            top: WindowFrame.paneMiddle(frame, _rows, 0),
+                            child: FractionalTranslation(
+                              translation: const Offset(0, -.5),
+                              child: FadeTransition(
+                                opacity: _titleOpacity,
+                                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                  Text(
+                                    'Снежинки',
+                                    style: display(56, weight: FontWeight.w900, height: 1, shadows: drop(5)).copyWith(letterSpacing: -.56),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Сложи. Вырежи. Раскрой.',
+                                    style: body(17, weight: FontWeight.w800, color: C.ice200),
+                                  ),
+                                ]),
                               ),
                             ),
-                        ]),
-                      ),
-                      SizedBox(height: _buttonsHeight + 16 + bottomInset, child: const WindowSill()),
-                    ]),
-                  );
-                },
-              ),
+                          ),
+                      ]),
+                    ),
+                    SizedBox(height: _buttonsHeight + 16 + bottomInset, child: const WindowSill()),
+                  ]),
+                );
+              },
             ),
           ),
-          // Shade behind the buttons, fading out above them; the snow there is
-          // drawn softer too.
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            height: hazeHeight,
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: const [Color(0x00101A3F), Color(0x59101A3F), Color(0x73101A3F)],
-                    stops: [0, _hazeFade / hazeHeight, 1],
-                  ),
+        ),
+        // Shade behind the buttons, fading out above them; the snow there is
+        // drawn softer too.
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: hazeHeight,
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: const [Color(0x00101A3F), Color(0x59101A3F), Color(0x73101A3F)],
+                  stops: [0, _hazeFade / hazeHeight, 1],
                 ),
               ),
             ),
           ),
-          SafeArea(
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(screenPad, 8, screenPad, 8),
-                  child: Row(
-                    children: [
-                      if (_showCoins) CurrencyPill(amount: g.coins),
-                      const Spacer(),
-                      RoundBtn(LucideIcons.settings, label: 'Настройки', variant: Variant.dark, size: BtnSize.s, onTap: _openSettings),
-                    ],
-                  ),
+        ),
+        SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(screenPad, 8, screenPad, 8),
+                child: Row(
+                  children: [
+                    if (_showCoins) CurrencyPill(amount: g.coins),
+                    const Spacer(),
+                    RoundBtn(LucideIcons.settings, label: 'Настройки', variant: Variant.dark, size: BtnSize.s, onTap: _openSettings),
+                  ],
                 ),
-                const Spacer(),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(32, 0, 32, 28),
-                  child: Column(
-                    children: [
-                      Btn('Играть', size: BtnSize.l, icon: LucideIcons.play, block: true, onTap: widget.onPlay),
-                      const SizedBox(height: 12),
-                      Btn('Моя коллекция', variant: Variant.light, icon: LucideIcons.image, block: true, onTap: widget.onGallery),
-                    ],
-                  ),
+              ),
+              const Spacer(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(32, 0, 32, 28),
+                child: Column(
+                  children: [
+                    Btn('Играть', size: BtnSize.l, icon: LucideIcons.play, block: true, onTap: widget.onPlay),
+                    const SizedBox(height: 12),
+                    Btn('Моя коллекция', variant: Variant.light, icon: LucideIcons.image, block: true, onTap: widget.onGallery),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
+    return season == Season.winter ? SkyBackground(softDots: true, colors: _skyUnderHaze, child: view) : view;
   }
 }
 

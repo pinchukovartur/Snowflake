@@ -31,7 +31,6 @@ class CutBoard extends StatefulWidget {
     this.paperOpacity = 1,
     this.hintCuts = const [],
     this.hintOpacity = 0,
-    this.stencilReset = 0,
     this.stencilCut = 0,
     this.topInset = 0,
     this.bottomInset = 0,
@@ -53,10 +52,6 @@ class CutBoard extends StatefulWidget {
   /// at [hintOpacity]: not cut, just marked.
   final List<Cut> hintCuts;
   final double hintOpacity;
-
-  /// Bump to send the stencil back to where it starts, at its first size and
-  /// turn.
-  final int stencilReset;
 
   /// Bump to cut the stencil out where it stands (the button for it lives
   /// outside the board).
@@ -105,9 +100,9 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   @override
   void didUpdateWidget(CutBoard old) {
     super.didUpdateWidget(old);
-    // A new shape (or a reshaped wedge, or a reset) starts again in the middle
-    // of the paper, at its first size and turn.
-    if (old.tool != widget.tool || old.folds != widget.folds || old.stencilReset != widget.stencilReset) {
+    // A new shape (or a reshaped wedge) starts again in the middle of the
+    // paper, at its first size and turn.
+    if (old.tool != widget.tool || old.folds != widget.folds) {
       _stencilAt = null;
       _sx = _sy = _stencilR0;
       _stencilTurn = 0;

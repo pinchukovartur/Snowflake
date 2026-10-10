@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 /// glinting on the panes. What shows through it should be drawn soft, as if
 /// seen through frosted glass.
 class WindowFrame extends StatelessWidget {
-  const WindowFrame({super.key, this.rows = 4, this.onSill = false});
+  const WindowFrame({super.key, this.rows = 4, this.onSill = false, this.snow = true});
 
   /// Panes from top to bottom in each sash.
   final int rows;
@@ -14,6 +14,9 @@ class WindowFrame extends StatelessWidget {
   /// A [WindowSill] follows straight on below, so the casing has no bottom
   /// edge of its own.
   final bool onSill;
+
+  /// Snow lying on the bars and sills outside (winter).
+  final bool snow;
 
   /// The clear glass of every pane under the arch in a frame of [size], row by
   /// row from the top, left sash first: room for things clear of the bars.
@@ -50,7 +53,7 @@ class WindowFrame extends StatelessWidget {
     return IgnorePointer(
       child: Stack(fit: StackFit.expand, children: [
         const DecoratedBox(decoration: BoxDecoration(gradient: _sheen)),
-        RepaintBoundary(child: CustomPaint(painter: _FramePainter(rows, onSill: onSill))),
+        RepaintBoundary(child: CustomPaint(painter: _FramePainter(rows, onSill: onSill, snow: snow))),
       ]),
     );
   }
@@ -132,9 +135,9 @@ const _archRise = .36;
 const _spokes = [-50 * math.pi / 180, 0.0, 50 * math.pi / 180];
 
 class _FramePainter extends CustomPainter {
-  _FramePainter(this._rows, {required this.onSill});
+  _FramePainter(this._rows, {required this.onSill, required this.snow});
   final int _rows;
-  final bool onSill;
+  final bool onSill, snow;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -143,7 +146,7 @@ class _FramePainter extends CustomPainter {
     // The springing line: the fanlight above, the sashes below.
     final base = inner.top + inner.width * _archRise;
     var seed = 0;
-    _fanlight(canvas, Rect.fromLTRB(inner.left, inner.top, inner.right, base), seed++);
+    _fanlight(canvas, Rect.fromLTRB(inner.left, inner.top, inner.right, base), seed++, snow: snow);
     final body = Rect.fromLTRB(inner.left, base, inner.right, inner.bottom);
     final sashes = [
       Rect.fromLTRB(body.left, body.top, body.center.dx, body.bottom),
@@ -161,7 +164,8 @@ class _FramePainter extends CustomPainter {
         for (var c = 0; c < _cols; c++) {
           final x0 = glass.left + c * paneW + (c > 0 ? _bar / 2 : 0);
           final x1 = glass.left + (c + 1) * paneW - (c < _cols - 1 ? _bar / 2 : 0);
-          _snow(canvas, x0, x1, top, last ? _stile : _barAbove(r), seed++);
+          if (snow) _snow(canvas, x0, x1, top, last ? _stile : _barAbove(r), seed);
+          seed++;
         }
       }
       for (final (top, bottom) in spans) {
@@ -184,10 +188,10 @@ class _FramePainter extends CustomPainter {
   /// Half-elliptical fanlight filling [r] (the ellipse's centre at the middle
   /// of its bottom edge): snow on its sill, spokes fanning out from the
   /// middle, and wood round the glass up into the corners of the casing.
-  static void _fanlight(Canvas canvas, Rect r, int seed) {
+  static void _fanlight(Canvas canvas, Rect r, int seed, {required bool snow}) {
     final c = r.bottomCenter;
     final a = r.width / 2, b = r.height;
-    _snow(canvas, r.left + _stile, r.right - _stile, r.bottom - _stile, _stile, seed);
+    if (snow) _snow(canvas, r.left + _stile, r.right - _stile, r.bottom - _stile, _stile, seed);
     for (final phi in _spokes) {
       // Out to the arch, which covers the end.
       final len = 1 / math.sqrt(math.pow(math.sin(phi) / a, 2) + math.pow(math.cos(phi) / b, 2));
@@ -318,5 +322,5 @@ class _FramePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_FramePainter oldDelegate) => oldDelegate._rows != _rows || oldDelegate.onSill != onSill;
+  bool shouldRepaint(_FramePainter oldDelegate) => oldDelegate._rows != _rows || oldDelegate.onSill != onSill || oldDelegate.snow != snow;
 }
