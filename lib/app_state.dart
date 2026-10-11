@@ -46,7 +46,6 @@ class Paper {
   Paper copyWith({Color? color, String? pattern}) => Paper(color: color ?? this.color, pattern: pattern ?? this.pattern);
 }
 
-
 /// Game state (currency, collection, settings, the home window), kept in the
 /// app's preferences so it survives restarts.
 class GameState extends ChangeNotifier {
@@ -119,8 +118,8 @@ class GameState extends ChangeNotifier {
   /// it leaves the window clear.
   bool titleShown = false;
 
-  /// The player has touched the cut board since launch, so its hint stays
-  /// hidden until the next launch (not stored).
+  /// The player has touched the cut board since launch, so its phantom
+  /// demo cut stays off until the next launch (not stored).
   bool hintDismissed = false;
 
   void dismissHint() {

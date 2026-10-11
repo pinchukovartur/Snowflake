@@ -16,7 +16,7 @@ import '../widgets/ds.dart';
 
 /// Height of the tool row laid over the foot of the board (a small round
 /// button, as in the stencil list, and its lip, plus the gap below): all the
-/// board keeps clear under the wedge. The stencil grid (left) and the cut
+/// board keeps clear under the wedge. The stencil list (left) and the cut
 /// button (right) rise higher, but beside the wedge's narrow foot.
 const _toolsH = 44 + 4 + 12.0;
 
@@ -39,15 +39,18 @@ double _eventRight(double width) => width * 32 / 1125;
 /// is lower) and 12 clear.
 double _topRowFoot(double width) => math.max(12 + _eventSide(width), _countersFoot) - _boardTop + 12;
 
-/// Room around a small 44 button in the stencil list, for its circle grown
-/// ×1.12 (≈ 49.3) when picked.
-const _stencilsPad = 3.0;
+/// Room round the small 44 buttons in the stencil list.
+const _stencilsPad = 2.0;
 
-/// Width of the tool row (three small buttons, two gaps of 20), and the open
-/// stencil list: two columns and four rows of 44 cells, 2 between, padded.
-const _toolsRowW = 3 * 44 + 2 * 20.0;
-const _stencilsListW = 2 * 44 + 2 + 2 * _stencilsPad;
-const _stencilsListH = 4 * 44 + 3 * 2 + 2 * _stencilsPad;
+/// The open stencil list: two columns of 44 cells side by side, five and a
+/// half rows in view with 2 between, padded (the half row shows it scrolls).
+const _stencilsListW = 2 * 44 + 2 * _stencilsPad;
+const _stencilsListH = 5.5 * 44 + 5 * 2 + 2 * _stencilsPad;
+
+/// Gap between the tools in a row [width] wide: 20, or less (down to 6) when
+/// the stencil list beside them needs the room. The stencils button, grown
+/// ×1.12 when on, keeps 6 clear of the list, which keeps 8 from the edge.
+double _toolsGap(double width) => (width / 2 - 66 - (8 + _stencilsListW + 6 + 3)).clamp(6.0, 20.0);
 
 /// Stencil shapes, picked from the list the stencil button opens.
 const _stencils = [
@@ -59,7 +62,15 @@ const _stencils = [
   ('drop', LucideIcons.droplet, 'Капля'),
   ('diamond', LucideIcons.diamond, 'Ромб'),
   ('hexagon', LucideIcons.hexagon, 'Шестиугольник'),
+  // Halloween; stand-in icons for now.
+  ('bone', LucideIcons.bone, 'Кость'),
+  ('hat', LucideIcons.wandSparkles, 'Шляпа ведьмы'),
+  ('bat', LucideIcons.moon, 'Летучая мышь'),
+  ('jack', LucideIcons.smile, 'Светильник Джека'),
 ];
+
+/// The Halloween stencils, set apart in the list.
+const _halloween = {'bone', 'hat', 'bat', 'jack'};
 
 /// Cuts on the board and the pieces each one dropped, in step, on paper
 /// folded [folds] times.
@@ -183,11 +194,22 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     _intro?.dispose();
     _foldSecs = 2 * unfoldSpan(f.folds);
     _intro = AnimationController(vsync: this, duration: Duration(milliseconds: (_introSecs * 1000).round()))
-      ..addListener(() => setState(() {}))
+      ..addListener(_onTick)
+      ..addStatusListener((_) => setState(() {}))
       ..forward();
   }
 
-  /// Leaves the event: the paper goes back to how it was before it.
+  /// Bumped on every frame of the intro or a help: only the board redraws.
+  final _frame = ValueNotifier(0);
+  bool _wasArriving = false;
+
+  void _onTick() {
+    _frame.value++;
+    // The rest of the screen only when the flake has come in (the skip tap
+    // goes).
+    if (_introArriving != _wasArriving) setState(() => _wasArriving = _introArriving);
+  }
+
   /// Whether the intro is still bringing its flake in: until its wedge has
   /// settled on the paper.
   bool get _introArriving => _introRunning && _introAt < _settledAt;
@@ -200,6 +222,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     i.forward(from: _settledAt / _introSecs);
   }
 
+  /// Leaves the event: the paper goes back to how it was before it.
   void _endEvent() {
     final e = _s._event;
     if (e == null) return;
@@ -223,6 +246,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
   void dispose() {
     _intro?.dispose();
     _help?.dispose();
+    _frame.dispose();
     super.dispose();
   }
 
@@ -242,7 +266,8 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     setState(() => _s._helps--);
     _help?.dispose();
     _help = AnimationController(vsync: this, duration: _helpLength)
-      ..addListener(() => setState(() {}))
+      ..addListener(_onTick)
+      ..addStatusListener((_) => setState(() {}))
       ..forward();
   }
 
@@ -381,7 +406,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                     ],
                   ),
                   const SizedBox(height: 20),
-                  // Pastels, then bold colours, six to a row.
+                  // The paper colours, six to a row.
                   for (var r = 0; r < paperColors.length; r += 6) ...[
                     if (r > 0) const SizedBox(height: 12),
                     Row(
@@ -418,32 +443,40 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                     ),
                   ],
                   const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      for (final (i, (id, name)) in paperPatterns.indexed) ...[
-                        if (i > 0) const SizedBox(width: 8),
-                        Expanded(
-                          child: Semantics(
-                            button: true,
-                            label: name,
-                            selected: id == _paper.pattern,
-                            child: GestureDetector(
-                              onTap: () => set(_paper.copyWith(pattern: id)),
-                              child: Column(
-                                children: [
-                                  _PaperSwatch(color: _paper.color, pattern: id, selected: id == _paper.pattern),
-                                  const SizedBox(height: 8),
-                                  FittedBox(
-                                    child: Text(name, style: display(11, color: C.night800)),
-                                  ),
-                                ],
-                              ),
-                            ),
+                  // Patterns four to a row, the last row left-aligned with blanks.
+                  for (var row = 0; row * 4 < paperPatterns.length; row++) ...[
+                    if (row > 0) const SizedBox(height: 14),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (var col = 0; col < 4; col++) ...[
+                          if (col > 0) const SizedBox(width: 12),
+                          Expanded(
+                            child: row * 4 + col >= paperPatterns.length
+                                ? const SizedBox()
+                                : Builder(builder: (_) {
+                                    final (id, name) = paperPatterns[row * 4 + col];
+                                    return Semantics(
+                                      button: true,
+                                      label: name,
+                                      selected: id == _paper.pattern,
+                                      child: GestureDetector(
+                                        onTap: () => set(_paper.copyWith(pattern: id)),
+                                        child: Column(
+                                          children: [
+                                            _PaperSwatch(color: _paper.color, pattern: id, selected: id == _paper.pattern),
+                                            const SizedBox(height: 8),
+                                            FittedBox(child: Text(name, style: display(13, color: C.night800))),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  }),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
-                  ),
+                    ),
+                  ],
                 ],
               ),
             );
@@ -473,191 +506,206 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                 // No input while an event's intro plays, but for the way out of it.
                 Positioned.fill(
                   top: _boardTop,
-                  child: AbsorbPointer(
-                    absorbing: _introRunning,
-                    child: LayoutBuilder(
-                      builder: (_, c) {
-                        // The wedge sits midway between the top row and the tool row, with
-                        // at least 12 clear above and below, as big as that room allows, short
-                        // of the screen's width for the wider (four-fold) wedge less 16 a side:
-                        // the same size whichever way the paper is folded.
-                        final topRowFoot = _topRowFoot(c.maxWidth);
-                        final widest = (c.maxWidth - 32) / (2 * math.sin(wedgeHalfAngle(4)) * 0.94);
-                        // 95% of that, for a little air round it.
-                        final h = .95 * math.min(widest, (c.maxHeight - topRowFoot - _toolsH - 24) / 0.94);
-                        final apexY = (topRowFoot + c.maxHeight - _toolsH) / 2 + 0.47 * h;
-                        return SizedBox.fromSize(
-                          size: c.biggest,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              // Under the board, so the board's fold edges show over the event's
-                              // wedge as it lands, before the board's own paper comes back.
-                              if (_intro != null && _intro!.value < 1)
+                  child: ValueListenableBuilder(
+                    valueListenable: _frame,
+                    builder: (_, _, _) => AbsorbPointer(
+                      absorbing: _introRunning,
+                      child: LayoutBuilder(
+                        builder: (_, c) {
+                          // The wedge sits midway between the top row and the tool row, with
+                          // at least 12 clear above and below, as big as that room allows, short
+                          // of the screen's width for the wider (four-fold) wedge less 16 a side:
+                          // the same size whichever way the paper is folded.
+                          final topRowFoot = _topRowFoot(c.maxWidth);
+                          final widest = (c.maxWidth - 32) / (2 * math.sin(wedgeHalfAngle(4)) * 0.94);
+                          // 95% of that, for a little air round it.
+                          final h = .95 * math.min(widest, (c.maxHeight - topRowFoot - _toolsH - 24) / 0.94);
+                          final apexY = (topRowFoot + c.maxHeight - _toolsH) / 2 + 0.47 * h;
+                          return SizedBox.fromSize(
+                            size: c.biggest,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                // Under the board, so the board's fold edges show over the event's
+                                // wedge as it lands, before the board's own paper comes back.
+                                if (_intro != null && _intro!.value < 1)
+                                  Positioned.fill(
+                                    child: IgnorePointer(
+                                      child: _introLayer(c.maxWidth, (c.maxHeight + _boardTop) / 2 - _boardTop, Offset(c.maxWidth / 2, apexY), h * 0.94),
+                                    ),
+                                  ),
                                 Positioned.fill(
-                                  child: IgnorePointer(
-                                    child: _introLayer(c.maxWidth, (c.maxHeight + _boardTop) / 2 - _boardTop, Offset(c.maxWidth / 2, apexY), h * 0.94),
-                                  ),
-                                ),
-                              Positioned.fill(
-                                // Only its fold edges under the intro, fading in as the event's wedge
-                                // lands; its paper waits until that wedge has lost its cuts (it would
-                                // show white through them).
-                                child: Opacity(
-                                  opacity: _edgesShown,
-                                  child: CutBoard(
-                                    key: ValueKey(_boardKey),
-                                    paperOpacity: _paperShown,
-                                    hintCuts: _eventOn ? snowflakePresets[_s._event!.flake.preset] ?? const [] : const [],
-                                    hintOpacity: _hintOpacity,
-                                    height: h,
-                                    topInset: topRowFoot,
-                                    bottomInset: _toolsH,
-                                    // Cuts may start well off the paper, so a slit can run in from outside.
-                                    touchMargin: 120,
-                                    folds: _folds,
-                                    cuts: _cuts,
-                                    fallen: _fallen,
-                                    tool: _tool,
-                                    stencilCut: _stencilCut,
-                                    color: _paper.color,
-                                    pattern: _paper.pattern,
-                                    onCut: _addCut,
-                                  ),
-                                ),
-                              ),
-                              if (!widget.game.hintDismissed)
-                                Positioned(
-                                  // Under the wedge's apex (CutBoard centres an h-high box, apex 8 above its bottom).
-                                  top: math.min(apexY + 14, c.maxHeight - _toolsH - 84),
-                                  left: 16,
-                                  right: 16,
-                                  child: IgnorePointer(child: Center(child: HintBubble(_tool == 'free' ? 'Обведи пальцем кусочек, чтобы вырезать' : 'Двигай трафарет и жми на ножницы', tailUp: true))),
-                                ),
-                              // With a stencil out: the scissors that cut it, at the right.
-                              if (_tool != 'free' && !_paperOpen)
-                                Positioned(
-                                  right: 16,
-                                  bottom: _toolsH - 8,
-                                  child: RoundBtn(LucideIcons.scissors, label: 'Вырезать', variant: Variant.soft, size: BtnSize.l, onTap: () => setState(() => _stencilCut++)),
-                                ),
-                              // The stencil list, when open: a two-column grid left of the
-                              // stencils button, level with the tools.
-                              if (_tool != 'free' && !_paperOpen && _stencilsOpen)
-                                Positioned(
-                                  // 8 left of the stencils button (the tool row is centred), but
-                                  // never off the screen's edge.
-                                  left: math.max(8, 24 + (c.maxWidth - 48 - _toolsRowW) / 2 - 8 - _stencilsListW),
-                                  bottom: 12,
-                                  width: _stencilsListW,
-                                  height: _stencilsListH,
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: C.paper,
-                                      borderRadius: BorderRadius.circular(26),
-                                      boxShadow: const [BoxShadow(color: C.snow300, offset: Offset(0, 4))],
+                                  // Only its fold edges under the intro, fading in as the event's wedge
+                                  // lands; its paper waits until that wedge has lost its cuts (it would
+                                  // show white through them).
+                                  child: Opacity(
+                                    opacity: _edgesShown,
+                                    child: CutBoard(
+                                      key: ValueKey(_boardKey),
+                                      paperOpacity: _paperShown,
+                                      hintCuts: _eventOn ? snowflakePresets[_s._event!.flake.preset] ?? const [] : const [],
+                                      hintOpacity: _hintOpacity,
+                                      height: h,
+                                      topInset: topRowFoot,
+                                      bottomInset: _toolsH,
+                                      // Cuts may start well off the paper, so a slit can run in from outside.
+                                      touchMargin: 120,
+                                      folds: _folds,
+                                      cuts: _cuts,
+                                      fallen: _fallen,
+                                      tool: _tool,
+                                      stencilCut: _stencilCut,
+                                      color: _paper.color,
+                                      pattern: _paper.pattern,
+                                      onCut: _addCut,
+                                      // Until the first touch on the board since launch, a phantom
+                                      // stroke shows how to cut.
+                                      demo: !widget.game.hintDismissed && _tool == 'free' && !_eventOn && !_paperOpen,
+                                    // Still under the paper dialog: no shimmer ticking unseen.
+                                    shimmer: !_paperOpen,
+                                      onTouch: widget.game.dismissHint,
                                     ),
-                                    clipBehavior: Clip.antiAlias,
-                                    child: GridView.builder(
-                                      padding: const EdgeInsets.all(_stencilsPad),
-                                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: 2,
-                                        mainAxisSpacing: 2,
-                                        crossAxisSpacing: 2,
+                                  ),
+                                ),
+                                // With a stencil out: the scissors that cut it, at the right.
+                                if (_tool != 'free' && !_paperOpen)
+                                  Positioned(
+                                    right: 16,
+                                    bottom: _toolsH - 8,
+                                    child: RoundBtn(LucideIcons.scissors, label: 'Вырезать', variant: Variant.soft, size: BtnSize.l, onTap: () => setState(() => _stencilCut++)),
+                                  ),
+                                // The stencil list, when open: a two-column grid left of the
+                                // stencils button, level with the tools.
+                                if (_tool != 'free' && !_paperOpen && _stencilsOpen)
+                                  Positioned(
+                                    // Just left of the stencils button (the tool row is centred), but
+                                    // never off the screen's edge.
+                                    left: math.max(8, c.maxWidth / 2 - 66 - _toolsGap(c.maxWidth) - 9 - _stencilsListW),
+                                    bottom: 12,
+                                    width: _stencilsListW,
+                                    height: _stencilsListH,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: C.paper,
+                                        borderRadius: BorderRadius.circular(26),
+                                        boxShadow: const [BoxShadow(color: C.snow300, offset: Offset(0, 4))],
                                       ),
-                                      itemCount: _stencils.length,
-                                      itemBuilder: (_, i) {
-                                        final (id, icon, label) = _stencils[i];
-                                        return Center(
-                                          child: SizedBox.square(
-                                            dimension: 44,
-                                            // Just the 44 circle in the layout: the button's
-                                            // lip room (flat here anyway) hangs below it.
-                                            child: OverflowBox(
-                                              alignment: Alignment.topCenter,
-                                              maxHeight: 48,
-                                              child: RoundBtn(
-                                                icon,
-                                                label: label,
-                                                size: BtnSize.s,
-                                                variant: _tool == id ? Variant.secondary : Variant.light,
-                                                active: _tool == id,
-                                                // Flat even when picked: the colour alone marks it.
-                                                flat: true,
-                                                onTap: () => _pickStencil(id),
+                                      clipBehavior: Clip.antiAlias,
+                                      // Two to a row; the Halloween ones together on an orange ground.
+                                      child: SingleChildScrollView(
+                                        padding: const EdgeInsets.all(_stencilsPad),
+                                        child: Column(children: [
+                                          for (final (i, group) in [
+                                            [for (final t in _stencils) if (!_halloween.contains(t.$1)) t],
+                                            [for (final t in _stencils) if (_halloween.contains(t.$1)) t],
+                                          ].indexed)
+                                            if (group.isNotEmpty)
+                                              Container(
+                                                margin: EdgeInsets.only(top: i > 0 ? 2 : 0),
+                                                decoration: i > 0 ? BoxDecoration(color: const Color(0xFFFF7A1A), borderRadius: BorderRadius.circular(22)) : null,
+                                                child: Column(children: [
+                                                  for (var r = 0; r * 2 < group.length; r++)
+                                                    Padding(
+                                                      padding: EdgeInsets.only(top: r > 0 ? 2 : 0),
+                                                      child: Row(children: [
+                                                        for (final (id, icon, label) in group.skip(r * 2).take(2))
+                                                          SizedBox.square(
+                                                            dimension: 44,
+                                                            // Just the 44 circle in the layout: the button's
+                                                            // lip room (flat here anyway) hangs below it.
+                                                            child: OverflowBox(
+                                                              alignment: Alignment.topCenter,
+                                                              maxHeight: 48,
+                                                              child: RoundBtn(
+                                                                icon,
+                                                                label: label,
+                                                                size: BtnSize.s,
+                                                                // Flat and full size even when picked: the colour
+                                                                // alone marks it, inside its cell.
+                                                                variant: _tool == id
+                                                                    ? Variant.secondary
+                                                                    : i > 0
+                                                                        ? Variant.clear
+                                                                        : Variant.light,
+                                                                flat: true,
+                                                                onTap: () => _pickStencil(id),
+                                                              ),
+                                                            ),
+                                                          ),
+                                                      ]),
+                                                    ),
+                                                ]),
                                               ),
-                                            ),
-                                          ),
-                                        );
-                                      },
+                                        ]),
+                                      ),
                                     ),
                                   ),
+                                // Tools float over the board's foot, so nothing hides the paper
+                                // between them and the action row.
+                                Positioned(
+                                  left: 0,
+                                  right: 0,
+                                  bottom: 12,
+                                  child: Builder(
+                                    builder: (_) {
+                                      // The paper dialog takes over: neither cutting tool shows as on meanwhile.
+                                      final stencilOn = _tool != 'free' && !_paperOpen;
+                                      final scissorsOn = _tool == 'free' && !_paperOpen;
+                                      final (_, stencilIcon, _) = _stencils.firstWhere((t) => t.$1 == _s.stencil);
+                                      // Centred: stencils, scissors in the middle, paper.
+                                      return Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          // Shows the last stencil; opens the list of all of them.
+                                          RoundBtn(
+                                            stencilIcon,
+                                            label: 'Трафареты',
+                                            size: BtnSize.s,
+                                            variant: stencilOn || _stencilsOpen ? Variant.secondary : Variant.light,
+                                            active: stencilOn,
+                                            // From the scissors it takes out the last stencil (a star at
+                                            // first) along with the list; after that it only opens and
+                                            // closes the list.
+                                            onTap: () => setState(() {
+                                              if (_tool != 'free') {
+                                                _stencilsOpen = !_stencilsOpen;
+                                              } else {
+                                                _tool = _s.stencil;
+                                                _stencilsOpen = true;
+                                              }
+                                            }),
+                                          ),
+                                          SizedBox(width: _toolsGap(c.maxWidth)),
+                                          RoundBtn(
+                                            LucideIcons.scissors,
+                                            label: 'Ножницы',
+                                            size: BtnSize.s,
+                                            variant: scissorsOn ? Variant.secondary : Variant.light,
+                                            active: scissorsOn,
+                                            onTap: () => setState(() {
+                                              _tool = 'free';
+                                              _stencilsOpen = false;
+                                            }),
+                                          ),
+                                          SizedBox(width: _toolsGap(c.maxWidth)),
+                                          RoundBtn(
+                                            LucideIcons.palette,
+                                            label: 'Бумага',
+                                            size: BtnSize.s,
+                                            variant: _paperOpen ? Variant.secondary : Variant.light,
+                                            active: _paperOpen,
+                                            onTap: _openPaper,
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
                                 ),
-                              // Tools float over the board's foot, so nothing hides the paper
-                              // between them and the action row.
-                              Positioned(
-                                left: 24,
-                                right: 24,
-                                bottom: 12,
-                                child: Builder(
-                                  builder: (_) {
-                                    // The paper dialog takes over: neither cutting tool shows as on meanwhile.
-                                    final stencilOn = _tool != 'free' && !_paperOpen;
-                                    final scissorsOn = _tool == 'free' && !_paperOpen;
-                                    final (_, stencilIcon, _) = _stencils.firstWhere((t) => t.$1 == _s.stencil);
-                                    // Centred: stencils, scissors in the middle, paper.
-                                    return Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        // Shows the last stencil; opens the list of all of them.
-                                        RoundBtn(
-                                          stencilIcon,
-                                          label: 'Трафареты',
-                                          size: BtnSize.s,
-                                          variant: stencilOn || _stencilsOpen ? Variant.secondary : Variant.light,
-                                          active: stencilOn,
-                                          // From the scissors it takes out the last stencil (a star at
-                                          // first) along with the list; after that it only opens and
-                                          // closes the list.
-                                          onTap: () => setState(() {
-                                            if (_tool != 'free') {
-                                              _stencilsOpen = !_stencilsOpen;
-                                            } else {
-                                              _tool = _s.stencil;
-                                              _stencilsOpen = true;
-                                            }
-                                          }),
-                                        ),
-                                        const SizedBox(width: 20),
-                                        RoundBtn(
-                                          LucideIcons.scissors,
-                                          label: 'Ножницы',
-                                          size: BtnSize.s,
-                                          variant: scissorsOn ? Variant.secondary : Variant.light,
-                                          active: scissorsOn,
-                                          onTap: () => setState(() {
-                                            _tool = 'free';
-                                            _stencilsOpen = false;
-                                          }),
-                                        ),
-                                        const SizedBox(width: 20),
-                                        RoundBtn(
-                                          LucideIcons.palette,
-                                          label: 'Бумага',
-                                          size: BtnSize.s,
-                                          variant: _paperOpen ? Variant.secondary : Variant.light,
-                                          active: _paperOpen,
-                                          onTap: _openPaper,
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                              ],
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
@@ -753,6 +801,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                         visible: !_eventOn,
                         maintainState: true,
                         child: _EventPanel(
+                          paused: _eventOn,
                           side: _eventSide(MediaQuery.sizeOf(context).width),
                           index: _event,
                           onStep: (d) => setState(() => _event = (_event + d) % _events.length),
@@ -833,7 +882,9 @@ const _events = [
       (preset: 'spiders', folds: 6, color: Color(0xFF4A1A6B), pattern: 'plain'),
       (preset: 'bats', folds: 6, color: Color(0xFF8A5CD6), pattern: 'plain'),
       (preset: 'ghosts', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
-      (preset: 'hats', folds: 6, color: Color(0xFF2FB37E), pattern: 'plain'),
+      (preset: 'hats', folds: 6, color: Color(0xFF1E6B4F), pattern: 'plain'),
+      (preset: 'cats', folds: 6, color: Color(0xFF1E2F6B), pattern: 'plain'),
+      (preset: 'zombies', folds: 6, color: Color(0xFFBFF0DC), pattern: 'plain'),
     ],
   ),
 ];
@@ -844,7 +895,10 @@ const _foldsIcon = LucideIcons.layers2;
 /// One event at a time, stepped through with the arrows; its flakes take
 /// turns every [_flakeEvery], the next rising in from below.
 class _EventPanel extends StatefulWidget {
-  const _EventPanel({required this.side, required this.index, required this.onStep, required this.onPick});
+  const _EventPanel({required this.side, required this.index, required this.onStep, required this.onPick, this.paused = false});
+
+  /// Hidden behind an event: its flakes stop taking turns meanwhile.
+  final bool paused;
 
   /// The panel is square, this many dp across.
   final double side;
@@ -862,9 +916,14 @@ const _flakeEvery = Duration(seconds: 5);
 
 class _EventPanelState extends State<_EventPanel> {
   int _flake = 0;
-  late Timer _timer;
+  Timer? _timer;
 
-  void _startTimer() => _timer = Timer.periodic(_flakeEvery, (_) => setState(() {
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = widget.paused ? null : _tick();
+  }
+
+  Timer _tick() => Timer.periodic(_flakeEvery, (_) => setState(() {
     _flake++;
     _rise = 1;
   }));
@@ -878,7 +937,6 @@ class _EventPanelState extends State<_EventPanel> {
   void _swipe(DragEndDetails d) {
     final v = d.primaryVelocity ?? 0;
     if (v.abs() < 100) return;
-    _timer.cancel();
     setState(() {
       _rise = v < 0 ? 1 : -1;
       _flake += _rise;
@@ -903,14 +961,15 @@ class _EventPanelState extends State<_EventPanel> {
     // Stepping to an event opens on one of its flakes at random, given its full turn.
     if (old.index != widget.index) {
       _flake = math.Random().nextInt(_events[widget.index].flakes.length);
-      _timer.cancel();
+      _startTimer();
+    } else if (old.paused != widget.paused) {
       _startTimer();
     }
   }
 
   @override
   void dispose() {
-    _timer.cancel();
+    _timer?.cancel();
     super.dispose();
   }
 
@@ -1084,14 +1143,36 @@ class _ChevronPainter extends CustomPainter {
 
 /// A square of paper in [color] and [pattern] filling its width, for the
 /// pattern picker; styled like the colour swatches.
-class _PaperSwatch extends StatelessWidget {
+class _PaperSwatch extends StatefulWidget {
   const _PaperSwatch({required this.color, required this.pattern, required this.selected});
   final Color color;
   final String pattern;
   final bool selected;
 
   @override
+  State<_PaperSwatch> createState() => _PaperSwatchState();
+}
+
+class _PaperSwatchState extends State<_PaperSwatch> with SingleTickerProviderStateMixin {
+  /// Seconds the paper has shimmered for, on a swatch that [shimmers].
+  double _twinkleAt = 0;
+  late final _twinkle = createTicker((elapsed) => setState(() => _twinkleAt = elapsed.inMicroseconds / 1e6));
+
+  @override
+  void initState() {
+    super.initState();
+    if (shimmers(widget.pattern)) _twinkle.start();
+  }
+
+  @override
+  void dispose() {
+    _twinkle.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final color = widget.color, pattern = widget.pattern, selected = widget.selected;
     return AspectRatio(
       aspectRatio: 1,
       child: DecoratedBox(
@@ -1102,7 +1183,7 @@ class _PaperSwatch extends StatelessWidget {
             if (selected) const BoxShadow(color: C.berry500, spreadRadius: 4),
           ],
         ),
-        child: CustomPaint(painter: _PaperSwatchPainter(color, pattern, MediaQuery.devicePixelRatioOf(context))),
+        child: CustomPaint(painter: _PaperSwatchPainter(color, pattern, MediaQuery.devicePixelRatioOf(context), shimmers(pattern) ? _twinkleAt : null)),
       ),
     );
   }
@@ -1111,10 +1192,13 @@ class _PaperSwatch extends StatelessWidget {
 const _radius = 12.0;
 
 class _PaperSwatchPainter extends CustomPainter {
-  _PaperSwatchPainter(this.color, this.pattern, this.dpr);
+  _PaperSwatchPainter(this.color, this.pattern, this.dpr, this.twinkle);
   final Color color;
   final String pattern;
   final double dpr;
+
+  /// Seconds the paper has shimmered for, on a swatch that shimmers.
+  final double? twinkle;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1122,7 +1206,17 @@ class _PaperSwatchPainter extends CustomPainter {
     // The pattern tile is a bitmap: lay it out in device pixels so it stays crisp.
     canvas.save();
     canvas.scale(1 / dpr);
-    canvas.drawRRect(RRect.fromRectAndRadius(Offset.zero & size * dpr, Radius.circular(_radius * dpr)), makePaperFill(color, pattern, 100 * dpr));
+    final rr = RRect.fromRectAndRadius(Offset.zero & size * dpr, Radius.circular(_radius * dpr));
+    canvas.drawRRect(rr, makePaperFill(color, pattern, 100 * dpr));
+    final tw = twinkle;
+    if (tw != null && pattern == 'sparkle') {
+      canvas.clipRRect(rr);
+      drawGlints(canvas, rr.outerRect, color, 100 * dpr, tw);
+    }
+    if (pattern == 'holo') {
+      canvas.clipRRect(rr);
+      drawHoloSheen(canvas, rr.outerRect, 100 * dpr, time: tw ?? 0);
+    }
     canvas.restore();
     canvas.drawRRect(
       r.deflate(1),
@@ -1134,5 +1228,5 @@ class _PaperSwatchPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_PaperSwatchPainter o) => o.color != color || o.pattern != pattern || o.dpr != dpr;
+  bool shouldRepaint(_PaperSwatchPainter o) => o.color != color || o.pattern != pattern || o.dpr != dpr || o.twinkle != twinkle;
 }

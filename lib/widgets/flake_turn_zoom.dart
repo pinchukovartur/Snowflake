@@ -28,9 +28,19 @@ mixin FlakeTurnZoom<T extends StatefulWidget> on TickerProviderStateMixin<T> {
   bool _pinching = false;
   static const _maxZoom = 3.0;
 
+  /// Seconds the paper has shimmered for, once [startTwinkle] has been
+  /// called (for a flake on paper that [shimmers]).
+  double twinkleAt = 0;
+  late final _twinkle = createTicker((elapsed) => setState(() => twinkleAt = elapsed.inMicroseconds / 1e6));
+
+  void startTwinkle() {
+    if (!_twinkle.isActive) _twinkle.start();
+  }
+
   @override
   void dispose() {
     _glide.dispose();
+    _twinkle.dispose();
     super.dispose();
   }
 

@@ -19,6 +19,7 @@ class SnowflakeView extends StatelessWidget {
     this.pattern = 'plain',
     this.spin = 0,
     this.shading = true,
+    this.twinkle,
   });
 
   final List<Cut>? cuts;
@@ -28,6 +29,11 @@ class SnowflakeView extends StatelessWidget {
   final Color? color;
   final String pattern;
   final bool shading;
+
+  /// Seconds the paper has shimmered for (see [shimmers]): glitter's glints
+  /// flash on the unfolded flake, a hologram's sheen drifts. Redrawn each
+  /// frame rather than baked, so kept to a flake on show.
+  final double? twinkle;
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +47,7 @@ class SnowflakeView extends StatelessWidget {
         unfold: unfold,
         spin: spin,
         shading: shading,
+        twinkle: shimmers(pattern) ? twinkle : null,
         dpr: MediaQuery.devicePixelRatioOf(context),
       ),
     );
@@ -48,21 +55,30 @@ class SnowflakeView extends StatelessWidget {
 }
 
 class _WedgeKey {
-  _WedgeKey(this.cuts, this.folds, this.color, this.pattern, this.px);
+  _WedgeKey(this.cuts, this.folds, this.color, this.pattern, this.px, [this.pos = 0]);
   final List<Cut> cuts;
   final int folds, px;
   final Color color;
   final String pattern;
 
+  /// The segment this wedge is cut from (see [toSheet]): each shows its own
+  /// part of the sheet's pattern. Plain paper looks the same in every one.
+  final int pos;
+
+  _WedgeKey at(int p) {
+    final segs = folds * 2;
+    return _WedgeKey(cuts, folds, color, pattern, px, pattern == 'plain' ? 0 : ((p % segs) + segs) % segs);
+  }
+
   @override
   bool operator ==(Object o) =>
-      o is _WedgeKey && identical(o.cuts, cuts) && o.folds == folds && o.color == color && o.pattern == pattern && o.px == px;
+      o is _WedgeKey && identical(o.cuts, cuts) && o.folds == folds && o.color == color && o.pattern == pattern && o.px == px && o.pos == pos;
 
   @override
-  int get hashCode => Object.hash(identityHashCode(cuts), folds, color, pattern, px);
+  int get hashCode => Object.hash(identityHashCode(cuts), folds, color, pattern, px, pos);
 }
 
-// The wedge is rendered once and re-drawn per segment.
+// Each segment's wedge is rendered once and re-drawn as needed.
 final _wedgeCache = <_WedgeKey, ui.Image>{};
 
 ui.Image _wedgeImage(_WedgeKey k) {
@@ -73,10 +89,10 @@ ui.Image _wedgeImage(_WedgeKey k) {
   final px = k.px.toDouble();
   final u = px / 2 * 0.96;
   c.translate(px / 2, px / 2);
-  drawWedge(c, u, k.cuts, wedgeHalfAngle(k.folds), makePaperFill(k.color, k.pattern, u), pad: 0.006);
+  drawWedge(c, u, k.cuts, wedgeHalfAngle(k.folds), makePaperFill(k.color, k.pattern, u), pad: 0.006, pattern: k.pattern, pos: k.pos, folds: k.folds, sheen: false);
   final img = rec.endRecording().toImageSync(k.px, k.px);
   _wedgeCache[k] = img;
-  while (_wedgeCache.length > 80) {
+  while (_wedgeCache.length > 240) {
     _wedgeCache.remove(_wedgeCache.keys.first)?.dispose();
   }
   return img;
@@ -95,8 +111,9 @@ class _FlakeKey {
   int get hashCode => Object.hash(wedge, size, shading);
 }
 
-// Fully unfolded, unrotated flakes are baked once: the home
-// screen, gallery and falling flakes then cost a single drawImage per frame.
+// Fully unfolded, unrotated, still (not shimmering) flakes are baked once:
+// the home screen, gallery and falling flakes then cost a single drawImage
+// per frame.
 final _flakeCache = <_FlakeKey, ui.Image>{};
 
 // ---- Unfolding ------------------------------------------------------------
@@ -132,6 +149,61 @@ class _UnfoldPlan {
 }
 
 final _plans = <int, _UnfoldPlan>{};
+
+final _stacks = <int, List<List<int>>>{};
+
+/// The segment on top of a [folds]-fold flake still folded: what the cut
+/// board shows of its paper, so the flake opens from just that.
+int foldedTop(int folds) {
+  final plan = _unfoldPlan(folds), depth = _stackDepths(folds)[0];
+  return plan.layers[depth.indexOf(0)].pos;
+}
+
+/// How deep each layer of a [folds]-fold flake lies in its pile before
+/// unfolding stage k (0 = on top; k = stages: the flat sheet). Found by
+/// folding the sheet up again, last stage first: each fold lays its flap
+/// over the pile it lands on, turned over (so the flap's own order
+/// reverses), the clockwise flaps of a two-sided stage last, as they open
+/// first. The flaps about to open thus always lie on top, and lift off it.
+List<List<int>> _stackDepths(int folds) => _stacks.putIfAbsent(folds, () {
+      final plan = _unfoldPlan(folds), n = plan.layers.length;
+      // Piles by position, top first.
+      final piles = <int, List<int>>{for (var i = 0; i < n; i++) plan.layers[i].pos: [i]};
+      List<int> depths() {
+        final d = List.filled(n, 0);
+        for (final pile in piles.values) {
+          for (var k = 0; k < pile.length; k++) {
+            d[pile[k]] = k;
+          }
+        }
+        return d;
+      }
+
+      final out = List<List<int>>.filled(plan.stages + 1, const []);
+      out[plan.stages] = depths();
+      for (var st = plan.stages - 1; st >= 0; st--) {
+        for (final side in const [-1, 1]) {
+          // Every flap of this pass is lifted off first, then laid down, so
+          // none is moved twice.
+          final lifted = <int, List<int>>{};
+          for (final p in [...piles.keys]) {
+            final pile = piles[p]!;
+            final moving = [
+              for (final i in pile)
+                if (plan.layers[i].flips.any((f) => f.stage == st && f.side == side)) i,
+            ];
+            if (moving.isEmpty) continue;
+            final c = plan.layers[moving.first].flips.firstWhere((f) => f.stage == st).crease;
+            piles[p] = [for (final i in pile) if (!moving.contains(i)) i];
+            lifted[2 * c + 1 - p] = [...moving.reversed, ...?lifted[2 * c + 1 - p]];
+          }
+          lifted.forEach((q, flap) => piles[q] = [...flap, ...?piles[q]]);
+          piles.removeWhere((_, pile) => pile.isEmpty);
+        }
+        out[st] = depths();
+      }
+      return out;
+    });
 
 _UnfoldPlan _unfoldPlan(int folds) => _plans.putIfAbsent(folds, () {
       final factors = [2];
@@ -203,6 +275,38 @@ Matrix4 _turn(double a, int side, double phi) {
   );
 }
 
+/// A point of a segment's frame (already mirrored if need be) on the sheet,
+/// for the segment turned by [angle].
+Offset _sheetPoint(Offset q, double angle) {
+  final c = math.cos(angle), s = math.sin(angle);
+  return Offset(q.dx * c - q.dy * s, q.dx * s + q.dy * c);
+}
+
+final _paperPaths = <_WedgeKey, Path>{};
+
+/// The paper left of a wedge [r] px in radius (as [_wedgeImage] draws it):
+/// what the glints are clipped to.
+Path _paperPath(_WedgeKey k, double r) {
+  final key = k.at(0);
+  final hit = _paperPaths[key];
+  if (hit != null) return hit;
+  while (_paperPaths.length >= 40) {
+    _paperPaths.remove(_paperPaths.keys.first);
+  }
+  return _paperPaths[key] = () {
+    final half = wedgeHalfAngle(k.folds), pad = .006;
+    var paper = Path()
+      ..moveTo(0, r * pad / math.sin(half))
+      ..arcTo(Rect.fromCircle(center: Offset.zero, radius: r), -math.pi / 2 - half - pad, 2 * (half + pad), false)
+      ..close();
+    for (final c in k.cuts) {
+      if (c.length < 3) continue;
+      paper = Path.combine(PathOperation.difference, paper, cutPath(c, r)..fillType = PathFillType.nonZero);
+    }
+    return paper;
+  }();
+}
+
 class SnowflakePainter extends CustomPainter {
   SnowflakePainter({
     required this.cuts,
@@ -212,6 +316,7 @@ class SnowflakePainter extends CustomPainter {
     required this.unfold,
     required this.spin,
     required this.shading,
+    this.twinkle,
     required this.dpr,
   });
 
@@ -221,6 +326,7 @@ class SnowflakePainter extends CustomPainter {
   final String pattern;
   final double unfold, spin, dpr;
   final bool shading;
+  final double? twinkle;
 
   _WedgeKey _wedgeKey(double s) => _WedgeKey(cuts, folds, color, pattern, (s * dpr).round());
 
@@ -230,7 +336,7 @@ class SnowflakePainter extends CustomPainter {
     // Nothing to draw under a pixel across (an image can't be 0 wide), as when
     // laid out in no room.
     if ((s * dpr).round() < 1) return;
-    if (unfold < 1 || spin != 0) {
+    if (unfold < 1 || spin != 0 || twinkle != null) {
       _paintFlake(canvas, s);
       return;
     }
@@ -255,16 +361,17 @@ class SnowflakePainter extends CustomPainter {
     );
   }
 
-  /// Paper tinted towards night blue by [a]: mirrored segments face the light
+  /// Paper darkened towards black by [a]: mirrored segments face the light
   /// at a slightly different angle, flaps turning over darken edge-on.
   static Paint _shade(double a) {
     final p = Paint()..filterQuality = FilterQuality.medium;
-    if (a > 0) p.colorFilter = ColorFilter.mode(Color.fromRGBO(46, 74, 148, math.min(a, 1)), BlendMode.srcATop);
+    if (a > 0) p.colorFilter = ColorFilter.mode(Color.fromRGBO(0, 0, 0, math.min(a, 1)), BlendMode.srcATop);
     return p;
   }
 
   void _paintFlake(Canvas canvas, double s) {
-    final img = _wedgeImage(_wedgeKey(s));
+    final key = _wedgeKey(s);
+    final img = _wedgeImage(key);
     final segs = folds * 2;
     final step = math.pi * 2 / segs;
     final t = unfold.clamp(0.0, 1.0);
@@ -284,18 +391,50 @@ class SnowflakePainter extends CustomPainter {
         canvas.save();
         canvas.rotate(i * step);
         if (i.isOdd) canvas.scale(-1, 1);
-        canvas.drawImageRect(img, src, dst, i.isOdd ? back : front);
+        canvas.drawImageRect(_wedgeImage(key.at(i)), src, dst, i.isOdd ? back : front);
         canvas.restore();
       }
+      final tw = twinkle;
+      if (tw != null && pattern == 'sparkle') {
+        // The glints, drawn straight on (no image per frame): each segment
+        // clipped to its paper and showing its own part of the sheet's.
+        final r = s / 2 * .96;
+        final clip = _paperPath(key, r);
+        final h = wedgeHalfAngle(folds);
+        for (var i = 0; i < segs; i++) {
+          canvas.save();
+          canvas.rotate(i * step);
+          if (i.isOdd) canvas.scale(-1, 1);
+          canvas.clipPath(clip);
+          toSheet(canvas, i, folds);
+          // Only where this segment lies on the sheet.
+          final corners = [Offset.zero, Offset(-r * math.sin(h), -r * math.cos(h)), Offset(r * math.sin(h), -r * math.cos(h)), Offset(0, -r)];
+          final onSheet = [
+            for (final q in corners) _sheetPoint(i.isOdd ? Offset(-q.dx, q.dy) : q, i * step),
+          ];
+          var area = Rect.fromPoints(onSheet.first, onSheet.first);
+          for (final q in onSheet) {
+            area = area.expandToInclude(Rect.fromPoints(q, q));
+          }
+          drawGlints(canvas, area.inflate(r * .05), color, r, tw);
+          canvas.restore();
+        }
+      }
     } else {
-      _paintFolded(canvas, img, src, dst, s, t);
+      _paintFolded(canvas, key, src, dst, s, t);
+    }
+    if (pattern == 'holo') {
+      // The hologram's sheen stays put on the screen, as light on foil does,
+      // however the flake turns: laid over the paper drawn so far.
+      canvas.rotate(-(spin + t * wedgeHalfAngle(folds)));
+      drawHoloSheen(canvas, Rect.fromCircle(center: Offset.zero, radius: s * .8), s * .48, blend: BlendMode.srcATop, time: twinkle ?? 0);
     }
     canvas.restore();
   }
 
   /// The paper while it unfolds: each layer is the flat segment at its final
   /// position, turned back over the creases it still has to open.
-  void _paintFolded(Canvas canvas, ui.Image img, Rect src, Rect dst, double s, double t) {
+  void _paintFolded(Canvas canvas, _WedgeKey key, Rect src, Rect dst, double s, double t) {
     final plan = _unfoldPlan(folds);
     final half = wedgeHalfAngle(folds), step = 2 * half;
     // A stage opening flaps to both sides takes twice as long (see [_stageWeights]).
@@ -314,8 +453,17 @@ class SnowflakePainter extends CustomPainter {
     final side = shading ? _sideShade : 0.0;
 
     bool moving(_Layer l) => l.flips.any((f) => f.stage == stage && progress(f) > 0 && progress(f) < 1);
-    // Layers turning over now lie on top of the stack.
-    for (final l in [...plan.layers.where((l) => !moving(l)), ...plan.layers.where(moving)]) {
+    // As the paper lies stacked (see [_stackDepths]), deepest first: before
+    // this stage's turn, or after it for a flap that has landed. A flap turning
+    // over lies on top, its layers in the order they lay before (while its
+    // face is still up) or will lie after (once it has turned past upright).
+    final depth = _stackDepths(folds);
+    double turned(_Layer l) => l.flips.where((f) => f.stage == stage).map(progress).fold(0.0, math.max);
+    int deep(int i) => depth[turned(plan.layers[i]) >= .5 ? stage + 1 : stage][i];
+    final all = [for (var i = 0; i < plan.layers.length; i++) i];
+    final still = [for (final i in all) if (!moving(plan.layers[i])) i]..sort((a, b) => deep(b).compareTo(deep(a)));
+    final turning = [for (final i in all) if (moving(plan.layers[i])) i]..sort((a, b) => deep(b).compareTo(deep(a)));
+    for (final l in [for (final i in [...still, ...turning]) plan.layers[i]]) {
       var m = Matrix4.rotationZ(l.pos * step);
       if (l.pos.isOdd) m.multiply(Matrix4.diagonal3Values(-1, 1, 1));
       // Each turn still to come mirrors the layer once more.
@@ -336,7 +484,7 @@ class SnowflakePainter extends CustomPainter {
       final a = side * ((before ? 1 - e : 0) + (after ? e : 0)) + (active > 0 ? _turnShade * math.sin(phi) : 0);
       canvas.save();
       canvas.transform((persp.clone()..multiply(m)).storage);
-      canvas.drawImageRect(img, src, dst, _shade(a));
+      canvas.drawImageRect(_wedgeImage(key.at(l.pos)), src, dst, _shade(a));
       canvas.restore();
     }
   }
@@ -349,6 +497,7 @@ class SnowflakePainter extends CustomPainter {
       o.pattern != pattern ||
       o.unfold != unfold ||
       o.spin != spin ||
+      o.twinkle != twinkle ||
       o.shading != shading ||
       o.dpr != dpr;
 }

@@ -239,7 +239,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   const SizedBox(height: 8),
                                   Text(
                                     'Сложи. Вырежи. Раскрой.',
-                                    style: body(17, weight: FontWeight.w800, color: C.ice200),
+                                    // Pale on the winter night; on the light autumn sky, the title's shadow colour.
+                                    style: body(17, weight: FontWeight.w800, color: season == Season.winter ? C.ice200 : C.night900),
                                   ),
                                 ]),
                               ),

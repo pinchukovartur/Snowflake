@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../theme/tokens.dart';
 import 'detach.dart';
 import 'geometry.dart';
+import 'snowflake_view.dart';
 
 /// Interactive folded wedge: drag a loop to cut a piece out or a line to slit
 /// the paper (tool `free`). Any other tool is a stencil shape (see
@@ -31,6 +32,9 @@ class CutBoard extends StatefulWidget {
     this.paperOpacity = 1,
     this.hintCuts = const [],
     this.hintOpacity = 0,
+    this.demo = false,
+    this.shimmer = true,
+    this.onTouch,
     this.stencilCut = 0,
     this.topInset = 0,
     this.bottomInset = 0,
@@ -52,6 +56,17 @@ class CutBoard extends StatefulWidget {
   /// at [hintOpacity]: not cut, just marked.
   final List<Cut> hintCuts;
   final double hintOpacity;
+
+  /// Shows how to cut, until the player first touches the board: every
+  /// [_demoEvery] a phantom stroke draws across the wedge and fades away like
+  /// a cut that missed the paper.
+  final bool demo;
+
+  /// Glitter and hologram paper shimmer (false pauses it, as when hidden).
+  final bool shimmer;
+
+  /// Called when a finger comes down on the board.
+  final VoidCallback? onTouch;
 
   /// Bump to cut the stencil out where it stands (the button for it lives
   /// outside the board).
@@ -97,9 +112,88 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   final _drops = <_Drop>[];
   final _misses = <_Miss>[];
 
+  // ---- Demo stroke ----------------------------------------------------------
+
+  /// One loop of the demo: a stroke draws from [_demoFrom] to [_demoTo]
+  /// seconds in, quick at first and easing off, then fades out, the rest of
+  /// the loop quiet. Each loop takes the next of [_demoPaths].
+  late final AnimationController _demo = AnimationController(vsync: this, duration: _demoEvery)..addListener(_demoTick);
+  static const _demoEvery = Duration(seconds: 5);
+  // The first stroke 2 s after the board opens, then one every loop.
+  static const _demoFrom = 2.0, _demoTo = 2.2;
+
+  /// The stroke drawn so far; null when none is showing.
+  _Live? _demoLive;
+  double _demoLast = 0;
+  int _demoIndex = 0;
+
+  /// Phantom strokes, each a curve from a past c to b (wedge units, for the
+  /// six-fold wedge, starting and ending off the paper): a rise across from
+  /// the left, a fall across from the right, a notch in from the right fold,
+  /// and a sweep across the top.
+  static final List<Cut> _demoPaths = [
+    for (final (a, c, b) in const [
+      (Offset(-.21, -.35), Offset(-.0625, -.478), Offset(.275, -.574)),
+      (Offset(.24, -.42), Offset(.05, -.55), Offset(-.3, -.66)),
+      (Offset(.3, -.72), Offset(-.14, -.84), Offset(.3, -.98)),
+      (Offset(-.33, -.92), Offset(0, -.7), Offset(.33, -.9)),
+    ])
+      [for (var i = 0; i <= 24; i++) Offset.lerp(Offset.lerp(a, c, i / 24)!, Offset.lerp(c, b, i / 24)!, i / 24)!],
+  ];
+
+  Cut get _demoPath => _demoPaths[_demoIndex % _demoPaths.length];
+
+  void _demoTick() {
+    final t = _demo.value * _demoEvery.inMilliseconds / 1000;
+    if (t < _demoLast) {
+      // A new loop, with the next stroke.
+      _demoLast = 0;
+      _demoIndex++;
+    }
+    if (t >= _demoFrom && t < _demoTo) {
+      final p = Curves.easeOutCubic.transform((t - _demoFrom) / (_demoTo - _demoFrom));
+      final n = (_demoPath.length * p).ceil().clamp(2, _demoPath.length);
+      setState(() => _demoLive = _Live(_demoPath.sublist(0, n)));
+    } else if (_demoLast < _demoTo && t >= _demoTo) {
+      setState(() => _demoLive = null);
+      _fadeOut(slit(_demoPath));
+    }
+    _demoLast = t;
+  }
+
+  /// Seconds the paper has shimmered for: glitter's glints twinkling, a
+  /// hologram's sheen drifting.
+  late final _twinkle = createTicker((elapsed) => setState(() => _twinkleAt = elapsed.inMicroseconds / 1e6));
+  double _twinkleAt = 0;
+
+  void _syncTwinkle() {
+    final on = widget.shimmer && shimmers(widget.pattern);
+    if (on && !_twinkle.isActive) _twinkle.start();
+    if (!on && _twinkle.isActive) _twinkle.stop();
+  }
+
+  void _syncDemo() {
+    if (widget.demo && !_demo.isAnimating) {
+      _demoLast = 0;
+      _demo.repeat();
+    } else if (!widget.demo && _demo.isAnimating) {
+      _demo.stop();
+      _demoLive = null;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _syncDemo();
+    _syncTwinkle();
+  }
+
   @override
   void didUpdateWidget(CutBoard old) {
     super.didUpdateWidget(old);
+    _syncDemo();
+    _syncTwinkle();
     // A new shape (or a reshaped wedge) starts again in the middle of the
     // paper, at its first size and turn.
     if (old.tool != widget.tool || old.folds != widget.folds) {
@@ -128,6 +222,8 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _demo.dispose();
+    _twinkle.dispose();
     _press.dispose();
     for (final d in _drops) {
       d.anim.dispose();
@@ -271,6 +367,7 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   }
 
   void _down(PointerDownEvent e) {
+    widget.onTouch?.call();
     _pointers[e.pointer] = e.localPosition;
     if (_pointers.length >= 2) {
       // Whatever the first finger started is dropped, not cut.
@@ -417,7 +514,7 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
               fallen: widget.fallen,
               drops: [for (final d in _drops) (d.pieces, d.cuts, d.anim.value)],
               misses: [for (final m in _misses) (m.cut, m.anim.value)],
-              live: _live,
+              live: _live ?? _demoLive,
               stencil: _stencilTool
                   ? (
                       shape: _stencil,
@@ -432,11 +529,13 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
                     )
                   : null,
               half: wedgeHalfAngle(widget.folds),
+              folds: widget.folds,
               s: _s,
               apex: _apex,
               color: widget.color,
               pattern: widget.pattern,
               paperOpacity: widget.paperOpacity,
+              twinkle: shimmers(widget.pattern) ? _twinkleAt : null,
               hint: widget.hintOpacity > 0 ? (cuts: widget.hintCuts, opacity: widget.hintOpacity) : null,
             ),
           ),
@@ -456,11 +555,13 @@ class _BoardPainter extends CustomPainter {
     required this.live,
     required this.stencil,
     required this.half,
+    required this.folds,
     required this.s,
     required this.apex,
     required this.color,
     required this.pattern,
     required this.paperOpacity,
+    required this.twinkle,
     required this.hint,
   });
 
@@ -474,10 +575,14 @@ class _BoardPainter extends CustomPainter {
   /// it is turned (shown while [turning]), while a stencil tool is on.
   final ({Cut shape, List<Offset> box, List<Offset> handles, Offset knob, Offset knobBase, double turn, bool turning, Offset centre, double press})? stencil;
   final double half, s;
+  final int folds;
   final Offset apex;
   final Color color;
   final String pattern;
   final double paperOpacity;
+
+  /// Seconds the paper has shimmered for (see [shimmers]); null if it doesn't.
+  final double? twinkle;
   final ({List<Cut> cuts, double opacity})? hint;
 
   @override
@@ -496,7 +601,11 @@ class _BoardPainter extends CustomPainter {
         ..close();
       canvas.drawPath(shadow, Paint()..color = const Color(0x292E4A94));
 
-      drawWedge(canvas, s, [...cuts, ...fallen], half, fill);
+      // The folded paper shows its top layer (see [foldedTop]), so the flake
+      // opens from just what the board showed.
+      drawWedge(canvas, s, [...cuts, ...fallen], half, fill, pattern: pattern, sheenTime: twinkle ?? 0, pos: foldedTop(folds), folds: folds);
+      final tw = twinkle;
+      if (tw != null && pattern == 'sparkle') drawWedgeGlints(canvas, s, [...cuts, ...fallen], half, color, tw, pos: foldedTop(folds), folds: folds);
       if (fading) canvas.restore();
     }
 
@@ -547,8 +656,8 @@ class _BoardPainter extends CustomPainter {
         canvas.drawPath(cutPath(c, s), tint);
       }
       for (final c in hint.cuts) {
-        drawDashed(canvas, cutPath(c, s), _halo(line, alpha: a), 7, 5);
-        drawDashed(canvas, cutPath(c, s), line, 7, 5);
+        drawDashed(canvas, cutOutline(c, s), _halo(line, alpha: a), 7, 5);
+        drawDashed(canvas, cutOutline(c, s), line, 7, 5);
       }
       canvas.restore();
     }
@@ -579,10 +688,10 @@ class _BoardPainter extends CustomPainter {
       final k = 1 - _CutBoardState._pressDepth * st.press;
       canvas.scale(k);
       canvas.translate(-st.centre.dx * s, -st.centre.dy * s);
-      final path = cutPath(st.shape, s);
-      canvas.drawPath(path, Paint()..color = const Color(0x2EE0405E));
-      drawDashed(canvas, path, _halo(stroke), 8, 6);
-      drawDashed(canvas, path, stroke, 8, 6);
+      canvas.drawPath(cutPath(st.shape, s), Paint()..color = const Color(0x2EE0405E));
+      final outline = cutOutline(st.shape, s);
+      drawDashed(canvas, outline, _halo(stroke), 8, 6);
+      drawDashed(canvas, outline, stroke, 8, 6);
       _paintSelection(canvas, st.box, st.handles, st.knob, st.knobBase, st.turn);
       if (st.turning) _paintDegrees(canvas, st.knob * s, st.turn);
       canvas.restore();
@@ -609,7 +718,8 @@ class _BoardPainter extends CustomPainter {
         canvas.translate(-c.dx, -c.dy);
         canvas.clipPath(path);
         canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, 1 - t * t));
-        drawWedge(canvas, s, dropCuts, half, fill);
+        // As the board draws its paper (the top layer, see there).
+        drawWedge(canvas, s, dropCuts, half, fill, pattern: pattern, sheenTime: twinkle ?? 0, pos: foldedTop(folds), folds: folds);
         canvas.restore();
         canvas.restore();
       }
@@ -693,7 +803,7 @@ class _BoardPainter extends CustomPainter {
   /// Dashed-outline path of [c]; a slit, a hairline band, is one line rather than both of its edges.
   Path _outline(Cut c) {
     final line = slitLine(c);
-    return line != null ? cutPath(line, s, close: false) : cutPath(c, s);
+    return line != null ? cutPath(line, s, close: false) : cutOutline(c, s);
   }
 
   @override
@@ -710,6 +820,7 @@ class _BoardPainter extends CustomPainter {
       o.color != color ||
       o.pattern != pattern ||
       o.paperOpacity != paperOpacity ||
+      o.twinkle != twinkle ||
       o.hint != hint ||
       o.s != s;
 }

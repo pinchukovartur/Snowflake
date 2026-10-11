@@ -49,6 +49,7 @@ class _RevealScreenState extends State<RevealScreen> with TickerProviderStateMix
   @override
   void initState() {
     super.initState();
+    if (shimmers(widget.paper.pattern)) startTwinkle();
     _anim.forward().then((_) => Future.delayed(const Duration(milliseconds: 450), () {
           if (mounted) setState(() => _done = true);
         }));
@@ -82,6 +83,9 @@ class _RevealScreenState extends State<RevealScreen> with TickerProviderStateMix
                     pattern: widget.paper.pattern,
                     unfold: _anim.value,
                     size: 320,
+                    // Glints twinkle once the flake lies open; a hologram's sheen
+                    // drifts all along.
+                    twinkle: _anim.isCompleted || widget.paper.pattern == 'holo' ? twinkleAt : null,
                     // One turn of the flake's own symmetry (2π / folds), so it comes to rest
                     // as every flake does, a crease upright.
                     spin: _anim.value * 2 * math.pi / widget.folds + turn,

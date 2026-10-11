@@ -8,7 +8,7 @@ import '../theme/tokens.dart';
 
 // ---- Buttons -------------------------------------------------------------
 
-enum Variant { primary, secondary, reward, success, light, soft, orange, dark, ghost }
+enum Variant { primary, secondary, reward, success, light, soft, orange, dark, ghost, clear }
 
 class _V {
   const _V(this.bg, this.lip, this.fg, {this.shadowText = false, this.border});
@@ -30,6 +30,8 @@ const _variants = {
   // Dark glass like CurrencyPill, for controls over busy backgrounds.
   Variant.dark: _V(Color(0x8C101A3F), Colors.transparent, Colors.white, border: Color(0x40C4ECFF)),
   Variant.ghost: _V(C.surfaceGlass, Colors.transparent, Colors.white),
+  // Just the icon, dark, on whatever lies behind.
+  Variant.clear: _V(Colors.transparent, Colors.transparent, C.night800),
 };
 
 /// Tracks the pressed state for the “lip” press animation.
@@ -360,58 +362,6 @@ Future<T?> showDsDialog<T>(BuildContext context, {required Widget Function(Build
       ]);
     },
   );
-}
-
-// ---- Hint bubble ---------------------------------------------------------
-
-class HintBubble extends StatelessWidget {
-  const HintBubble(this.text, {super.key, this.icon = LucideIcons.hand, this.tailUp = false});
-  final String text;
-  final IconData icon;
-
-  /// Tail on top, pointing at something above the bubble; otherwise below.
-  final bool tailUp;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      alignment: tailUp ? Alignment.topCenter : Alignment.bottomCenter,
-      children: [
-        Positioned(
-          top: tailUp ? -7 : null,
-          bottom: tailUp ? null : -7,
-          child: Transform.rotate(
-            angle: math.pi / 4,
-            child: Container(
-              width: 18,
-              height: 18,
-              decoration: BoxDecoration(color: C.paper, borderRadius: BorderRadius.circular(4)),
-            ),
-          ),
-        ),
-        Container(
-          constraints: const BoxConstraints(maxWidth: 300),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          decoration: BoxDecoration(
-            color: C.paper,
-            borderRadius: BorderRadius.circular(R.l),
-            boxShadow: const [BoxShadow(color: Color(0x26101A3F), offset: Offset(0, 5))],
-          ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: const BoxDecoration(color: C.berry100, shape: BoxShape.circle),
-              child: Icon(icon, size: 20, color: C.berry700),
-            ),
-            const SizedBox(width: 10),
-            Flexible(child: Text(text, style: body(17, weight: FontWeight.w800, color: C.night800, height: 1.25))),
-          ]),
-        ),
-      ],
-    );
-  }
 }
 
 // ---- Forms ---------------------------------------------------------------

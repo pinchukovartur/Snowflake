@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../app_state.dart';
+import '../snowflake/geometry.dart';
 import '../snowflake/snowflake_view.dart';
 import '../widgets/ds.dart';
 import '../widgets/flake_turn_zoom.dart';
@@ -22,6 +23,12 @@ class _FlakeScreenState extends State<FlakeScreen> with TickerProviderStateMixin
   double get flakeRadius => 160;
 
   @override
+  void initState() {
+    super.initState();
+    if (shimmers(widget.flake.pattern)) startTwinkle();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final f = widget.flake;
     return SkyBackground(
@@ -30,7 +37,7 @@ class _FlakeScreenState extends State<FlakeScreen> with TickerProviderStateMixin
           turnZoomGestures(),
           Center(
             child: turnZoomFlake(
-              (turn) => SnowflakeView(cuts: f.cuts, folds: f.folds, color: f.color, pattern: f.pattern, size: 320, spin: turn),
+              (turn) => SnowflakeView(cuts: f.cuts, folds: f.folds, color: f.color, pattern: f.pattern, size: 320, spin: turn, twinkle: twinkleAt),
             ),
           ),
           Positioned(
