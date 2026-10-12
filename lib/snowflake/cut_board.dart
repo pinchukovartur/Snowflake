@@ -36,6 +36,7 @@ class CutBoard extends StatefulWidget {
     this.shimmer = true,
     this.onTouch,
     this.stencilCut = 0,
+    this.stencilReset = 0,
     this.topInset = 0,
     this.bottomInset = 0,
   });
@@ -71,6 +72,9 @@ class CutBoard extends StatefulWidget {
   /// Bump to cut the stencil out where it stands (the button for it lives
   /// outside the board).
   final int stencilCut;
+
+  /// Bumped to put the stencil back in the middle, at its first size and turn.
+  final int stencilReset;
 
   /// Room at the top and foot taken by controls laid over the board: the
   /// wedge (as drawn: arc to apex) centres in the space between them, while
@@ -196,7 +200,7 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
     _syncTwinkle();
     // A new shape (or a reshaped wedge) starts again in the middle of the
     // paper, at its first size and turn.
-    if (old.tool != widget.tool || old.folds != widget.folds) {
+    if (old.tool != widget.tool || old.folds != widget.folds || old.stencilReset != widget.stencilReset) {
       _stencilAt = null;
       _sx = _sy = _stencilR0;
       _stencilTurn = 0;

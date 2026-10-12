@@ -9,11 +9,14 @@ import 'screens/gallery_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/reveal_screen.dart';
 import 'snowflake/geometry.dart';
+import 'snowflake/svg_flakes.dart';
 import 'theme/tokens.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
+  await loadSvgFlakes();
+  await loadPaperTextures();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(

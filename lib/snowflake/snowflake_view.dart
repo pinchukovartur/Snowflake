@@ -54,6 +54,28 @@ class SnowflakeView extends StatelessWidget {
   }
 }
 
+/// A flake ([child], [size] px across) over its shadow: the flake itself in
+/// one colour, set straight down. The one shadow every flake on show casts.
+class FlakeShadow extends StatelessWidget {
+  const FlakeShadow({super.key, required this.size, required this.child});
+  final double size;
+  final Widget child;
+
+  /// Black at 15%.
+  static const color = Color(0x26000000);
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(clipBehavior: Clip.none, children: [
+      Transform.translate(
+        offset: Offset(0, size * .05),
+        child: ColorFiltered(colorFilter: const ColorFilter.mode(color, BlendMode.srcIn), child: child),
+      ),
+      child,
+    ]);
+  }
+}
+
 class _WedgeKey {
   _WedgeKey(this.cuts, this.folds, this.color, this.pattern, this.px, [this.pos = 0]);
   final List<Cut> cuts;

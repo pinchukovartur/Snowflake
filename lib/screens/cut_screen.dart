@@ -143,6 +143,9 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
   /// Bumped by the scissors button to cut the stencil out.
   int _stencilCut = 0;
 
+  /// Bumped by the button beside the scissors to set the stencil back.
+  int _stencilReset = 0;
+
   /// The event shown in the top-right panel: the seasonal one at first.
   int _event = _events.indexWhere((e) => e.id == _seasonalEvent);
 
@@ -179,6 +182,19 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
 
   /// Bumped to give the board a fresh start (unzoomed) when an event begins.
   int _boardKey = 0;
+
+  /// Shows the event's flakes full screen; the one picked starts it.
+  Future<void> _chooseEventFlake() async {
+    final e = _events[_event];
+    final f = await Navigator.of(context).push<_EventFlake>(
+      PageRouteBuilder(
+        // On a Material of its own, for the text styles a route of its own lacks.
+        pageBuilder: (_, _, _) => Material(type: MaterialType.transparency, child: e.window(title: e.title, flakes: e.flakes)),
+        transitionsBuilder: (_, anim, _, child) => FadeTransition(opacity: anim, child: child),
+      ),
+    );
+    if (f != null && mounted) _startEvent(f);
+  }
 
   void _startEvent(_EventFlake f) {
     _s._event = (flake: f, before: _state, paper: _paper, past: [..._s.past], future: [..._s.future]);
@@ -392,19 +408,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const SizedBox(height: 4),
-                  // Solid drop shadow like the colour swatches', so white paper reads on the white card.
-                  Stack(
-                    children: [
-                      Transform.translate(
-                        offset: const Offset(0, 3),
-                        child: ColorFiltered(
-                          colorFilter: const ColorFilter.mode(C.snow300, BlendMode.srcIn),
-                          child: SnowflakeView(preset: 'classic', size: 170, color: _paper.color, pattern: _paper.pattern),
-                        ),
-                      ),
-                      SnowflakeView(preset: 'classic', size: 170, color: _paper.color, pattern: _paper.pattern),
-                    ],
-                  ),
+                  FlakeShadow(size: 170, child: SnowflakeView(preset: 'classic', size: 170, color: _paper.color, pattern: _paper.pattern)),
                   const SizedBox(height: 20),
                   // The paper colours, six to a row.
                   for (var r = 0; r < paperColors.length; r += 6) ...[
@@ -555,6 +559,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                       fallen: _fallen,
                                       tool: _tool,
                                       stencilCut: _stencilCut,
+                                      stencilReset: _stencilReset,
                                       color: _paper.color,
                                       pattern: _paper.pattern,
                                       onCut: _addCut,
@@ -567,13 +572,20 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                     ),
                                   ),
                                 ),
-                                // With a stencil out: the scissors that cut it, at the right.
-                                if (_tool != 'free' && !_paperOpen)
+                                // With a stencil out: the scissors that cut it, at the right, and
+                                // left of them (level with their middle) the stencil set back.
+                                if (_tool != 'free' && !_paperOpen) ...[
                                   Positioned(
                                     right: 16,
                                     bottom: _toolsH - 8,
-                                    child: RoundBtn(LucideIcons.scissors, label: 'Вырезать', variant: Variant.soft, size: BtnSize.l, onTap: () => setState(() => _stencilCut++)),
+                                    child: RoundBtn(LucideIcons.scissorsLineDashed, label: 'Вырезать', variant: Variant.soft, size: BtnSize.l, onTap: () => setState(() => _stencilCut++)),
                                   ),
+                                  Positioned(
+                                    right: 16 + 72 + 8,
+                                    bottom: _toolsH - 8 + (72 + 6 - 44 - 4) / 2,
+                                    child: RoundBtn(LucideIcons.rotateCcw, label: 'Сбросить трафарет', variant: Variant.soft, size: BtnSize.s, onTap: () => setState(() => _stencilReset++)),
+                                  ),
+                                ],
                                 // The stencil list, when open: a two-column grid left of the
                                 // stencils button, level with the tools.
                                 if (_tool != 'free' && !_paperOpen && _stencilsOpen)
@@ -805,7 +817,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                           side: _eventSide(MediaQuery.sizeOf(context).width),
                           index: _event,
                           onStep: (d) => setState(() => _event = (_event + d) % _events.length),
-                          onPick: _startEvent,
+                          onOpen: _chooseEventFlake,
                         ),
                       ),
                     ],
@@ -855,20 +867,23 @@ typedef _EventFlake = ({String preset, int folds, Color color, String pattern});
 /// Events on offer, one at a time in the event panel, each showing its
 /// [flakes] in turn over its [title]: on the panel's night blue, or on its
 /// [image] across the whole panel. A [loud] title is heavier, purple outlined
-/// in white. Tapping the panel starts the event with the flake it shows.
+/// in white. Tapping the panel opens the event's [window] to pick a flake in.
 const _events = [
   (
     id: 'repeat',
     title: 'Повторить снежинку',
     image: null,
     loud: false,
+    window: _RepeatWindow.new,
     flakes: [
+      (preset: 'default_6_1', folds: 6, color: Color(0xFFC4ECFF), pattern: 'plain'),
+      (preset: 'default_6_2', folds: 6, color: Color(0xFFF3C9FF), pattern: 'plain'),
       (preset: 'fern', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
-      (preset: 'starburst', folds: 6, color: Color(0xFFC4ECFF), pattern: 'plain'),
       (preset: 'leafy', folds: 6, color: Color(0xFFFFE08A), pattern: 'plain'),
       (preset: 'spiky', folds: 6, color: Color(0xFFDCD2FF), pattern: 'plain'),
       (preset: 'forked', folds: 6, color: Color(0xFFBFF0DC), pattern: 'plain'),
       (preset: 'chevrons', folds: 6, color: Color(0xFFFFC7D0), pattern: 'plain'),
+      (preset: 'rhombi', folds: 6, color: Color(0xFFB8F0C8), pattern: 'plain'),
     ],
   ),
   (
@@ -876,8 +891,9 @@ const _events = [
     title: 'Хэллоуинская снежинка',
     image: 'assets/Halloween_Event_Ico.png',
     loud: true,
+    window: _HalloweenWindow.new,
     flakes: [
-      (preset: 'pumpkins', folds: 6, color: Color(0xFFFF9A3C), pattern: 'plain'),
+      (preset: 'halloween_1', folds: 6, color: Color(0xFFFF9A3C), pattern: 'plain'),
       (preset: 'web', folds: 6, color: Color(0xFF1E1F26), pattern: 'plain'),
       (preset: 'spiders', folds: 6, color: Color(0xFF4A1A6B), pattern: 'plain'),
       (preset: 'bats', folds: 6, color: Color(0xFF8A5CD6), pattern: 'plain'),
@@ -895,7 +911,7 @@ const _foldsIcon = LucideIcons.layers2;
 /// One event at a time, stepped through with the arrows; its flakes take
 /// turns every [_flakeEvery], the next rising in from below.
 class _EventPanel extends StatefulWidget {
-  const _EventPanel({required this.side, required this.index, required this.onStep, required this.onPick, this.paused = false});
+  const _EventPanel({required this.side, required this.index, required this.onStep, required this.onOpen, this.paused = false});
 
   /// Hidden behind an event: its flakes stop taking turns meanwhile.
   final bool paused;
@@ -905,8 +921,8 @@ class _EventPanel extends StatefulWidget {
   final int index;
   final ValueChanged<int> onStep;
 
-  /// A tap on the panel starts the event with the flake it shows just then.
-  final ValueChanged<_EventFlake> onPick;
+  /// A tap on the panel opens the event's flakes to choose one from.
+  final VoidCallback onOpen;
 
   @override
   State<_EventPanel> createState() => _EventPanelState();
@@ -923,26 +939,7 @@ class _EventPanelState extends State<_EventPanel> {
     _timer = widget.paused ? null : _tick();
   }
 
-  Timer _tick() => Timer.periodic(_flakeEvery, (_) => setState(() {
-    _flake++;
-    _rise = 1;
-  }));
-
-  /// Which way the last turn went: 1 the next flake rising in from below, −1
-  /// the one before dropping in from above.
-  int _rise = 1;
-
-  /// A swipe up shows the next flake, down the one before, and gives it a
-  /// full turn before the next.
-  void _swipe(DragEndDetails d) {
-    final v = d.primaryVelocity ?? 0;
-    if (v.abs() < 100) return;
-    setState(() {
-      _rise = v < 0 ? 1 : -1;
-      _flake += _rise;
-    });
-    _startTimer();
-  }
+  Timer _tick() => Timer.periodic(_flakeEvery, (_) => setState(() => _flake++));
 
   @override
   void initState() {
@@ -990,33 +987,27 @@ class _EventPanelState extends State<_EventPanel> {
       duration: const Duration(milliseconds: 450),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
-      // The next flake rises in from below as the last one rises out (the other
-      // way after a swipe down).
+      // The next flake rises in from below as the last one rises out.
       transitionBuilder: (child, anim) {
         final incoming = child.key == ValueKey('${widget.index}/$_flake');
         return FadeTransition(
           opacity: anim,
           child: SlideTransition(
-            position: Tween(begin: Offset(0, (incoming ? .6 : -.6) * _rise), end: Offset.zero).animate(anim),
+            position: Tween(begin: Offset(0, incoming ? .6 : -.6), end: Offset.zero).animate(anim),
             child: child,
           ),
         );
       },
       // Tilted 10° clockwise, only here: a playful touch for events. Turned as
       // a whole, so the flake keeps its baked image.
-      child: Transform.rotate(
-        key: ValueKey('${widget.index}/$_flake'),
-        angle: 10 * math.pi / 180,
-        child: SnowflakeView(preset: f.preset, folds: f.folds, color: f.color, pattern: f.pattern, size: size),
-      ),
+      child: _ShadowedFlake(f, size: size, angle: 10 * math.pi / 180, key: ValueKey('${widget.index}/$_flake')),
     );
     final image = e.image;
     return Semantics(
       label: e.title,
       button: true,
       child: GestureDetector(
-        onTap: () => widget.onPick(f),
-        onVerticalDragEnd: _swipe,
+        onTap: widget.onOpen,
         child: Container(
           width: side,
           height: side,
@@ -1040,34 +1031,10 @@ class _EventPanelState extends State<_EventPanel> {
                       offset: const Offset(0, 4),
                       child: LayoutBuilder(
                         builder: (ctx, c) {
-                          final style = _titleStyle(e.loud);
                           // Wraps between words as usual, made smaller only if the longest
                           // word would not fit on a line: never broken inside a word.
-                          final size = _wordsFit(e.title, style, c.maxWidth, MediaQuery.textScalerOf(ctx));
-                          if (!e.loud) {
-                            return Text(e.title, textAlign: TextAlign.center, style: style.copyWith(fontSize: size, color: Colors.white));
-                          }
-                          // Purple on a white outline, the outline drawn first underneath.
-                          return Stack(children: [
-                            Text(
-                              e.title,
-                              textAlign: TextAlign.center,
-                              // The display face, but painted as a stroke (a style can't carry
-                              // both a colour and a foreground paint).
-                              style: TextStyle(
-                                fontFamily: style.fontFamily,
-                                fontSize: size,
-                                fontWeight: FontWeight.w900,
-                                height: 1.1,
-                                foreground: Paint()
-                                  ..style = PaintingStyle.stroke
-                                  ..strokeWidth = 3.5 * size / 17
-                                  ..strokeJoin = StrokeJoin.round
-                                  ..color = Colors.white,
-                              ),
-                            ),
-                            Text(e.title, textAlign: TextAlign.center, style: style.copyWith(fontSize: size, color: const Color(0xFF7B3FD1))),
-                          ]);
+                          final size = _wordsFit(e.title, _titleStyle(e.loud), c.maxWidth, MediaQuery.textScalerOf(ctx));
+                          return _EventTitle(e.title, loud: e.loud, size: size);
                         },
                       ),
                     ),
@@ -1086,6 +1053,40 @@ class _EventPanelState extends State<_EventPanel> {
 
 /// An event title's face: heavier and bigger when [loud].
 TextStyle _titleStyle(bool loud) => loud ? display(17, weight: FontWeight.w900, height: 1.1) : display(16, height: 1.1);
+
+/// An event's title, centred, [size] px: white, or purple on a white outline
+/// when [loud].
+class _EventTitle extends StatelessWidget {
+  const _EventTitle(this.text, {required this.loud, required this.size, this.maxLines});
+  final String text;
+  final bool loud;
+  final double size;
+  final int? maxLines;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = _titleStyle(loud).copyWith(fontSize: size);
+    Text line(TextStyle s) => Text(text, textAlign: TextAlign.center, maxLines: maxLines, overflow: maxLines == null ? null : TextOverflow.ellipsis, style: s);
+    if (!loud) return line(style.copyWith(color: Colors.white));
+    // The outline drawn first underneath.
+    return Stack(children: [
+      // The display face, but painted as a stroke (a style can't carry both a
+      // colour and a foreground paint).
+      line(TextStyle(
+        fontFamily: style.fontFamily,
+        fontSize: size,
+        fontWeight: FontWeight.w900,
+        height: 1.1,
+        foreground: Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.5 * size / 17
+          ..strokeJoin = StrokeJoin.round
+          ..color = Colors.white,
+      )),
+      line(style.copyWith(color: const Color(0xFF7B3FD1))),
+    ]);
+  }
+}
 
 /// The font size, at most [style]'s, at which every word of [text] fits in
 /// [width] (with room for an outline), as the system's text [scaler] will
@@ -1111,6 +1112,99 @@ double _wordsFit(String text, TextStyle style, double width, TextScaler scaler) 
     size *= room / w;
   }
   return size;
+}
+
+/// An event's window: its flakes full screen on the event's own [backdrop],
+/// two to a row, each over its shadow. Tapping one picks it (popped as the
+/// route's result), the button at the top goes back.
+abstract class _EventWindow extends StatelessWidget {
+  const _EventWindow({super.key, required this.title, required this.flakes});
+  final String title;
+  final List<_EventFlake> flakes;
+
+  /// What the window lies on, filling the screen.
+  Widget backdrop(Widget child);
+
+  /// The title, if not the top bar's usual one.
+  Widget? heading() => null;
+
+  @override
+  Widget build(BuildContext context) {
+    return backdrop(SafeArea(
+        bottom: false,
+        child: Column(children: [
+          TopBar(
+            left: RoundBtn(LucideIcons.arrowLeft, label: 'Назад', variant: Variant.ghost, size: BtnSize.s, onTap: () => Navigator.pop(context)),
+            title: title,
+            titleLines: 2,
+            heading: heading(),
+            right: const SizedBox(width: 40),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: GridView.builder(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.paddingOf(context).bottom + 20),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 14, crossAxisSpacing: 14),
+              itemCount: flakes.length,
+              itemBuilder: (_, i) {
+                final f = flakes[i];
+                return Semantics(
+                  button: true,
+                  label: 'Снежинка ${i + 1}',
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => Navigator.pop(context, f),
+                    child: LayoutBuilder(
+                      builder: (_, c) => Center(child: _ShadowedFlake(f, size: (c.maxWidth * .858).clamp(0, 154))),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// An event's flake [size] px across, turned by [angle], over its shadow
+/// (cast straight down on the screen, whatever the turn).
+class _ShadowedFlake extends StatelessWidget {
+  const _ShadowedFlake(this.f, {super.key, required this.size, this.angle = 0});
+  final _EventFlake f;
+  final double size;
+  final double angle;
+
+  @override
+  Widget build(BuildContext context) {
+    return FlakeShadow(
+      size: size,
+      child: Transform.rotate(
+        angle: angle,
+        child: SnowflakeView(preset: f.preset, folds: f.folds, color: f.color, pattern: f.pattern, size: size),
+      ),
+    );
+  }
+}
+
+/// The repeat event's window, on the night sky.
+class _RepeatWindow extends _EventWindow {
+  const _RepeatWindow({super.key, required super.title, required super.flakes});
+
+  @override
+  Widget backdrop(Widget child) => SkyBackground(child: child);
+}
+
+/// The Halloween event's window, on plain lilac.
+class _HalloweenWindow extends _EventWindow {
+  const _HalloweenWindow({super.key, required super.title, required super.flakes});
+
+  @override
+  Widget backdrop(Widget child) => ColoredBox(color: const Color(0xFFEECDFF), child: child);
+
+  @override
+  Widget? heading() => _EventTitle(title, loud: true, size: 24, maxLines: 2);
 }
 
 /// A chevron pointing left (`step` −1) or right (+1), red on a white halo

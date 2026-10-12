@@ -146,9 +146,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           constraints: const BoxConstraints(maxHeight: 360),
           child: GridView.count(
             shrinkWrap: true,
-            crossAxisCount: 3,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
+            // Two to a row, as in the collection.
+            crossAxisCount: 2,
+            mainAxisSpacing: 14,
+            crossAxisSpacing: 14,
             children: [
               for (final f in g.saved)
                 if (identical(f, current) || !g.isHung(f))
@@ -475,13 +476,9 @@ class _Pane extends StatelessWidget {
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
           child: Center(
-            child: SnowflakeView(
-              cuts: f.cuts,
-             
-              folds: f.folds,
-              color: f.color,
-              pattern: f.pattern,
-              size: math.min(c.maxWidth, c.maxHeight) * .78,
+            child: FlakeShadow(
+              size: math.min(c.maxWidth, c.maxHeight) * .858,
+              child: SnowflakeView(cuts: f.cuts, folds: f.folds, color: f.color, pattern: f.pattern, size: math.min(c.maxWidth, c.maxHeight) * .858),
             ),
           ),
         ),
@@ -512,22 +509,20 @@ class _PickTile extends StatelessWidget {
         child: Opacity(
           opacity: onTap == null ? .35 : 1,
           child: Container(
+            margin: const EdgeInsets.only(bottom: 6),
             decoration: BoxDecoration(
               color: C.night700,
-              borderRadius: BorderRadius.circular(R.m),
+              borderRadius: BorderRadius.circular(R.l),
               border: selected ? Border.all(color: C.berry500, width: 3) : null,
+              boxShadow: const [BoxShadow(color: C.night900, offset: Offset(0, 6))],
             ),
             child: LayoutBuilder(
               builder: (_, c) => Center(
                 child: f == null
                     ? Text('Пусто', style: display(15, color: C.ice200))
-                    : SnowflakeView(
-                        cuts: f.cuts,
-                       
-                        folds: f.folds,
-                        color: f.color,
-                        pattern: f.pattern,
-                        size: c.maxWidth * .74,
+                    : FlakeShadow(
+                        size: (c.maxWidth * .78).clamp(0, 140),
+                        child: SnowflakeView(cuts: f.cuts, folds: f.folds, color: f.color, pattern: f.pattern, size: (c.maxWidth * .78).clamp(0, 140)),
                       ),
               ),
             ),

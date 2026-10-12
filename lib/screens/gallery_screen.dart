@@ -29,17 +29,7 @@ class GalleryScreen extends StatelessWidget {
           Btn('Оставить', variant: Variant.light, block: true, onTap: () => Navigator.pop(ctx)),
         ],
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          // Solid drop shadow, as in the paper dialog, so white paper reads on the white card.
-          Stack(children: [
-            Transform.translate(
-              offset: const Offset(0, 3),
-              child: ColorFiltered(
-                colorFilter: const ColorFilter.mode(C.snow300, BlendMode.srcIn),
-                child: SnowflakeView(cuts: f.cuts, folds: f.folds, color: f.color, pattern: f.pattern, size: 120),
-              ),
-            ),
-            SnowflakeView(cuts: f.cuts, folds: f.folds, color: f.color, pattern: f.pattern, size: 120),
-          ]),
+          FlakeShadow(size: 120, child: SnowflakeView(cuts: f.cuts, folds: f.folds, color: f.color, pattern: f.pattern, size: 120)),
           const SizedBox(height: 12),
           const Text('Эта снежинка пропадёт из коллекции.'),
         ]),
@@ -83,13 +73,11 @@ class GalleryScreen extends StatelessWidget {
                             boxShadow: const [BoxShadow(color: C.night900, offset: Offset(0, 6))],
                           ),
                           child: LayoutBuilder(builder: (_, c) {
+                            final size = (c.maxWidth * .78).clamp(0.0, 140.0);
                             return Stack(alignment: Alignment.center, children: [
-                              SnowflakeView(
-                                cuts: s.cuts,
-                                folds: s.folds,
-                                color: s.color,
-                                pattern: s.pattern,
-                                size: (c.maxWidth * .78).clamp(0, 140),
+                              FlakeShadow(
+                                size: size,
+                                child: SnowflakeView(cuts: s.cuts, folds: s.folds, color: s.color, pattern: s.pattern, size: size),
                               ),
                               if (s.fav)
                                 Positioned(

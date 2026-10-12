@@ -652,9 +652,15 @@ class _SnowDotsPainter extends CustomPainter {
 }
 
 class TopBar extends StatelessWidget {
-  const TopBar({super.key, required this.left, required this.title, required this.right});
+  const TopBar({super.key, required this.left, required this.title, required this.right, this.titleLines = 1, this.heading});
   final Widget left, right;
   final String title;
+
+  /// Shown in place of the [title]'s usual text, when given.
+  final Widget? heading;
+
+  /// Lines the title may wrap onto before it is cut short.
+  final int titleLines;
 
   @override
   Widget build(BuildContext context) {
@@ -666,10 +672,10 @@ class TopBar extends StatelessWidget {
           left,
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
+            child: heading ?? Text(
               title,
               textAlign: TextAlign.center,
-              maxLines: 1,
+              maxLines: titleLines,
               overflow: TextOverflow.ellipsis,
               style: display(22, height: 1.1, shadows: drop(3)),
             ),

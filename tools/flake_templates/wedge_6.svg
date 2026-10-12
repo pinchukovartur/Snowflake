@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="1100" viewBox="0 0 1000 1100">
+  <!-- Snowflake wedge, 6 folds (30 degrees). The flake's centre is the bottom point.
+       Draw the cuts as filled shapes over the wedge (anything past its edges is ignored),
+       or put shapes in a group named "paper" to draw the paper that stays instead.
+       Strokes don't count: only filled shapes. Leave the template wedge as it is: it is known by its fill, #EAF4FF. -->
+  <g id="template">
+    <path d="M 500 1050 L 241.2 84.1 A 1000 1000 0 0 1 758.8 84.1 Z" fill="#EAF4FF" stroke="#9DB4D8" stroke-width="3"/>
+    <path d="M 500 1050 L 225.7 26.1 M 500 1050 L 774.3 26.1" fill="none" stroke="#9DB4D8" stroke-width="3" stroke-dasharray="14 10"/>
+  </g>
+</svg>

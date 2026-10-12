@@ -35,6 +35,8 @@ final Map<String, List<Cut>> snowflakePresets = {
   'spiky': _branched(hole: .1, ring: .34, branches: [.50, .72], lean: 1.4, reach: .19, branch: .055),
   'forked': _forked(),
   'chevrons': _chevrons(),
+  // Six-fold too, from a paper pattern: a ring of rhombus and square outlines.
+  'rhombi': _rhombi(),
   // New Year pack (not offered yet), four-fold.
   'snowmen': _snowmen(),
 };
@@ -194,6 +196,107 @@ List<Cut> _chevrons() {
   }
   return cuts;
 }
+
+// ---- Flakes drawn whole, then cut down to a wedge ------------------------
+
+/// Points in a frame [r] out along the direction [phi] (clockwise from the
+/// wedge's middle): [u] further out along it, [v] across it clockwise.
+Offset Function(double u, double v) _frame(double phi, [double r = 0]) {
+  final d = _polar(1, phi), n = Offset(math.cos(phi), math.sin(phi));
+  return (u, v) => d * (r + u) + n * v;
+}
+
+/// The six directions of the flake's arms (`side` 1, on the wedge's right
+/// fold and every 60° on) or of the valleys between them (`side` −1).
+Iterable<double> _sixWays(int side) => [for (var k = 0; k < 6; k++) side * _h6 + k * math.pi / 3];
+
+Path _poly(List<Offset> p) => Path()..addPolygon(p, true);
+
+/// A rhombus [r] out along [phi], [along] to its corners out and in, [across]
+/// to those at the sides.
+List<Offset> _rhombus(double phi, double r, double along, double across) {
+  final at = _frame(phi, r);
+  return [at(along, 0), at(0, across), at(-along, 0), at(0, -across)];
+}
+
+/// [p] shrunk by [w] all round: each edge moved in, the corners where the
+/// moved edges meet.
+List<Offset> _inset(List<Offset> p, double w) {
+  final shape = _poly(p);
+  final lines = <(Offset, Offset)>[];
+  for (var i = 0; i < p.length; i++) {
+    final a = p[i], d = p[(i + 1) % p.length] - a;
+    var n = Offset(-d.dy, d.dx) / d.distance;
+    if (!shape.contains(a + d / 2 + n * 1e-3)) n = -n;
+    lines.add((a + n * w, d));
+  }
+  return [
+    for (var i = 0; i < lines.length; i++)
+      () {
+        final (a, d) = lines[(i - 1 + lines.length) % lines.length];
+        final (b, e) = lines[i];
+        final t = ((b.dx - a.dx) * e.dy - (b.dy - a.dy) * e.dx) / (d.dx * e.dy - d.dy * e.dx);
+        return a + d * t;
+      }(),
+  ];
+}
+
+/// [outlines] drawn as paper strips [w] wide, run together.
+Path _strips(Iterable<List<Offset>> outlines, double w) {
+  var paper = Path();
+  for (final o in outlines) {
+    paper = Path.combine(PathOperation.union, paper, Path.combine(PathOperation.difference, _poly(o), _poly(_inset(o, w))));
+  }
+  return paper;
+}
+
+/// The cuts that leave just [keep] (in wedge units) on a wedge [half] wide
+/// each side (the widest it will be cut on): everything round it, and every
+/// hole in it.
+List<Cut> cutsLeaving(Path keep, {double half = math.pi / 8}) => _keeping(keep, half: half);
+
+/// The cuts that leave just [keep] (a whole flake, in wedge units) on the
+/// wedge: everything round it, and every hole in it.
+List<Cut> _keeping(Path keep, {double half = _h6}) {
+  // Only the wedge matters, and a little past its folds.
+  final wedge = _poly([const Offset(0, .1), _polar(1.6, -half - .1), _polar(1.6, half + .1)]);
+  final rings = <List<Offset>>[
+    for (final m in Path.combine(PathOperation.intersect, keep, wedge).computeMetrics())
+      [
+        for (var i = 0, n = (m.length / .004).ceil(); i < n; i++) m.getTangentForOffset(i * m.length / n)!.position,
+      ],
+  ];
+  double area(List<Offset> p) {
+    var a = 0.0;
+    for (var i = 0; i < p.length; i++) {
+      a += p[i].dx * p[(i + 1) % p.length].dy - p[(i + 1) % p.length].dx * p[i].dy;
+    }
+    return a.abs();
+  }
+
+  // The outline round it all is the biggest; the rest are holes in it.
+  rings.sort((a, b) => area(b).compareTo(area(a)));
+  return [_keepOnly(_straightened(rings.first)), for (final r in rings.skip(1)) _straightened(r)];
+}
+
+/// [p] without the points along its straight runs.
+List<Offset> _straightened(List<Offset> p) {
+  final out = <Offset>[];
+  for (var i = 0; i < p.length; i++) {
+    final a = out.isEmpty ? p.last : out.last, b = p[i], c = p[(i + 1) % p.length];
+    final d = c - a;
+    if (((b.dx - a.dx) * d.dy - (b.dy - a.dy) * d.dx).abs() / d.distance > 1e-4) out.add(b);
+  }
+  return out;
+}
+
+/// Rhombus outlines meeting in the middle as a six-pointed star, with square
+/// outlines round it: big ones between its points, small ones on them.
+List<Cut> _rhombi() => _keeping(_strips([
+      for (final phi in _sixWays(1)) _rhombus(phi, .31, .31, .179),
+      for (final phi in _sixWays(-1)) _rhombus(phi, .62, .28, .28),
+      for (final phi in _sixWays(1)) _rhombus(phi, .78, .17, .17),
+    ], .035));
 
 Cut _circle(Offset c, double r, [int n = 14]) => [for (var i = 0; i < n; i++) c + Offset(math.cos(i * 2 * math.pi / n), math.sin(i * 2 * math.pi / n)) * r];
 
@@ -441,7 +544,15 @@ const paperPatterns = [
   ('sparkle', 'Блёстки'),
   ('bubbles', 'Кружочки'),
   ('holo', 'Голограмма'),
+  ('butterflies', 'Бабочки'),
 ];
+
+/// Patterns drawn from a seamless texture (dark lines on white) rather than
+/// by hand: its asset, loaded into [paperTextures] at launch.
+const textureAssets = {'butterflies': 'assets/materials/butterfly_mat.png'};
+
+/// The decoded [textureAssets], by pattern.
+final paperTextures = <String, ui.Image>{};
 
 /// Whether paper with [pattern] shimmers over time: glitter's glints
 /// twinkling, a hologram's sheen drifting.
@@ -655,6 +766,8 @@ Paint makePaperFill(Color color, String pattern, double unitPx) {
     'bubbles' => sparkleTile(unitPx) * 2.5 * 1.3,
     // One hologram cell: a big burst with small ones at its corners.
     'holo' => math.max(16.0, unitPx * .3),
+    // A texture's tile: a few across the paper, so its motifs read.
+    _ when textureAssets.containsKey(pattern) => math.max(36.0, unitPx * .9),
     _ => math.max(8.0, unitPx * 0.075),
   };
   // Drawn at the nearest of a few sizes and scaled to fit, so zooming the
@@ -765,6 +878,26 @@ ui.Image _tile(Color color, String pattern, double t) {
   final dark = color.computeLuminance() < 0.2;
   final ink = dark ? const Color(0x38FFFFFF) : const Color(0x292E4A94); // rgba(46,74,148,.16)
   final inkLight = dark ? const Color(0x24FFFFFF) : const Color(0x1A2E4A94);
+  final texture = paperTextures[pattern];
+  if (texture != null) {
+    // Its dark lines in the ink's colour, the rest left as the paper.
+    final c = dark ? const Color(0xFFFFFFFF) : const Color(0xFF2E4A94);
+    final a = dark ? .3 : .28;
+    x.drawImageRect(
+      texture,
+      Rect.fromLTWH(0, 0, texture.width.toDouble(), texture.height.toDouble()),
+      Rect.fromLTWH(0, 0, t, t),
+      Paint()
+        ..filterQuality = FilterQuality.medium
+        ..colorFilter = ColorFilter.matrix([
+          0, 0, 0, 0, c.r * 255, //
+          0, 0, 0, 0, c.g * 255,
+          0, 0, 0, 0, c.b * 255,
+          // Its dark ink only: not white, nor any see-through ground.
+          -.299 * a, -.587 * a, -.114 * a, a, 0,
+        ]),
+    );
+  }
   switch (pattern) {
     case 'dots':
       x.drawCircle(Offset(t / 2, t / 2), t * 0.16, Paint()..color = ink);
