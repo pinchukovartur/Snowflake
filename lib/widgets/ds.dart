@@ -271,7 +271,9 @@ class DsDialog extends StatelessWidget {
           children: [
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(24, 44, 24, 24),
+              // Less at the sides than the content's 24: the rest is inside the
+              // scrolling, so selection rings at its edges aren't clipped.
+              padding: const EdgeInsets.fromLTRB(16, 44, 16, 24),
               decoration: BoxDecoration(
                 color: C.surfaceTable,
                 borderRadius: BorderRadius.circular(R.xl),
@@ -283,14 +285,24 @@ class DsDialog extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  DefaultTextStyle(
-                    style: body(17, height: 1.4),
-                    textAlign: TextAlign.center,
-                    child: child,
+                  // Scrolls if the screen is too short for it all, the actions
+                  // staying in view below.
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: DefaultTextStyle(
+                        style: body(17, height: 1.4),
+                        textAlign: TextAlign.center,
+                        child: child,
+                      ),
+                    ),
                   ),
                   if (actions.isNotEmpty) ...[
                     const SizedBox(height: 20),
-                    for (var i = 0; i < actions.length; i++) ...[if (i > 0) const SizedBox(height: 8), actions[i]],
+                    for (var i = 0; i < actions.length; i++) ...[
+                      if (i > 0) const SizedBox(height: 8),
+                      Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: actions[i]),
+                    ],
                   ],
                 ],
               ),

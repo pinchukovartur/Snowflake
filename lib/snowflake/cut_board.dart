@@ -434,7 +434,7 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
     }
     final d = _live;
     if (d == null) return;
-    if ((p - d.pts.last).distance > 0.008) setState(() => _live = _Live([...d.pts, p]));
+    if ((p - d.pts.last).distance > cutPointStep / _zoom) setState(() => _live = _Live([...d.pts, p]));
   }
 
   void _up(PointerEvent e) {
@@ -451,8 +451,8 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
     final d = _live;
     // Also hides the degrees shown while turning.
     setState(() => _live = null);
-    if (d == null || d.pts.length <= 4) return;
-    final cut = isLoop(d.pts) ? d.pts : slit(d.pts);
+    if (d == null || d.pts.length <= cutMinPoints) return;
+    final cut = isLoop(d.pts, maxGap: loopMaxGap / _zoom) ? d.pts : slit(d.pts);
     if (cutsPaper(cut, [...widget.cuts, ...widget.fallen], widget.folds)) {
       widget.onCut(cut);
     } else {

@@ -489,7 +489,7 @@ class _Pane extends StatelessWidget {
 
 /// A choice in the pick-for-the-window dialog: [flake], or leaving the pane
 /// clear when there is none. Without [onTap] it can't be picked (the flake
-/// already hangs elsewhere) and shows faded.
+/// already hangs elsewhere) and shows a tick.
 class _PickTile extends StatelessWidget {
   const _PickTile({this.flake, required this.selected, this.onTap});
   final SavedFlake? flake;
@@ -506,18 +506,17 @@ class _PickTile extends StatelessWidget {
       label: f == null ? 'Пусто' : 'Снежинка',
       child: GestureDetector(
         onTap: onTap,
-        child: Opacity(
-          opacity: onTap == null ? .35 : 1,
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            decoration: BoxDecoration(
-              color: C.night700,
-              borderRadius: BorderRadius.circular(R.l),
-              border: selected ? Border.all(color: C.berry500, width: 3) : null,
-              boxShadow: const [BoxShadow(color: C.night900, offset: Offset(0, 6))],
-            ),
-            child: LayoutBuilder(
-              builder: (_, c) => Center(
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 6),
+          decoration: BoxDecoration(
+            color: C.night700,
+            borderRadius: BorderRadius.circular(R.l),
+            border: selected ? Border.all(color: C.berry500, width: 3) : null,
+            boxShadow: const [BoxShadow(color: C.night900, offset: Offset(0, 6))],
+          ),
+          child: LayoutBuilder(
+            builder: (_, c) => Stack(children: [
+              Center(
                 child: f == null
                     ? Text('Пусто', style: display(15, color: C.ice200))
                     : FlakeShadow(
@@ -525,7 +524,19 @@ class _PickTile extends StatelessWidget {
                         child: SnowflakeView(cuts: f.cuts, folds: f.folds, color: f.color, pattern: f.pattern, size: (c.maxWidth * .78).clamp(0, 140)),
                       ),
               ),
-            ),
+              // Already on another pane: a tick in the corner.
+              if (onTap == null)
+                Positioned(
+                  right: 8,
+                  bottom: 8,
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: const BoxDecoration(color: C.mint500, shape: BoxShape.circle),
+                    child: const Icon(LucideIcons.check, size: 18, color: Colors.white),
+                  ),
+                ),
+            ]),
           ),
         ),
       ),

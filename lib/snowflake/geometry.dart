@@ -702,18 +702,45 @@ final Map<String, List<Offset>> _halloweenStencils = {
 
 /// Whether a scissors stroke closes on itself, cutting out what it encloses,
 /// rather than slitting the paper along an open line.
-bool isLoop(List<Offset> stroke) {
+// ---- Cutting by hand: how strokes become cuts -----------------------------
+// All lengths in wedge units: 1 is the wedge's radius, apex to rim.
+
+/// A finger's stroke takes a new point once it has moved this far from the
+/// last: smaller follows curves more closely, with more points to a cut.
+/// Unzoomed: zoomed in, it shrinks with the zoom, so a finger's move on the
+/// screen counts the same.
+const cutPointStep = 0.005;
+
+/// Strokes of no more points than this are taps, not cuts, and are dropped.
+const cutMinPoints = 3;
+
+/// A stroke closes into a loop (its inside cut away) when its ends are
+/// closer than this (unzoomed; zoomed in, it shrinks with the zoom)...
+const loopMaxGap = 0.08;
+
+/// ...and closer than this share of the stroke's length, so a short flick
+/// with its ends near isn't taken for one.
+const loopMaxGapShare = 0.3;
+
+/// An open stroke is cut as a slit this wide...
+const slitWidth = 0.006;
+
+/// ...its ends stretched this far on, so a slit stopping right at an edge
+/// still cuts through it.
+const slitOvershoot = 0.015;
+
+bool isLoop(List<Offset> stroke, {double maxGap = loopMaxGap}) {
   var length = 0.0;
   for (var k = 1; k < stroke.length; k++) {
     length += (stroke[k] - stroke[k - 1]).distance;
   }
   final gap = (stroke.last - stroke.first).distance;
-  return gap < 0.08 && gap < length * 0.3;
+  return gap < maxGap && gap < length * loopMaxGapShare;
 }
 
 /// A scissors slit along the open [line]: a band [width] wide, its ends
 /// stretched by [overshoot] so a slit stopping right at an edge still cuts through.
-Cut slit(List<Offset> line, {double width = 0.006, double overshoot = 0.015}) {
+Cut slit(List<Offset> line, {double width = slitWidth, double overshoot = slitOvershoot}) {
   Offset dir(Offset from, Offset to) {
     final d = to - from;
     return d.distance == 0 ? Offset.zero : d / d.distance;
