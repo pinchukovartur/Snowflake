@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../l10n.dart';
 import '../app_state.dart';
 import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
@@ -78,25 +79,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           builder: (ctx, _) {
             final g = widget.game;
             return DsDialog(
-              title: 'Настройки',
+              title: tr('settings'),
               onClose: () => Navigator.pop(ctx),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DsSwitch(
-                    label: 'Музыка',
+                    label: tr('music'),
                     checked: g.music,
                     onChanged: (v) => g.setSetting(music: v),
                   ),
                   const SizedBox(height: 16),
                   DsSwitch(
-                    label: 'Звуки',
+                    label: tr('sounds'),
                     checked: g.sfx,
                     onChanged: (v) => g.setSetting(sfx: v),
                   ),
                   const SizedBox(height: 16),
                   DsSwitch(
-                    label: 'Вибрация',
+                    label: tr('vibration'),
                     checked: g.vibration,
                     onChanged: (v) => g.setSetting(vibration: v),
                   ),
@@ -133,11 +134,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     showDsDialog(
       context,
       builder: (ctx) => DsDialog(
-        title: 'Снежинка на окно',
+        title: tr('window_flake'),
         onClose: () => Navigator.pop(ctx),
         actions: [
           if (filled)
-            Btn('Снять с окна', variant: Variant.light, icon: LucideIcons.x, block: true, onTap: () {
+            Btn(tr('unhang'), variant: Variant.light, icon: LucideIcons.x, block: true, onTap: () {
               g.unhang(pane);
               Navigator.pop(ctx);
             }),
@@ -234,12 +235,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 opacity: _titleOpacity,
                                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                                   Text(
-                                    'Снежинки',
+                                    tr('app_title'),
                                     style: display(56, weight: FontWeight.w900, height: 1, shadows: drop(5)).copyWith(letterSpacing: -.56),
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    'Сложи. Вырежи. Раскрой.',
+                                    tr('home_subtitle'),
                                     // Pale on the winter night; on the light autumn sky, the title's shadow colour.
                                     style: body(17, weight: FontWeight.w800, color: season == Season.winter ? C.ice200 : C.night900),
                                   ),
@@ -285,7 +286,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   children: [
                     if (_showCoins) CurrencyPill(amount: g.coins),
                     const Spacer(),
-                    RoundBtn(LucideIcons.settings, label: 'Настройки', variant: Variant.dark, size: BtnSize.s, onTap: _openSettings),
+                    RoundBtn(LucideIcons.settings, label: tr('settings'), variant: Variant.dark, size: BtnSize.s, onTap: _openSettings),
                   ],
                 ),
               ),
@@ -294,9 +295,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 padding: const EdgeInsets.fromLTRB(32, 0, 32, 28),
                 child: Column(
                   children: [
-                    Btn('Играть', size: BtnSize.l, icon: LucideIcons.play, block: true, onTap: widget.onPlay),
+                    Btn(tr('play'), size: BtnSize.l, icon: LucideIcons.play, block: true, onTap: widget.onPlay),
                     const SizedBox(height: 12),
-                    Btn('Моя коллекция', variant: Variant.light, icon: LucideIcons.image, block: true, onTap: widget.onGallery),
+                    Btn(tr('my_collection'), variant: Variant.light, icon: LucideIcons.image, block: true, onTap: widget.onGallery),
                   ],
                 ),
               ),
@@ -442,7 +443,7 @@ class _Pane extends StatelessWidget {
       // Nothing to see, but still there to tap.
       return Semantics(
         button: true,
-        label: 'Пустое стекло',
+        label: tr('empty_glass'),
         child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: onTap, child: const SizedBox.expand()),
       );
     }
@@ -450,7 +451,7 @@ class _Pane extends StatelessWidget {
       return Center(
         child: Semantics(
           button: true,
-          label: 'Повесить снежинку',
+          label: tr('hang_flake'),
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: onTap,
@@ -471,7 +472,7 @@ class _Pane extends StatelessWidget {
     return LayoutBuilder(
       builder: (_, c) => Semantics(
         button: true,
-        label: 'Снежинка',
+        label: tr('flake'),
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
@@ -503,7 +504,7 @@ class _PickTile extends StatelessWidget {
       button: true,
       enabled: onTap != null,
       selected: selected,
-      label: f == null ? 'Пусто' : 'Снежинка',
+      label: f == null ? tr('empty') : tr('flake'),
       child: GestureDetector(
         onTap: onTap,
         child: Container(
@@ -518,7 +519,7 @@ class _PickTile extends StatelessWidget {
             builder: (_, c) => Stack(children: [
               Center(
                 child: f == null
-                    ? Text('Пусто', style: display(15, color: C.ice200))
+                    ? Text(tr('empty'), style: display(15, color: C.ice200))
                     : FlakeShadow(
                         size: (c.maxWidth * .78).clamp(0, 140),
                         child: SnowflakeView(cuts: f.cuts, folds: f.folds, color: f.color, pattern: f.pattern, size: (c.maxWidth * .78).clamp(0, 140)),

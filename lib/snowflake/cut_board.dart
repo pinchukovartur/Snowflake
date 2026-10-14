@@ -17,6 +17,10 @@ import 'snowflake_view.dart';
 ///
 /// Fills its constraints with the wedge centred in a [widthFor] × [height] box;
 /// a cut can start up to [touchMargin] away from the paper.
+/// Where the player left the stencil: its centre on the wedge (null for the
+/// middle of the paper), its size each way, and its turn.
+typedef StencilPlace = ({Offset? at, double sx, double sy, double turn});
+
 class CutBoard extends StatefulWidget {
   const CutBoard({
     super.key,
@@ -37,6 +41,8 @@ class CutBoard extends StatefulWidget {
     this.onTouch,
     this.stencilCut = 0,
     this.stencilReset = 0,
+    this.stencilPlace,
+    this.onStencilPlace,
     this.topInset = 0,
     this.bottomInset = 0,
   });
@@ -75,6 +81,14 @@ class CutBoard extends StatefulWidget {
 
   /// Bumped to put the stencil back in the middle, at its first size and turn.
   final int stencilReset;
+
+  /// Where the stencil starts, as last left (see [onStencilPlace]); null for
+  /// the middle of the paper at its first size and turn.
+  final StencilPlace? stencilPlace;
+
+  /// Told where the stencil is whenever the player lets go of it, or it is
+  /// set back: kept by the parent so the board can start from it again.
+  final ValueChanged<StencilPlace>? onStencilPlace;
 
   /// Room at the top and foot taken by controls laid over the board: the
   /// wedge (as drawn: arc to apex) centres in the space between them, while
@@ -189,6 +203,13 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    final p = widget.stencilPlace;
+    if (p != null) {
+      _stencilAt = p.at;
+      _sx = p.sx;
+      _sy = p.sy;
+      _stencilTurn = p.turn;
+    }
     _syncDemo();
     _syncTwinkle();
   }
@@ -204,6 +225,7 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
       _stencilAt = null;
       _sx = _sy = _stencilR0;
       _stencilTurn = 0;
+      _reportStencil();
     }
     if (old.stencilCut != widget.stencilCut) {
       // After this frame: cutting reports back to the parent, which is building.
@@ -285,9 +307,27 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   /// to the rotate knob.
   static const _boxPad = 6.0, _knobGap = 34.0;
 
-  /// The tool's shape at radius 1 about the origin, and its bounds.
-  Cut get _unitShape => stencilShape(widget.tool, 0, 0, 1);
-  Rect get _unitBox => cutPath(_unitShape, 1).getBounds();
+  /// The tool's shape at radius 1 about the origin, and its bounds: kept for
+  /// the tool they were made for, as the box asks for them many times a frame.
+  String? _unitTool;
+  Cut _unitShapeKept = const [];
+  Rect _unitBoxKept = Rect.zero;
+  void _syncUnit() {
+    if (_unitTool == widget.tool) return;
+    _unitTool = widget.tool;
+    _unitShapeKept = stencilShape(widget.tool, 0, 0, 1);
+    _unitBoxKept = cutPath(_unitShapeKept, 1).getBounds();
+  }
+
+  Cut get _unitShape {
+    _syncUnit();
+    return _unitShapeKept;
+  }
+
+  Rect get _unitBox {
+    _syncUnit();
+    return _unitBoxKept;
+  }
 
   /// The selection box in the stencil's own (unturned) frame, wedge units.
   Rect get _box {
@@ -437,6 +477,8 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
     if ((p - d.pts.last).distance > cutPointStep / _zoom) setState(() => _live = _Live([...d.pts, p]));
   }
 
+  void _reportStencil() => widget.onStencilPlace?.call((at: _stencilAt, sx: _sx, sy: _sy, turn: _stencilTurn));
+
   void _up(PointerEvent e) {
     _pointers.remove(e.pointer);
     if (_pinching) {
@@ -447,6 +489,7 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
       }
       return;
     }
+    if (_drag != null) _reportStencil();
     _drag = null;
     final d = _live;
     // Also hides the degrees shown while turning.
@@ -754,29 +797,45 @@ class _BoardPainter extends CustomPainter {
     canvas.drawCircle(k, 15, fill);
     canvas.drawCircle(k, 15, _halo(ring));
     canvas.drawCircle(k, 15, ring);
+    final glyph = _knobGlyph;
+    glyph.paint(canvas, k - Offset(glyph.width / 2, glyph.height / 2));
+  }
+
+  /// The knob's arrow, laid out once: it never changes.
+  static final _knobGlyph = () {
     const icon = LucideIcons.rotateCw;
-    final glyph = TextPainter(
+    return TextPainter(
       text: TextSpan(
         text: String.fromCharCode(icon.codePoint),
         style: TextStyle(fontFamily: icon.fontFamily, package: icon.fontPackage, fontSize: 18, fontWeight: FontWeight.w700, color: C.berry600),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
-    glyph.paint(canvas, k - Offset(glyph.width / 2, glyph.height / 2));
-  }
+  }();
+
+  /// The degrees as last laid out (outline and label), for the turn [_degShown]:
+  /// laid out again only when the whole number changes, not every frame.
+  static int? _degShown;
+  static TextPainter? _degOutline, _degLabel;
 
   /// The turn in whole degrees (clockwise, 0…359), above the knob at [k] px.
   void _paintDegrees(Canvas canvas, Offset k, double turn) {
     final deg = ((turn % (2 * math.pi)) * 180 / math.pi).round() % 360;
-    TextPainter text(TextStyle style) => TextPainter(text: TextSpan(text: '$deg°', style: style), textDirection: TextDirection.ltr)..layout();
-    final outline = text(display(14).copyWith(
-      foreground: Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5
-        ..strokeJoin = StrokeJoin.round
-        ..color = Colors.white,
-    ));
-    final label = text(display(14, color: C.berry700));
+    if (deg != _degShown || _degOutline == null || _degLabel == null) {
+      TextPainter text(TextStyle style) => TextPainter(text: TextSpan(text: '$deg°', style: style), textDirection: TextDirection.ltr)..layout();
+      _degOutline?.dispose();
+      _degLabel?.dispose();
+      _degOutline = text(display(14).copyWith(
+        foreground: Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.5
+          ..strokeJoin = StrokeJoin.round
+          ..color = Colors.white,
+      ));
+      _degLabel = text(display(14, color: C.berry700));
+      _degShown = deg;
+    }
+    final outline = _degOutline!, label = _degLabel!;
     final at = k + Offset(-label.width / 2, -15 - 6 - label.height);
     outline.paint(canvas, at);
     label.paint(canvas, at);

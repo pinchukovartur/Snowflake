@@ -4,6 +4,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
 
+import '../l10n.dart';
+
 /// A cut is a polygon in wedge units: apex (0,0) = flake centre,
 /// y negative upward, radius 1.
 typedef Cut = List<Offset>;
@@ -19,8 +21,6 @@ final Map<String, List<Cut>> snowflakePresets = {
     [[-0.22, -0.16], [-0.03, -0.22], [-0.22, -0.3]],
   ]),
   // Halloween: six-fold only (built for a 15° half-wedge).
-  'web': _web(),
-  'pumpkins': _pumpkins(),
   'spiders': _spiders(),
   'bats': _bats(),
   'ghosts': _ghosts(),
@@ -355,13 +355,6 @@ Cut _onRing(List<Offset> half, {double inner = .25, double outer = .42}) {
   ]);
 }
 
-/// Jack-o'-lanterns with a stem, triangle eyes and a toothy grin.
-List<Cut> _pumpkins() => [
-      _onRing([_a(1, 0), _a(1, .05), _a(.955, .055), ..._arc(.64, .32, 12, 178)]),
-      [_a(.82, .06), _a(.71, .18), _a(.71, .04)],
-      [_a(.6, -.01), _a(.62, .08), _a(.58, .11), _a(.61, .17), _a(.53, .16), _a(.51, .08), _a(.53, -.01)],
-    ];
-
 /// Spiders on their legs, three a side, reaching out to their neighbours.
 List<Cut> _spiders() => [
       _onRing([
@@ -486,70 +479,58 @@ List<Cut> _zombies() {
   ];
 }
 
-/// A cobweb: threads sagging between spokes on every fold and down the
-/// middle of each wedge, with a solid hub and rim.
-List<Cut> _web() {
-  const rings = [.12, .27, .42, .57, .72, .86, .97];
-  const thread = .012, spoke = 1.3 * math.pi / 180;
-  final cuts = <Cut>[];
-  for (var i = 0; i + 1 < rings.length; i++) {
-    final r0 = rings[i] + thread, r1 = rings[i + 1] - thread;
-    for (final (a0, a1) in [(-_h6 + spoke, -spoke), (spoke, _h6 - spoke)]) {
-      // Threads sag in towards the hub halfway between the spokes.
-      double sag(double r, double t) => r * (1 - .06 * math.sin(math.pi * t));
-      const steps = 6;
-      cuts.add([
-        for (var k = 0; k <= steps; k++) _polar(sag(r1, k / steps), a0 + (a1 - a0) * k / steps),
-        for (var k = steps; k >= 0; k--) _polar(sag(r0, k / steps), a0 + (a1 - a0) * k / steps),
-      ]);
-    }
-  }
-  return cuts;
-}
-
 class PaperColor {
-  const PaperColor(this.id, this.name, this.color);
-  final String id, name;
+  const PaperColor(this.id, this.color);
+  final String id;
+  String get name => tr('color_$id');
   final Color color;
 }
 
 /// Shown six to a row, a column per hue, lighter shades above darker ones.
 /// Event flakes use these only, so the player can always cut one alike.
 const paperColors = [
-  PaperColor('white', 'Белая', Color(0xFFFFFFFF)),
-  PaperColor('pink', 'Розовая', Color(0xFFFFC7D0)),
-  PaperColor('sun', 'Жёлтая', Color(0xFFFFE08A)),
-  PaperColor('mint', 'Мятная', Color(0xFFBFF0DC)),
-  PaperColor('ice', 'Голубая', Color(0xFFC4ECFF)),
-  PaperColor('lilac', 'Сиреневая', Color(0xFFDCD2FF)),
-  PaperColor('grey', 'Серая', Color(0xFF9AA3B5)),
-  PaperColor('red', 'Красная', Color(0xFFE0405E)),
-  PaperColor('orange', 'Оранжевая', Color(0xFFFF9A3C)),
-  PaperColor('green', 'Зелёная', Color(0xFF2FB37E)),
-  PaperColor('blue', 'Синяя', Color(0xFF3E61B8)),
-  PaperColor('violet', 'Фиолетовая', Color(0xFF8A5CD6)),
-  PaperColor('black', 'Чёрная', Color(0xFF1E1F26)),
-  PaperColor('wine', 'Бордовая', Color(0xFF8E1F3A)),
-  PaperColor('brown', 'Коричневая', Color(0xFF8B5A2B)),
-  PaperColor('forest', 'Тёмно-зелёная', Color(0xFF1E6B4F)),
-  PaperColor('navy', 'Тёмно-синяя', Color(0xFF1E2F6B)),
-  PaperColor('plum', 'Тёмно-фиолетовая', Color(0xFF4A1A6B)),
+  PaperColor('white', Color(0xFFFFFFFF)),
+  PaperColor('pink', Color(0xFFFFC7D0)),
+  PaperColor('sun', Color(0xFFFFE08A)),
+  PaperColor('mint', Color(0xFFBFF0DC)),
+  PaperColor('ice', Color(0xFFC4ECFF)),
+  PaperColor('lilac', Color(0xFFDCD2FF)),
+  PaperColor('grey', Color(0xFF9AA3B5)),
+  PaperColor('red', Color(0xFFE0405E)),
+  PaperColor('orange', Color(0xFFFF9A3C)),
+  PaperColor('green', Color(0xFF2FB37E)),
+  PaperColor('blue', Color(0xFF3E61B8)),
+  PaperColor('violet', Color(0xFF8A5CD6)),
+  PaperColor('black', Color(0xFF1E1F26)),
+  PaperColor('wine', Color(0xFF8E1F3A)),
+  PaperColor('brown', Color(0xFF8B5A2B)),
+  PaperColor('forest', Color(0xFF1E6B4F)),
+  PaperColor('navy', Color(0xFF1E2F6B)),
+  PaperColor('plum', Color(0xFF4A1A6B)),
 ];
 
 const paperPatterns = [
-  ('plain', 'Гладкая'),
-  ('dots', 'Горошек'),
-  ('stripes', 'Полоски'),
-  ('checks', 'Клетка'),
-  ('sparkle', 'Блёстки'),
-  ('bubbles', 'Кружочки'),
-  ('holo', 'Голограмма'),
-  ('butterflies', 'Бабочки'),
+  'plain',
+  'dots',
+  'stripes',
+  'checks',
+  'sparkle',
+  'bubbles',
+  'holo',
+  'butterflies',
+  'knit',
 ];
 
 /// Patterns drawn from a seamless texture (dark lines on white) rather than
 /// by hand: its asset, loaded into [paperTextures] at launch.
-const textureAssets = {'butterflies': 'assets/materials/butterfly_mat.png'};
+/// Textures shown in their own shades, multiplied over the paper's colour
+/// (as drawn on white paper) rather than as ink lines.
+const shadedTextures = {'knit'};
+
+const textureAssets = {
+  'butterflies': 'assets/materials/butterfly_mat.png',
+  'knit': 'assets/materials/knit_mat.png',
+};
 
 /// The decoded [textureAssets], by pattern.
 final paperTextures = <String, ui.Image>{};
@@ -906,7 +887,16 @@ ui.Image _tile(Color color, String pattern, double t) {
   final ink = dark ? const Color(0x38FFFFFF) : const Color(0x292E4A94); // rgba(46,74,148,.16)
   final inkLight = dark ? const Color(0x24FFFFFF) : const Color(0x1A2E4A94);
   final texture = paperTextures[pattern];
-  if (texture != null) {
+  if (texture != null && shadedTextures.contains(pattern)) {
+    x.drawImageRect(
+      texture,
+      Rect.fromLTWH(0, 0, texture.width.toDouble(), texture.height.toDouble()),
+      Rect.fromLTWH(0, 0, t, t),
+      Paint()
+        ..filterQuality = FilterQuality.medium
+        ..blendMode = BlendMode.multiply,
+    );
+  } else if (texture != null) {
     // Its dark lines in the ink's colour, the rest left as the paper.
     final c = dark ? const Color(0xFFFFFFFF) : const Color(0xFF2E4A94);
     final a = dark ? .3 : .28;

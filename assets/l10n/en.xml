@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- Common -->
+  <string name="app_title">Snowflakes</string>
+  <string name="back">Back</string>
+  <string name="done">Done</string>
+  <string name="close">Close</string>
+  <string name="empty">Empty</string>
+  <string name="flake">Snowflake</string>
+  <string name="flake_n">Snowflake {n}</string>
+
+  <!-- Home -->
+  <string name="home_subtitle">Fold. Cut. Unfold.</string>
+  <string name="play">Play</string>
+  <string name="my_collection">My collection</string>
+  <string name="settings">Settings</string>
+  <string name="music">Music</string>
+  <string name="sounds">Sounds</string>
+  <string name="vibration">Vibration</string>
+  <string name="window_flake">Snowflake for the window</string>
+  <string name="unhang">Take down</string>
+  <string name="empty_glass">Empty glass</string>
+  <string name="hang_flake">Hang a snowflake</string>
+
+  <!-- Cutting -->
+  <string name="stencils">Stencils</string>
+  <string name="scissors">Scissors</string>
+  <string name="paper">Paper</string>
+  <string name="cut">Cut</string>
+  <string name="reset_stencil">Reset stencil</string>
+  <string name="home">Home</string>
+  <string name="hint">Hint</string>
+  <string name="restart">Start over</string>
+  <string name="undo">Undo</string>
+  <string name="redo">Redo</string>
+  <string name="unfold">Unfold</string>
+  <string name="pick_flake">Pick a snowflake</string>
+  <string name="event_repeat">Repeat the snowflake</string>
+  <string name="event_halloween">Halloween snowflake</string>
+
+  <!-- Stencils -->
+  <string name="stencil_star">Star</string>
+  <string name="stencil_circle">Circle</string>
+  <string name="stencil_triangle">Triangle</string>
+  <string name="stencil_square">Square</string>
+  <string name="stencil_heart">Heart</string>
+  <string name="stencil_drop">Drop</string>
+  <string name="stencil_diamond">Diamond</string>
+  <string name="stencil_hexagon">Hexagon</string>
+  <string name="stencil_bone">Bone</string>
+  <string name="stencil_hat">Witch hat</string>
+  <string name="stencil_bat">Bat</string>
+  <string name="stencil_jack">Jack-o'-lantern</string>
+
+  <!-- Paper colours -->
+  <string name="color_white">White</string>
+  <string name="color_pink">Pink</string>
+  <string name="color_sun">Yellow</string>
+  <string name="color_mint">Mint</string>
+  <string name="color_ice">Light blue</string>
+  <string name="color_lilac">Lilac</string>
+  <string name="color_grey">Grey</string>
+  <string name="color_red">Red</string>
+  <string name="color_orange">Orange</string>
+  <string name="color_green">Green</string>
+  <string name="color_blue">Blue</string>
+  <string name="color_violet">Violet</string>
+  <string name="color_black">Black</string>
+  <string name="color_wine">Burgundy</string>
+  <string name="color_brown">Brown</string>
+  <string name="color_forest">Dark green</string>
+  <string name="color_navy">Navy</string>
+  <string name="color_plum">Dark purple</string>
+
+  <!-- Paper patterns -->
+  <string name="pattern_plain">Plain</string>
+  <string name="pattern_dots">Polka dots</string>
+  <string name="pattern_stripes">Stripes</string>
+  <string name="pattern_checks">Checks</string>
+  <string name="pattern_sparkle">Glitter</string>
+  <string name="pattern_bubbles">Bubbles</string>
+  <string name="pattern_holo">Hologram</string>
+  <string name="pattern_butterflies">Butterflies</string>
+  <string name="pattern_knit">Knit</string>
+
+  <!-- Reveal -->
+  <string name="unfolding">Unfolding…</string>
+  <string name="great">Great!</string>
+  <string name="flake_ready">Your snowflake is ready!</string>
+  <string name="in_collection">In collection</string>
+  <string name="to_collection">To collection</string>
+
+  <!-- Collection -->
+  <string name="delete_q">Delete?</string>
+  <string name="delete">Delete</string>
+  <string name="keep">Keep</string>
+  <string name="delete_note">This snowflake will be removed from the collection.</string>
+  <string name="delete_from_collection">Delete from collection</string>
+  <string name="share">Share</string>
+  <string name="collection_empty">The collection is empty</string>
+  <string name="add_last_to_collection">Add the last snowflake to the collection</string>
+  <string name="add_last">Add the last one</string>
+</resources>

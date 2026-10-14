@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_state.dart';
+import 'l10n.dart';
 import 'screens/cut_screen.dart';
 import 'screens/flake_screen.dart';
 import 'screens/gallery_screen.dart';
@@ -15,6 +16,7 @@ import 'theme/tokens.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
+  await loadLocalization();
   await loadSvgFlakes();
   await loadPaperTextures();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
@@ -35,7 +37,7 @@ class SnowflakeApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Снежинки',
+      onGenerateTitle: (_) => tr('app_title'),
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: C.night800, brightness: Brightness.dark),

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- Общее -->
+  <string name="app_title">Снежинки</string>
+  <string name="back">Назад</string>
+  <string name="done">Готово</string>
+  <string name="close">Закрыть</string>
+  <string name="empty">Пусто</string>
+  <string name="flake">Снежинка</string>
+  <string name="flake_n">Снежинка {n}</string>
+
+  <!-- Главный экран -->
+  <string name="home_subtitle">Сложи. Вырежи. Раскрой.</string>
+  <string name="play">Играть</string>
+  <string name="my_collection">Моя коллекция</string>
+  <string name="settings">Настройки</string>
+  <string name="music">Музыка</string>
+  <string name="sounds">Звуки</string>
+  <string name="vibration">Вибрация</string>
+  <string name="window_flake">Снежинка на окно</string>
+  <string name="unhang">Снять с окна</string>
+  <string name="empty_glass">Пустое стекло</string>
+  <string name="hang_flake">Повесить снежинку</string>
+
+  <!-- Вырезание -->
+  <string name="stencils">Трафареты</string>
+  <string name="scissors">Ножницы</string>
+  <string name="paper">Бумага</string>
+  <string name="cut">Вырезать</string>
+  <string name="reset_stencil">Сбросить трафарет</string>
+  <string name="home">Домой</string>
+  <string name="hint">Подсказка</string>
+  <string name="restart">Начать заново</string>
+  <string name="undo">Отменить</string>
+  <string name="redo">Вернуть</string>
+  <string name="unfold">Раскрыть</string>
+  <string name="pick_flake">Выберите снежинку</string>
+  <string name="event_repeat">Повторить снежинку</string>
+  <string name="event_halloween">Хэллоуинская снежинка</string>
+
+  <!-- Трафареты -->
+  <string name="stencil_star">Звезда</string>
+  <string name="stencil_circle">Круг</string>
+  <string name="stencil_triangle">Треугольник</string>
+  <string name="stencil_square">Квадрат</string>
+  <string name="stencil_heart">Сердце</string>
+  <string name="stencil_drop">Капля</string>
+  <string name="stencil_diamond">Ромб</string>
+  <string name="stencil_hexagon">Шестиугольник</string>
+  <string name="stencil_bone">Кость</string>
+  <string name="stencil_hat">Шляпа ведьмы</string>
+  <string name="stencil_bat">Летучая мышь</string>
+  <string name="stencil_jack">Светильник Джека</string>
+
+  <!-- Цвета бумаги -->
+  <string name="color_white">Белая</string>
+  <string name="color_pink">Розовая</string>
+  <string name="color_sun">Жёлтая</string>
+  <string name="color_mint">Мятная</string>
+  <string name="color_ice">Голубая</string>
+  <string name="color_lilac">Сиреневая</string>
+  <string name="color_grey">Серая</string>
+  <string name="color_red">Красная</string>
+  <string name="color_orange">Оранжевая</string>
+  <string name="color_green">Зелёная</string>
+  <string name="color_blue">Синяя</string>
+  <string name="color_violet">Фиолетовая</string>
+  <string name="color_black">Чёрная</string>
+  <string name="color_wine">Бордовая</string>
+  <string name="color_brown">Коричневая</string>
+  <string name="color_forest">Тёмно-зелёная</string>
+  <string name="color_navy">Тёмно-синяя</string>
+  <string name="color_plum">Тёмно-фиолетовая</string>
+
+  <!-- Узоры бумаги -->
+  <string name="pattern_plain">Гладкая</string>
+  <string name="pattern_dots">Горошек</string>
+  <string name="pattern_stripes">Полоски</string>
+  <string name="pattern_checks">Клетка</string>
+  <string name="pattern_sparkle">Блёстки</string>
+  <string name="pattern_bubbles">Кружочки</string>
+  <string name="pattern_holo">Голограмма</string>
+  <string name="pattern_butterflies">Бабочки</string>
+  <string name="pattern_knit">Вязка</string>
+
+  <!-- Раскрытие -->
+  <string name="unfolding">Раскрываем…</string>
+  <string name="great">Отлично!</string>
+  <string name="flake_ready">Снежинка готова!</string>
+  <string name="in_collection">В коллекции</string>
+  <string name="to_collection">В коллекцию</string>
+
+  <!-- Коллекция -->
+  <string name="delete_q">Удалить?</string>
+  <string name="delete">Удалить</string>
+  <string name="keep">Оставить</string>
+  <string name="delete_note">Эта снежинка пропадёт из коллекции.</string>
+  <string name="delete_from_collection">Удалить из коллекции</string>
+  <string name="share">Поделиться</string>
+  <string name="collection_empty">Коллекция пуста</string>
+  <string name="add_last_to_collection">Добавить последнюю снежинку в коллекцию</string>
+  <string name="add_last">Добавить последнюю</string>
+</resources>

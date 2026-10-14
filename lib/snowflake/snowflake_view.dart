@@ -100,8 +100,22 @@ class _WedgeKey {
   int get hashCode => Object.hash(identityHashCode(cuts), folds, color, pattern, px, pos);
 }
 
-// Each segment's wedge is rendered once and re-drawn as needed.
+// Each segment's wedge is rendered once and re-drawn as needed: kept to
+// [_wedgeBudget] bytes in all, the least recently used going first. Each is
+// as big as the whole flake, and patterned paper needs one per segment, so a
+// count alone could let a few big flakes fill hundreds of megabytes.
 final _wedgeCache = <_WedgeKey, ui.Image>{};
+const _wedgeBudget = 48 << 20;
+var _wedgeBytes = 0;
+
+int _bytesOf(ui.Image i) => i.width * i.height * 4;
+
+void _dropWedge(_WedgeKey k) {
+  final img = _wedgeCache.remove(k);
+  if (img == null) return;
+  _wedgeBytes -= _bytesOf(img);
+  img.dispose();
+}
 
 ui.Image _wedgeImage(_WedgeKey k) {
   final hit = _wedgeCache.remove(k);
@@ -114,8 +128,10 @@ ui.Image _wedgeImage(_WedgeKey k) {
   drawWedge(c, u, k.cuts, wedgeHalfAngle(k.folds), makePaperFill(k.color, k.pattern, u), pad: 0.006, pattern: k.pattern, pos: k.pos, folds: k.folds, sheen: false);
   final img = rec.endRecording().toImageSync(k.px, k.px);
   _wedgeCache[k] = img;
-  while (_wedgeCache.length > 240) {
-    _wedgeCache.remove(_wedgeCache.keys.first)?.dispose();
+  _wedgeBytes += _bytesOf(img);
+  // The oldest go, never the one just made.
+  while (_wedgeBytes > _wedgeBudget && _wedgeCache.length > 1) {
+    _dropWedge(_wedgeCache.keys.first);
   }
   return img;
 }
@@ -370,6 +386,13 @@ class SnowflakePainter extends CustomPainter {
       _paintFlake(c, s);
       final px = (s * dpr).ceil();
       img = rec.endRecording().toImageSync(px, px);
+      // Baked, a still flake never needs its wedges again (only moving ones
+      // do): they go, rather than fill the wedge cache. The picture keeps
+      // what it drew from.
+      final w = _wedgeKey(s);
+      for (var i = 0; i < folds * 2; i++) {
+        _dropWedge(w.at(i));
+      }
       while (_flakeCache.length >= 60) {
         _flakeCache.remove(_flakeCache.keys.first)?.dispose();
       }

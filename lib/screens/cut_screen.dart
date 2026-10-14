@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../l10n.dart';
 import '../app_state.dart';
 import '../snowflake/cut_board.dart';
 import '../snowflake/detach.dart';
@@ -54,19 +55,19 @@ double _toolsGap(double width) => (width / 2 - 66 - (8 + _stencilsListW + 6 + 3)
 
 /// Stencil shapes, picked from the list the stencil button opens.
 const _stencils = [
-  ('star', LucideIcons.star, 'Звезда'),
-  ('circle', LucideIcons.circle, 'Круг'),
-  ('triangle', LucideIcons.triangle, 'Треугольник'),
-  ('square', LucideIcons.square, 'Квадрат'),
-  ('heart', LucideIcons.heart, 'Сердце'),
-  ('drop', LucideIcons.droplet, 'Капля'),
-  ('diamond', LucideIcons.diamond, 'Ромб'),
-  ('hexagon', LucideIcons.hexagon, 'Шестиугольник'),
+  ('star', LucideIcons.star, 'stencil_star'),
+  ('circle', LucideIcons.circle, 'stencil_circle'),
+  ('triangle', LucideIcons.triangle, 'stencil_triangle'),
+  ('square', LucideIcons.square, 'stencil_square'),
+  ('heart', LucideIcons.heart, 'stencil_heart'),
+  ('drop', LucideIcons.droplet, 'stencil_drop'),
+  ('diamond', LucideIcons.diamond, 'stencil_diamond'),
+  ('hexagon', LucideIcons.hexagon, 'stencil_hexagon'),
   // Halloween; stand-in icons for now.
-  ('bone', LucideIcons.bone, 'Кость'),
-  ('hat', LucideIcons.wandSparkles, 'Шляпа ведьмы'),
-  ('bat', LucideIcons.moon, 'Летучая мышь'),
-  ('jack', LucideIcons.smile, 'Светильник Джека'),
+  ('bone', LucideIcons.bone, 'stencil_bone'),
+  ('hat', LucideIcons.wandSparkles, 'stencil_hat'),
+  ('bat', LucideIcons.moon, 'stencil_bat'),
+  ('jack', LucideIcons.smile, 'stencil_jack'),
 ];
 
 /// The Halloween stencils, set apart in the list.
@@ -97,6 +98,10 @@ class CutSession {
 
   /// The stencil last picked, shown on the stencil button.
   String stencil = 'star';
+
+  /// Where the player left it on the paper, so it is still there after a
+  /// trip home; null for the middle, at its first size and turn.
+  StencilPlace? stencilPlace;
   Paper paper = const Paper();
 
   /// The event being played, if any: kept here, not on the screen, so it
@@ -147,7 +152,8 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
   int _stencilReset = 0;
 
   /// The event shown in the top-right panel: the seasonal one at first.
-  int _event = _events.indexWhere((e) => e.id == _seasonalEvent);
+  // The first event, should [_seasonalEvent] name none of them.
+  int _event = math.max(0, _events.indexWhere((e) => e.id == _seasonalEvent));
 
   /// An event is on: its flake was picked from the panel, which gives way to
   /// a button out of the event.
@@ -189,7 +195,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     final f = await Navigator.of(context).push<_EventFlake>(
       PageRouteBuilder(
         // On a Material of its own, for the text styles a route of its own lacks.
-        pageBuilder: (_, _, _) => Material(type: MaterialType.transparency, child: e.window(title: 'Выберите снежинку', flakes: e.flakes)),
+        pageBuilder: (_, _, _) => Material(type: MaterialType.transparency, child: e.window(title: tr('pick_flake'), flakes: e.flakes)),
         transitionsBuilder: (_, anim, _, child) => FadeTransition(opacity: anim, child: child),
       ),
     );
@@ -203,6 +209,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     _s.future.clear();
     _stencilsOpen = false;
     _tool = 'free';
+    _s.stencilPlace = null;
     _paper = Paper(color: f.color, pattern: f.pattern);
     _boardKey++;
     // Fresh paper, folded like the event's flake.
@@ -401,9 +408,9 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
             }
 
             return DsDialog(
-              title: 'Бумага',
+              title: tr('paper'),
               onClose: () => Navigator.pop(ctx),
-              actions: [Btn('Готово', icon: LucideIcons.check, block: true, onTap: () => Navigator.pop(ctx))],
+              actions: [Btn(tr('done'), icon: LucideIcons.check, block: true, onTap: () => Navigator.pop(ctx))],
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -459,10 +466,10 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                             child: row * 4 + col >= paperPatterns.length
                                 ? const SizedBox()
                                 : Builder(builder: (_) {
-                                    final (id, name) = paperPatterns[row * 4 + col];
+                                    final id = paperPatterns[row * 4 + col];
                                     return Semantics(
                                       button: true,
-                                      label: name,
+                                      label: tr('pattern_$id'),
                                       selected: id == _paper.pattern,
                                       child: GestureDetector(
                                         onTap: () => set(_paper.copyWith(pattern: id)),
@@ -470,7 +477,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                           children: [
                                             _PaperSwatch(color: _paper.color, pattern: id, selected: id == _paper.pattern),
                                             const SizedBox(height: 8),
-                                            FittedBox(child: Text(name, style: display(13, color: C.night800))),
+                                            FittedBox(child: Text(tr('pattern_$id'), style: display(13, color: C.night800))),
                                           ],
                                         ),
                                       ),
@@ -560,6 +567,8 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                       tool: _tool,
                                       stencilCut: _stencilCut,
                                       stencilReset: _stencilReset,
+                                      stencilPlace: _s.stencilPlace,
+                                      onStencilPlace: (p) => _s.stencilPlace = p,
                                       color: _paper.color,
                                       pattern: _paper.pattern,
                                       onCut: _addCut,
@@ -578,12 +587,12 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                   Positioned(
                                     right: 16,
                                     bottom: _toolsH - 8,
-                                    child: RoundBtn(LucideIcons.scissorsLineDashed, label: 'Вырезать', variant: Variant.soft, size: BtnSize.l, onTap: () => setState(() => _stencilCut++)),
+                                    child: RoundBtn(LucideIcons.scissorsLineDashed, label: tr('cut'), variant: Variant.soft, size: BtnSize.l, onTap: () => setState(() => _stencilCut++)),
                                   ),
                                   Positioned(
                                     right: 16 + 72 + 8,
                                     bottom: _toolsH - 8 + (72 + 6 - 44 - 4) / 2,
-                                    child: RoundBtn(LucideIcons.rotateCcw, label: 'Сбросить трафарет', variant: Variant.soft, size: BtnSize.s, onTap: () => setState(() => _stencilReset++)),
+                                    child: RoundBtn(LucideIcons.rotateCcw, label: tr('reset_stencil'), variant: Variant.soft, size: BtnSize.s, onTap: () => setState(() => _stencilReset++)),
                                   ),
                                 ],
                                 // The stencil list, when open: a two-column grid left of the
@@ -630,7 +639,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                                               maxHeight: 48,
                                                               child: RoundBtn(
                                                                 icon,
-                                                                label: label,
+                                                                label: tr(label),
                                                                 size: BtnSize.s,
                                                                 // Flat and full size even when picked: the colour
                                                                 // alone marks it, inside its cell.
@@ -671,7 +680,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                           // Shows the last stencil; opens the list of all of them.
                                           RoundBtn(
                                             stencilIcon,
-                                            label: 'Трафареты',
+                                            label: tr('stencils'),
                                             size: BtnSize.s,
                                             variant: stencilOn || _stencilsOpen ? Variant.secondary : Variant.light,
                                             active: stencilOn,
@@ -690,7 +699,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                           SizedBox(width: _toolsGap(c.maxWidth)),
                                           RoundBtn(
                                             LucideIcons.scissors,
-                                            label: 'Ножницы',
+                                            label: tr('scissors'),
                                             size: BtnSize.s,
                                             variant: scissorsOn ? Variant.secondary : Variant.light,
                                             active: scissorsOn,
@@ -702,7 +711,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                           SizedBox(width: _toolsGap(c.maxWidth)),
                                           RoundBtn(
                                             LucideIcons.palette,
-                                            label: 'Бумага',
+                                            label: tr('paper'),
                                             size: BtnSize.s,
                                             variant: _paperOpen ? Variant.secondary : Variant.light,
                                             active: _paperOpen,
@@ -737,7 +746,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                             mainAxisSize: MainAxisSize.min,
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Btn('Домой', icon: LucideIcons.house, variant: Variant.orange, size: BtnSize.l, fontSize: 26, padX: 12, block: true, onTap: widget.onHome),
+                              Btn(tr('home'), icon: LucideIcons.house, variant: Variant.orange, size: BtnSize.l, fontSize: 26, padX: 12, block: true, onTap: widget.onHome),
                               const SizedBox(height: 12),
                               // Folds and cuts of this flake, each under its mark, centred
                               // under the home button.
@@ -791,14 +800,14 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Btn('Назад', icon: LucideIcons.arrowLeft, variant: Variant.light, size: BtnSize.l, padX: 8, block: true, onTap: _endEvent),
+                              Btn(tr('back'), icon: LucideIcons.arrowLeft, variant: Variant.light, size: BtnSize.l, padX: 8, block: true, onTap: _endEvent),
                               const SizedBox(height: 12),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   RoundBtn.text(
                                     '?',
-                                    label: 'Подсказка',
+                                    label: tr('hint'),
                                     disabled: _s._helps == 0 || _helping || _introRunning,
                                     onTap: _useHelp,
                                   ),
@@ -832,15 +841,15 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
               padding: EdgeInsets.fromLTRB(24, 0, 24, pad.bottom + 14),
               child: Row(
                 children: [
-                  RoundBtn(LucideIcons.rotateCcw, label: 'Начать заново', size: BtnSize.s, disabled: _cuts.isEmpty, onTap: _reset),
+                  RoundBtn(LucideIcons.rotateCcw, label: tr('restart'), size: BtnSize.s, disabled: _cuts.isEmpty, onTap: _reset),
                   const SizedBox(width: 10),
-                  RoundBtn(LucideIcons.undo2, label: 'Отменить', size: BtnSize.s, disabled: _s.past.isEmpty, onTap: _undo),
+                  RoundBtn(LucideIcons.undo2, label: tr('undo'), size: BtnSize.s, disabled: _s.past.isEmpty, onTap: _undo),
                   const SizedBox(width: 10),
-                  RoundBtn(LucideIcons.redo2, label: 'Вернуть', size: BtnSize.s, disabled: _s.future.isEmpty, onTap: _redo),
+                  RoundBtn(LucideIcons.redo2, label: tr('redo'), size: BtnSize.s, disabled: _s.future.isEmpty, onTap: _redo),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Btn(
-                      'Раскрыть',
+                      tr('unfold'),
                       // No icon: with three round buttons beside it, the word needs the room.
                       size: BtnSize.l,
                       block: true,
@@ -871,7 +880,7 @@ typedef _EventFlake = ({String preset, int folds, Color color, String pattern});
 const _events = [
   (
     id: 'repeat',
-    title: 'Повторить снежинку',
+    title: 'event_repeat',
     image: null,
     loud: false,
     window: _RepeatWindow.new,
@@ -888,13 +897,13 @@ const _events = [
   ),
   (
     id: 'halloween',
-    title: 'Хэллоуинская снежинка',
+    title: 'event_halloween',
     image: 'assets/Halloween_Event_Ico.png',
     loud: true,
     window: _HalloweenWindow.new,
     flakes: [
       (preset: 'halloween_1', folds: 6, color: Color(0xFFFF9A3C), pattern: 'plain'),
-      (preset: 'web', folds: 6, color: Color(0xFF1E1F26), pattern: 'plain'),
+      (preset: 'halloween_2', folds: 6, color: Color(0xFF1E1F26), pattern: 'plain'),
       (preset: 'spiders', folds: 6, color: Color(0xFF4A1A6B), pattern: 'plain'),
       (preset: 'bats', folds: 6, color: Color(0xFF8A5CD6), pattern: 'plain'),
       (preset: 'ghosts', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
@@ -1004,7 +1013,7 @@ class _EventPanelState extends State<_EventPanel> {
     );
     final image = e.image;
     return Semantics(
-      label: e.title,
+      label: tr(e.title),
       button: true,
       child: GestureDetector(
         onTap: widget.onOpen,
@@ -1033,8 +1042,8 @@ class _EventPanelState extends State<_EventPanel> {
                         builder: (ctx, c) {
                           // Wraps between words as usual, made smaller only if the longest
                           // word would not fit on a line: never broken inside a word.
-                          final size = _wordsFit(e.title, _titleStyle(e.loud), c.maxWidth, MediaQuery.textScalerOf(ctx));
-                          return _EventTitle(e.title, loud: e.loud, size: size);
+                          final size = _wordsFit(tr(e.title), _titleStyle(e.loud), c.maxWidth, MediaQuery.textScalerOf(ctx));
+                          return _EventTitle(tr(e.title), loud: e.loud, size: size);
                         },
                       ),
                     ),
@@ -1068,8 +1077,8 @@ class _EventTitle extends StatelessWidget {
     final style = _titleStyle(loud).copyWith(fontSize: size);
     Text line(TextStyle s) => Text(text, textAlign: TextAlign.center, maxLines: maxLines, overflow: maxLines == null ? null : TextOverflow.ellipsis, style: s);
     if (!loud) return line(style.copyWith(color: Colors.white));
-    // The outline drawn first underneath.
-    return Stack(children: [
+    // The outline drawn first underneath; both centred in the room given.
+    return Stack(alignment: Alignment.center, children: [
       // The display face, but painted as a stroke (a style can't carry both a
       // colour and a foreground paint).
       line(TextStyle(
@@ -1134,38 +1143,52 @@ abstract class _EventWindow extends StatelessWidget {
         bottom: false,
         child: Column(children: [
           TopBar(
-            left: RoundBtn(LucideIcons.arrowLeft, label: 'Назад', variant: Variant.ghost, size: BtnSize.s, onTap: () => Navigator.pop(context)),
+            left: RoundBtn(LucideIcons.arrowLeft, label: tr('back'), variant: Variant.ghost, size: BtnSize.s, onTap: () => Navigator.pop(context)),
             title: title,
             titleLines: 2,
             heading: heading(),
-            right: const SizedBox(width: 40),
+            // As wide as the back button, so the title centres on the screen.
+            right: const SizedBox(width: 44),
           ),
-          const SizedBox(height: 16),
           Expanded(
-            child: GridView.builder(
-              padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.paddingOf(context).bottom + 20),
+            // Flakes scrolling up fade out under the top bar, rather than being
+            // cut off sharp at the list's edge.
+            child: ShaderMask(
+              blendMode: BlendMode.dstIn,
+              shaderCallback: (r) => LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: const [Color(0x00000000), Color(0xFF000000)],
+                stops: [0, (_fade / r.height).clamp(0.0, 1.0)],
+              ).createShader(r),
+              child: GridView.builder(
+              padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.paddingOf(context).bottom + 20),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 14, crossAxisSpacing: 14),
               itemCount: flakes.length,
               itemBuilder: (_, i) {
                 final f = flakes[i];
                 return Semantics(
                   button: true,
-                  label: 'Снежинка ${i + 1}',
+                  label: tr('flake_n', {'n': i + 1}),
                   child: GestureDetector(
                     behavior: HitTestBehavior.opaque,
                     onTap: () => Navigator.pop(context, f),
                     child: LayoutBuilder(
-                      builder: (_, c) => Center(child: _ShadowedFlake(f, size: (c.maxWidth * .858).clamp(0, 154))),
+                      builder: (_, c) => Center(child: _ShadowedFlake(f, size: (c.maxWidth * .944).clamp(0, 169.4))),
                     ),
                   ),
                 );
               },
+            ),
             ),
           ),
         ]),
       ),
     );
   }
+
+  /// How far down from the list's top edge flakes fade in over.
+  static const _fade = 24.0;
 }
 
 /// An event's flake [size] px across, turned by [angle], over its shadow

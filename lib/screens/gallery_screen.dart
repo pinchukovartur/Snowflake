@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../l10n.dart';
 import '../app_state.dart';
 import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
@@ -19,19 +20,19 @@ class GalleryScreen extends StatelessWidget {
     showDsDialog(
       context,
       builder: (ctx) => DsDialog(
-        title: 'Удалить?',
+        title: tr('delete_q'),
         onClose: () => Navigator.pop(ctx),
         actions: [
-          Btn('Удалить', icon: LucideIcons.trash2, block: true, onTap: () {
+          Btn(tr('delete'), icon: LucideIcons.trash2, block: true, onTap: () {
             game.remove(f);
             Navigator.pop(ctx);
           }),
-          Btn('Оставить', variant: Variant.light, block: true, onTap: () => Navigator.pop(ctx)),
+          Btn(tr('keep'), variant: Variant.light, block: true, onTap: () => Navigator.pop(ctx)),
         ],
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           FlakeShadow(size: 120, child: SnowflakeView(cuts: f.cuts, folds: f.folds, color: f.color, pattern: f.pattern, size: 120)),
           const SizedBox(height: 12),
-          const Text('Эта снежинка пропадёт из коллекции.'),
+          Text(tr('delete_note')),
         ]),
       ),
     );
@@ -47,14 +48,15 @@ class GalleryScreen extends StatelessWidget {
         child: Stack(children: [
           Column(children: [
             TopBar(
-              left: RoundBtn(LucideIcons.arrowLeft, label: 'Назад', variant: Variant.ghost, size: BtnSize.s, onTap: onBack),
-              title: 'Моя коллекция',
-              right: RoundBtn(LucideIcons.share2, label: 'Поделиться', variant: Variant.ghost, size: BtnSize.s, onTap: () {}),
+              left: RoundBtn(LucideIcons.arrowLeft, label: tr('back'), variant: Variant.ghost, size: BtnSize.s, onTap: onBack),
+              title: tr('my_collection'),
+              // As wide as the back button, so the title centres on the screen.
+              right: const SizedBox(width: 44),
             ),
             const SizedBox(height: 16),
             Expanded(
               child: list.isEmpty
-                  ? Center(child: Text('Коллекция пуста', style: display(22, color: C.ice200)))
+                  ? Center(child: Text(tr('collection_empty'), style: display(22, color: C.ice200)))
                   : GridView.builder(
                     // With the button below, room to scroll the last row up clear of it
                     // (the small button, 40 + 4 lip, and 12 more).
@@ -85,7 +87,7 @@ class GalleryScreen extends StatelessWidget {
                                   right: 0,
                                   child: Semantics(
                                     button: true,
-                                    label: 'Удалить из коллекции',
+                                    label: tr('delete_from_collection'),
                                     child: GestureDetector(
                                       behavior: HitTestBehavior.opaque,
                                       onTap: () => _confirmRemove(context, s),
@@ -111,8 +113,8 @@ class GalleryScreen extends StatelessWidget {
               right: 20,
               bottom: MediaQuery.paddingOf(context).bottom + 20,
               child: Semantics(
-                label: 'Добавить последнюю снежинку в коллекцию',
-                child: Btn('Добавить последнюю', icon: LucideIcons.heart, size: BtnSize.s, onTap: game.saveLast),
+                label: tr('add_last_to_collection'),
+                child: Btn(tr('add_last'), icon: LucideIcons.heart, size: BtnSize.s, onTap: game.saveLast),
               ),
             ),
         ]),

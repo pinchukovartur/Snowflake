@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../l10n.dart';
 import '../theme/tokens.dart';
 
 // ---- Buttons -------------------------------------------------------------
@@ -168,7 +169,7 @@ class Btn extends StatelessWidget {
 
 class RoundBtn extends StatelessWidget {
   const RoundBtn(
-    this.icon, {
+    IconData this.icon, {
     super.key,
     required this.label,
     this.variant = Variant.light,
@@ -190,9 +191,10 @@ class RoundBtn extends StatelessWidget {
     this.flat = false,
     this.disabled = false,
     this.onTap,
-  }) : icon = LucideIcons.circle;
+  }) : icon = null;
 
-  final IconData icon;
+  /// One of the two is set: what the button shows.
+  final IconData? icon;
   final String? glyph;
   final String label;
   final Variant variant;
@@ -237,9 +239,10 @@ class RoundBtn extends StatelessWidget {
                     BoxShadow(color: disabled ? C.snow300 : v.lip, offset: Offset(0, pressed ? 1 : s.lip)),
                 ],
               ),
-              child: glyph != null
-                  ? Center(child: Text(glyph!, style: display(s.i * 1.15, weight: FontWeight.w400, color: disabled ? C.snow500 : v.fg, height: 1)))
-                  : Icon(icon, size: s.i, color: disabled ? C.snow500 : v.fg),
+              child: switch (glyph) {
+                final g? => Center(child: Text(g, style: display(s.i * 1.15, weight: FontWeight.w400, color: disabled ? C.snow500 : v.fg, height: 1))),
+                null => Icon(icon, size: s.i, color: disabled ? C.snow500 : v.fg),
+              },
             ),
           );
         },
@@ -328,7 +331,7 @@ class DsDialog extends StatelessWidget {
               Positioned(
                 top: -18,
                 right: -10,
-                child: RoundBtn(LucideIcons.x, label: 'Закрыть', variant: Variant.primary, size: BtnSize.s, onTap: onClose),
+                child: RoundBtn(LucideIcons.x, label: tr('close'), variant: Variant.primary, size: BtnSize.s, onTap: onClose),
               ),
           ],
         ),
@@ -343,7 +346,7 @@ Future<T?> showDsDialog<T>(BuildContext context, {required Widget Function(Build
   return showGeneralDialog<T>(
     context: context,
     barrierDismissible: dismissible,
-    barrierLabel: 'Закрыть',
+    barrierLabel: tr('close'),
     barrierColor: Colors.transparent,
     transitionDuration: Motion.pop,
     pageBuilder: (ctx, _, _) => builder(ctx),

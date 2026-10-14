@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
+import '../l10n.dart';
 import '../app_state.dart';
 import '../snowflake/geometry.dart';
 import '../snowflake/snowflake_view.dart';
@@ -44,7 +45,19 @@ class _FlakeScreenState extends State<FlakeScreen> with TickerProviderStateMixin
             left: 20,
             right: 20,
             bottom: 12,
-            child: Btn('Назад', icon: LucideIcons.arrowLeft, variant: Variant.light, block: true, onTap: widget.onBack),
+            child: Btn(tr('back'), icon: LucideIcons.arrowLeft, variant: Variant.light, block: true, onTap: widget.onBack),
+          ),
+          // Share, where it sat in the collection's top bar: the bar laid
+          // out empty, so the button lands in the same place.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: TopBar(
+              left: const SizedBox(width: 44),
+              title: '',
+              right: RoundBtn(LucideIcons.share2, label: tr('share'), variant: Variant.ghost, size: BtnSize.s, onTap: () {}),
+            ),
           ),
         ]),
       ),

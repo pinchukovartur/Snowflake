@@ -98,6 +98,18 @@ class GameState extends ChangeNotifier {
       _storeCollection();
       _storeWindow();
     }
+    // Restored apart from the collection, [last] may be a copy of a flake in
+    // it: made that very flake, so from here on it is known at a glance.
+    final l = last;
+    if (l != null) last = _inCollection(l, jsonEncode(l.toJson())) ?? l;
+  }
+
+  /// The flake in the collection just like [f] (whose JSON is [key]), if any.
+  SavedFlake? _inCollection(SavedFlake f, String key) {
+    for (final s in saved) {
+      if (identical(s, f) || jsonEncode(s.toJson()) == key) return s;
+    }
+    return null;
   }
 
   final SharedPreferences _prefs;
@@ -144,6 +156,7 @@ class GameState extends ChangeNotifier {
 
   void save(SavedFlake f) {
     saved.insert(0, f);
+    if (identical(f, last)) _lastIsSaved = true;
     _storeCollection();
     _storeWindow();
     notifyListeners();
@@ -151,6 +164,7 @@ class GameState extends ChangeNotifier {
 
   void remove(SavedFlake f) {
     saved.remove(f);
+    if (identical(f, last)) _lastIsSaved = false;
     window.removeWhere((_, w) => identical(w, f));
     _storeCollection();
     _storeWindow();
@@ -162,24 +176,27 @@ class GameState extends ChangeNotifier {
   SavedFlake? last;
 
   void setLast(SavedFlake f) {
-    last = f;
-    _prefs.setString(_kLast, jsonEncode(f.toJson()));
+    final key = jsonEncode(f.toJson());
+    // The same flake unfolded again is the one already saved, not a copy to
+    // save twice: looked for once here, so [lastSaved] needn't.
+    final kept = _inCollection(f, key);
+    last = kept ?? f;
+    _lastIsSaved = kept != null;
+    _prefs.setString(_kLast, key);
     notifyListeners();
   }
 
-  /// [last] as it is in the collection (the same flake, even if restored
-  /// apart from it after a restart), or null if it isn't there.
-  SavedFlake? get _lastInCollection {
-    final l = last;
-    if (l == null) return null;
-    final key = jsonEncode(l.toJson());
-    for (final f in saved) {
-      if (identical(f, l) || jsonEncode(f.toJson()) == key) return f;
-    }
-    return null;
-  }
+  /// Whether [last] is in the collection: worked out (by identity: [last] is
+  /// always the very flake the collection holds, see the constructor) only
+  /// when it is not yet known, and kept up to date by [setLast], [save] and
+  /// [remove], so screens asking on every rebuild cost nothing.
+  bool? _lastIsSaved;
 
-  bool get lastSaved => _lastInCollection != null;
+  bool get lastSaved {
+    final l = last;
+    if (l == null) return false;
+    return _lastIsSaved ??= saved.any((f) => identical(f, l));
+  }
 
   /// Adds [last] to the collection, unless it is there already.
   void saveLast() {
@@ -189,8 +206,8 @@ class GameState extends ChangeNotifier {
 
   /// Takes [last] out of the collection, if it is there.
   void unsaveLast() {
-    final f = _lastInCollection;
-    if (f != null) remove(f);
+    final l = last;
+    if (l != null && lastSaved) remove(l);
   }
 
   void _storeCollection() => _prefs.setString(_kCollection, jsonEncode([for (final f in saved) f.toJson()]));
