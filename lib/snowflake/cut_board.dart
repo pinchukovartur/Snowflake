@@ -452,7 +452,7 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
     // Also hides the degrees shown while turning.
     setState(() => _live = null);
     if (d == null || d.pts.length <= cutMinPoints) return;
-    final cut = isLoop(d.pts, maxGap: loopMaxGap / _zoom) ? d.pts : slit(d.pts);
+    final cut = isLoop(d.pts, maxGap: loopMaxGap / _zoom) ? d.pts : slit(d.pts, overshoot: slitOvershoot / _zoom);
     if (cutsPaper(cut, [...widget.cuts, ...widget.fallen], widget.folds)) {
       widget.onCut(cut);
     } else {
@@ -611,19 +611,6 @@ class _BoardPainter extends CustomPainter {
       final tw = twinkle;
       if (tw != null && pattern == 'sparkle') drawWedgeGlints(canvas, s, [...cuts, ...fallen], half, color, tw, pos: foldedTop(folds), folds: folds);
       if (fading) canvas.restore();
-    }
-
-    // Dotted fold edges.
-    final edge = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round
-      ..color = C.snow300;
-    for (final sgn in const [-1, 1]) {
-      final line = Path()
-        ..moveTo(0, 0)
-        ..lineTo(sgn * math.sin(half) * s, -math.cos(half) * s);
-      drawDashed(canvas, line, edge, 2, 7);
     }
 
     // Dashed outlines of removed pieces.

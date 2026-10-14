@@ -726,8 +726,8 @@ const loopMaxGapShare = 0.3;
 const slitWidth = 0.006;
 
 /// ...its ends stretched this far on, so a slit stopping right at an edge
-/// still cuts through it.
-const slitOvershoot = 0.015;
+/// still cuts through it (unzoomed; zoomed in, it shrinks with the zoom).
+const slitOvershoot = 0.01;
 
 bool isLoop(List<Offset> stroke, {double maxGap = loopMaxGap}) {
   var length = 0.0;

@@ -189,7 +189,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     final f = await Navigator.of(context).push<_EventFlake>(
       PageRouteBuilder(
         // On a Material of its own, for the text styles a route of its own lacks.
-        pageBuilder: (_, _, _) => Material(type: MaterialType.transparency, child: e.window(title: e.title, flakes: e.flakes)),
+        pageBuilder: (_, _, _) => Material(type: MaterialType.transparency, child: e.window(title: 'Выберите снежинку', flakes: e.flakes)),
         transitionsBuilder: (_, anim, _, child) => FadeTransition(opacity: anim, child: child),
       ),
     );
