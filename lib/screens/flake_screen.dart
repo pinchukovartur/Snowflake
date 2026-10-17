@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../l10n.dart';
 import '../app_state.dart';
 import '../snowflake/geometry.dart';
+import '../snowflake/share_flake.dart';
 import '../snowflake/snowflake_view.dart';
 import '../widgets/ds.dart';
 import '../widgets/flake_turn_zoom.dart';
@@ -47,8 +48,8 @@ class _FlakeScreenState extends State<FlakeScreen> with TickerProviderStateMixin
             bottom: 12,
             child: Btn(tr('back'), icon: LucideIcons.arrowLeft, variant: Variant.light, block: true, onTap: widget.onBack),
           ),
-          // Share, where it sat in the collection's top bar: the bar laid
-          // out empty, so the button lands in the same place.
+          // Share, at the right of a top bar laid out empty, so it sits where
+          // the other screens' top-bar buttons do.
           Positioned(
             top: 0,
             left: 0,
@@ -56,7 +57,9 @@ class _FlakeScreenState extends State<FlakeScreen> with TickerProviderStateMixin
             child: TopBar(
               left: const SizedBox(width: 44),
               title: '',
-              right: RoundBtn(LucideIcons.share2, label: tr('share'), variant: Variant.ghost, size: BtnSize.s, onTap: () {}),
+              right: Builder(
+                builder: (ctx) => RoundBtn(LucideIcons.share2, label: tr('share'), variant: Variant.ghost, size: BtnSize.s, onTap: () => shareFlake(ctx, cuts: f.cuts, folds: f.folds, color: f.color, pattern: f.pattern)),
+              ),
             ),
           ),
         ]),

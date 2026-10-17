@@ -36,11 +36,35 @@ class HomeScreen extends StatefulWidget {
   final VoidCallback onPlay, onGallery;
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() => HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late final _ticker = AnimationController(vsync: this, duration: const Duration(hours: 1))..forward();
+
+  final _scroll = ScrollController();
+
+  /// The collection, sliding up from the bottom to pick a flake for a pane.
+  late final _sheet = AnimationController(vsync: this, duration: _sheetTime);
+  static const _sheetTime = Duration(milliseconds: 280);
+
+  /// The pane the collection is open for, or null when it is closed.
+  int? _picking;
+
+  /// The pane the collection shows choices for: [_picking], kept while it
+  /// slides away so what it shows doesn't change on the way out.
+  int _sheetPane = 0;
+
+  /// Room under the sill as tall as the collection, so even the bottom panes
+  /// scroll up clear of it: there while it is open and until it has gone.
+  bool _sheetRoom = false;
+
+  /// The frame and the screen it scrolls in, as last laid out.
+  Size _frame = Size.zero;
+  double _viewHeight = 0;
+
+  /// The collection covers the lower half of the screen.
+  double get _sheetHeight => _viewHeight * .5;
 
   /// The title shows once per launch: fades in, holds a couple of seconds and
   /// fades away, leaving the window clear.
@@ -67,10 +91,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void dispose() {
     _ticker.dispose();
     _title.dispose();
+    _scroll.dispose();
+    _sheet.dispose();
     super.dispose();
   }
 
   void _openSettings() {
+    // The settings over the collection, never both: it closes first.
+    _closePicker();
     showDsDialog(
       context,
       builder: (ctx) {
@@ -119,52 +147,53 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   static double _frameHeight(Size view) =>
       WindowFrame.heightFor(view.width, _rows, WindowFrame.paneHeightFor(Size(view.width, view.height * 2), 8));
 
-  /// Lets the player fill window [pane] with a flake from the collection or
-  /// leave it clear, or take down what is there. Flakes hanging in other
-  /// panes can't be picked: each goes up once.
+  /// Opens the collection to fill window [pane] (hang a flake, leave it clear
+  /// or take down what is there), the window scrolling the pane up clear of
+  /// it. Open already, it moves on to [pane]; for the same pane, it closes.
   void _pick(int pane) {
-    final g = widget.game;
-    final filled = g.window.containsKey(pane);
-    final current = g.window[pane];
-    void choose(BuildContext ctx, SavedFlake? f) {
-      g.hang(pane, f);
-      Navigator.pop(ctx);
+    if (_picking == pane) {
+      _closePicker();
+      return;
     }
-
-    showDsDialog(
-      context,
-      builder: (ctx) => DsDialog(
-        title: tr('window_flake'),
-        onClose: () => Navigator.pop(ctx),
-        actions: [
-          if (filled)
-            Btn(tr('unhang'), variant: Variant.light, icon: LucideIcons.x, block: true, onTap: () {
-              g.unhang(pane);
-              Navigator.pop(ctx);
-            }),
-        ],
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 360),
-          child: GridView.count(
-            shrinkWrap: true,
-            // Two to a row, as in the collection.
-            crossAxisCount: 2,
-            mainAxisSpacing: 14,
-            crossAxisSpacing: 14,
-            children: [
-              for (final f in g.saved)
-                if (identical(f, current) || !g.isHung(f))
-                  _PickTile(flake: f, selected: identical(f, current), onTap: () => choose(ctx, f))
-                else
-                  _PickTile(flake: f, selected: false),
-              // Leaving the pane clear comes last, after every flake.
-              _PickTile(selected: filled && current == null, onTap: () => choose(ctx, null)),
-            ],
-          ),
-        ),
-      ),
-    );
+    setState(() {
+      _picking = _sheetPane = pane;
+      _sheetRoom = true;
+    });
+    _sheet.forward();
+    // Once the room under the sill is laid out, so the bottom panes can rise.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _bringUp(pane));
   }
+
+  /// Scrolls the window so [pane] sits in the upper half, between the
+  /// settings button and the collection.
+  void _bringUp(int pane) {
+    if (!mounted || !_scroll.hasClients) return;
+    final r = WindowFrame.paneRects(_frame, _rows)[pane];
+    final top = MediaQuery.paddingOf(context).top + 64;
+    final target = r.center.dy - (top + _viewHeight - _sheetHeight) / 2;
+    _scroll.animateTo(target.clamp(0.0, _scroll.position.maxScrollExtent), duration: const Duration(milliseconds: 350), curve: Curves.easeOutCubic);
+  }
+
+  /// Closes the collection, if open; the window stays where it was scrolled,
+  /// but for coming back within reach once the room under the sill goes.
+  /// Whether it was open.
+  bool _closePicker() {
+    if (_picking == null) return false;
+    setState(() => _picking = null);
+    if (_scroll.hasClients) {
+      final reach = math.max(0.0, _scroll.position.maxScrollExtent - _sheetHeight);
+      if (_scroll.offset > reach) _scroll.animateTo(reach, duration: _sheetTime, curve: Curves.easeInOutCubic);
+    }
+    _sheet.reverse().whenComplete(() {
+      if (mounted && _picking == null) setState(() => _sheetRoom = false);
+    });
+    return true;
+  }
+
+  /// The system back button: closes the collection if it is open, and says
+  /// whether it did (if not, the back is the app's to handle).
+  bool handleBack() => _closePicker();
+
 
   /// The Play and Collection buttons with their gap and bottom padding:
   /// 64 + 6 lip, 12, 52 + 6 lip, 28.
@@ -209,8 +238,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             child: LayoutBuilder(
               builder: (_, c) {
                 final frame = Size(c.maxWidth, _frameHeight(c.biggest));
+                _frame = frame;
+                _viewHeight = c.maxHeight;
                 return SingleChildScrollView(
-                  child: Column(children: [
+                  controller: _scroll,
+                  // With the collection open, a tap on the frame or sill closes it
+                  // (a pane takes its own taps, moving the choice to it).
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: _picking == null ? null : _closePicker,
+                    child: Column(children: [
                     SizedBox(
                       height: frame.height,
                       child: Stack(children: [
@@ -223,6 +260,19 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               rect: pane,
                               child: _Pane(flake: g.window[i], clear: g.window.containsKey(i) && g.window[i] == null, onTap: () => _pick(i)),
                             ),
+                        // The pane being picked for, outlined.
+                        if (_picking case final p?)
+                          Positioned.fromRect(
+                            rect: WindowFrame.paneRects(frame, _rows)[p],
+                            child: IgnorePointer(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: C.berry500, width: 4),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                              ),
+                            ),
+                          ),
                         if (_titleUp)
                           Positioned(
                             left: 0,
@@ -251,7 +301,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       ]),
                     ),
                     SizedBox(height: _buttonsHeight + 16 + bottomInset, child: const WindowSill()),
+                    if (_sheetRoom) SizedBox(height: _sheetHeight),
                   ]),
+                  ),
                 );
               },
             ),
@@ -304,6 +356,31 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ],
           ),
         ),
+        // The collection, over the buttons, to pick a flake for a pane.
+        if (_sheetRoom)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: _sheetHeight,
+            child: SlideTransition(
+              position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(
+                CurvedAnimation(parent: _sheet, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic),
+              ),
+              child: _CollectionSheet(
+                game: g,
+                pane: _sheetPane,
+                onPick: (f) {
+                  g.hang(_sheetPane, f);
+                  _closePicker();
+                },
+                onUnhang: () {
+                  g.unhang(_sheetPane);
+                  _closePicker();
+                },
+              ),
+            ),
+          ),
       ],
     );
     return season == Season.winter ? SkyBackground(softDots: true, colors: _skyUnderHaze, child: view) : view;
@@ -429,7 +506,8 @@ class _SnowfallPainter extends CustomPainter {
 }
 
 /// One pane of the home window: the flake hanging in it, clear glass when
-/// [clear], or else a faint plus to fill it. Either way a tap calls [onTap].
+/// [clear], or else a faint plus to fill it. Either way a tap anywhere on the
+/// glass calls [onTap].
 class _Pane extends StatelessWidget {
   const _Pane({required this.flake, required this.clear, required this.onTap});
   final SavedFlake? flake;
@@ -448,13 +526,14 @@ class _Pane extends StatelessWidget {
       );
     }
     if (f == null) {
-      return Center(
-        child: Semantics(
-          button: true,
-          label: tr('hang_flake'),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onTap,
+      // The whole glass takes the tap, not just the plus in its middle.
+      return Semantics(
+        button: true,
+        label: tr('hang_flake'),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Center(
             child: Container(
               width: 56,
               height: 56,
@@ -488,9 +567,119 @@ class _Pane extends StatelessWidget {
   }
 }
 
-/// A choice in the pick-for-the-window dialog: [flake], or leaving the pane
+/// The collection sliding up over the home screen, to fill [pane]: the flakes
+/// two to a row (those hanging in other panes greyed and marked, not to be
+/// picked), then leaving the pane clear; and, when the pane is filled, taking
+/// it down. It opens on that pane's flake, or the first free ones (see
+/// [_CollectionSheetState._showCurrent]).
+class _CollectionSheet extends StatefulWidget {
+  const _CollectionSheet({required this.game, required this.pane, required this.onPick, required this.onUnhang});
+  final GameState game;
+  final int pane;
+
+  /// A flake, or null to leave the pane clear.
+  final ValueChanged<SavedFlake?> onPick;
+  final VoidCallback onUnhang;
+
+  @override
+  State<_CollectionSheet> createState() => _CollectionSheetState();
+}
+
+class _CollectionSheetState extends State<_CollectionSheet> {
+  final _scroll = ScrollController();
+
+  /// The grid's side padding, its top padding, and the gap between its tiles.
+  static const _pad = 20.0, _top = 4.0, _gap = 14.0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Already there as it slides up.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showCurrent(animate: false));
+  }
+
+  @override
+  void didUpdateWidget(_CollectionSheet old) {
+    super.didUpdateWidget(old);
+    if (old.pane != widget.pane) WidgetsBinding.instance.addPostFrameCallback((_) => _showCurrent(animate: true));
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  /// Scrolls the grid to put in its middle (as far as the grid goes) the
+  /// flake hanging in the pane, or with none there, the first row with a flake
+  /// still free to hang (or, every one hanging, leaving the pane clear).
+  void _showCurrent({required bool animate}) {
+    if (!mounted || !_scroll.hasClients) return;
+    final g = widget.game;
+    final current = g.window[widget.pane];
+    var i = current == null ? -1 : g.saved.indexWhere((f) => identical(f, current));
+    if (i < 0) i = g.saved.indexWhere((f) => !g.isHung(f));
+    // The "clear" tile, after every flake.
+    if (i < 0) i = g.saved.length;
+    // Square tiles, two to a row.
+    final side = (context.size!.width - 2 * _pad - _gap) / 2;
+    final middle = _top + (i ~/ 2) * (side + _gap) + side / 2;
+    final target = (middle - _scroll.position.viewportDimension / 2).clamp(0.0, _scroll.position.maxScrollExtent);
+    if (animate) {
+      _scroll.animateTo(target, duration: const Duration(milliseconds: 350), curve: Curves.easeOutCubic);
+    } else {
+      _scroll.jumpTo(target);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final g = widget.game;
+    final pane = widget.pane;
+    final onPick = widget.onPick;
+    final filled = g.window.containsKey(pane);
+    final current = g.window[pane];
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: C.night800,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(R.xl)),
+        boxShadow: [BoxShadow(color: Color(0x59101A3F), offset: Offset(0, -6), blurRadius: 30)],
+      ),
+      child: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+          child: Row(children: [
+            Expanded(child: Text(tr('my_collection'), style: display(22, height: 1.1, shadows: drop(3)))),
+            if (filled) Btn(tr('unhang'), variant: Variant.light, icon: LucideIcons.x, size: BtnSize.s, onTap: widget.onUnhang),
+          ]),
+        ),
+        Expanded(
+          child: GridView.count(
+            controller: _scroll,
+            padding: EdgeInsets.fromLTRB(_pad, _top, _pad, MediaQuery.paddingOf(context).bottom + 20),
+            // Two to a row, as in the collection.
+            crossAxisCount: 2,
+            mainAxisSpacing: _gap,
+            crossAxisSpacing: _gap,
+            children: [
+              for (final f in g.saved)
+                if (identical(f, current) || !g.isHung(f))
+                  _PickTile(flake: f, selected: identical(f, current), onTap: () => onPick(f))
+                else
+                  _PickTile(flake: f, selected: false),
+              // Leaving the pane clear comes last, after every flake.
+              _PickTile(selected: filled && current == null, onTap: () => onPick(null)),
+            ],
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// A choice in the collection opened for a pane: [flake], or leaving the pane
 /// clear when there is none. Without [onTap] it can't be picked (the flake
-/// already hangs elsewhere) and shows a tick.
+/// already hangs elsewhere): grey, marked "on the window".
 class _PickTile extends StatelessWidget {
   const _PickTile({this.flake, required this.selected, this.onTap});
   final SavedFlake? flake;
@@ -510,7 +699,7 @@ class _PickTile extends StatelessWidget {
         child: Container(
           margin: const EdgeInsets.only(bottom: 6),
           decoration: BoxDecoration(
-            color: C.night700,
+            color: onTap == null ? C.snow700 : C.night700,
             borderRadius: BorderRadius.circular(R.l),
             border: selected ? Border.all(color: C.berry500, width: 3) : null,
             boxShadow: const [BoxShadow(color: C.night900, offset: Offset(0, 6))],
@@ -525,16 +714,15 @@ class _PickTile extends StatelessWidget {
                         child: SnowflakeView(cuts: f.cuts, folds: f.folds, color: f.color, pattern: f.pattern, size: (c.maxWidth * .78).clamp(0, 140)),
                       ),
               ),
-              // Already on another pane: a tick in the corner.
+              // Already on another pane: said so in the corner.
               if (onTap == null)
                 Positioned(
                   right: 8,
                   bottom: 8,
                   child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: const BoxDecoration(color: C.mint500, shape: BoxShape.circle),
-                    child: const Icon(LucideIcons.check, size: 18, color: Colors.white),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(color: C.night800, borderRadius: BorderRadius.circular(R.s)),
+                    child: Text(tr('on_window'), style: display(13, color: Colors.white, height: 1)),
                   ),
                 ),
             ]),

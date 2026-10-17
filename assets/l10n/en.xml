@@ -17,9 +17,9 @@
   <string name="music">Music</string>
   <string name="sounds">Sounds</string>
   <string name="vibration">Vibration</string>
-  <string name="window_flake">Snowflake for the window</string>
   <string name="unhang">Take down</string>
   <string name="empty_glass">Empty glass</string>
+  <string name="on_window">On the window</string>
   <string name="hang_flake">Hang a snowflake</string>
 
   <!-- Cutting -->

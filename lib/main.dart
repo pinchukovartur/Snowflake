@@ -63,6 +63,9 @@ class _GameShellState extends State<GameShell> {
   late final _game = widget.game;
   Screen _screen = Screen.home;
 
+  /// The home screen, asked first about the back button (see [HomeScreenState.handleBack]).
+  final _homeKey = GlobalKey<HomeScreenState>();
+
   /// The collection flake open on its own.
   SavedFlake? _shownFlake;
   int _runKey = 0;
@@ -84,6 +87,8 @@ class _GameShellState extends State<GameShell> {
   void _back() {
     switch (_screen) {
       case Screen.home:
+        // The collection open over the window closes first.
+        if (_homeKey.currentState?.handleBack() ?? false) return;
         SystemNavigator.pop();
       case Screen.reveal:
         _go(Screen.cut);
@@ -105,6 +110,7 @@ class _GameShellState extends State<GameShell> {
     switch (_screen) {
       case Screen.home:
         return HomeScreen(
+          key: _homeKey,
           game: _game,
           // Picks up the unfinished flake, if any: leaving for the home screen keeps it.
           onPlay: () => _go(Screen.cut),

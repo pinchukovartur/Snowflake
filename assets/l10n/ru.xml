@@ -17,9 +17,9 @@
   <string name="music">Музыка</string>
   <string name="sounds">Звуки</string>
   <string name="vibration">Вибрация</string>
-  <string name="window_flake">Снежинка на окно</string>
   <string name="unhang">Снять с окна</string>
   <string name="empty_glass">Пустое стекло</string>
+  <string name="on_window">На окне</string>
   <string name="hang_flake">Повесить снежинку</string>
 
   <!-- Вырезание -->

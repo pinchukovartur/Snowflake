@@ -6,6 +6,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../l10n.dart';
 import '../app_state.dart';
 import '../snowflake/geometry.dart';
+import '../snowflake/share_flake.dart';
 import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
 import '../widgets/ds.dart';
@@ -117,16 +118,33 @@ class _RevealScreenState extends State<RevealScreen> with TickerProviderStateMix
               ]),
             ),
           ),
-          // Share, where it sat in the collection's top bar: the bar laid
-          // out empty, so the button lands in the same place.
+          // Share, at the right of a top bar laid out empty, so it sits where
+          // the other screens' top-bar buttons do. Only once the
+          // flake lies open (with the card): while it unfolds a tap anywhere
+          // skips ahead, so a button there would only seem to work.
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            child: TopBar(
-              left: const SizedBox(width: 44),
-              title: '',
-              right: RoundBtn(LucideIcons.share2, label: tr('share'), variant: Variant.ghost, size: BtnSize.s, onTap: () {}),
+            child: IgnorePointer(
+              ignoring: !_done,
+              child: AnimatedOpacity(
+                opacity: _done ? 1 : 0,
+                duration: Motion.pop,
+                child: TopBar(
+                  left: const SizedBox(width: 44),
+                  title: '',
+                  right: Builder(
+                    builder: (ctx) => RoundBtn(
+                      LucideIcons.share2,
+                      label: tr('share'),
+                      variant: Variant.ghost,
+                      size: BtnSize.s,
+                      onTap: () => shareFlake(ctx, cuts: widget.cuts, folds: widget.folds, color: widget.paper.color, pattern: widget.paper.pattern),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
           // Over everything while the flake unfolds: a tap skips to the end.

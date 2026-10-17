@@ -5,6 +5,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'snowflake/geometry.dart';
 
+/// For testing tutorials: set to true to make every launch the first one, the
+/// tutorials all showing again (the stored "seen" marks are cleared at start).
+/// Not limited to debug builds for now (see the check in [GameState]): a
+/// release build with this on clears them too, so turn it off before one goes
+/// to players.
+const forceFirstLaunch = true;
+
 /// A flake the player cut and kept.
 class SavedFlake {
   const SavedFlake({required this.cuts, this.folds = 6, this.color, this.pattern = 'plain', this.fav = false});
@@ -54,6 +61,9 @@ class GameState extends ChangeNotifier {
     music = _prefs.getBool(_kMusic) ?? music;
     sfx = _prefs.getBool(_kSfx) ?? sfx;
     vibration = _prefs.getBool(_kVibration) ?? vibration;
+    // Debug builds only, if the check is put back: `kDebugMode && forceFirstLaunch`.
+    if (forceFirstLaunch /* && kDebugMode */) _prefs.remove(_kTutorials);
+    _tutorialsSeen.addAll(_prefs.getStringList(_kTutorials) ?? const []);
     // As stored, built-in presets (from older versions) still in it, as null.
     var stored = <SavedFlake?>[];
     final raw = _prefs.getString(_kCollection);
@@ -121,6 +131,7 @@ class GameState extends ChangeNotifier {
   static const _kCollection = 'collection.v1';
   static const _kWindow = 'window.v1';
   static const _kLast = 'last.v1';
+  static const _kTutorials = 'tutorials.seen.v1';
 
   int coins = 128;
 
@@ -130,13 +141,15 @@ class GameState extends ChangeNotifier {
   /// it leaves the window clear.
   bool titleShown = false;
 
-  /// The player has touched the cut board since launch, so its phantom
-  /// demo cut stays off until the next launch (not stored).
-  bool hintDismissed = false;
+  /// The tutorials the player has been through, by id, kept for good: each
+  /// shows until marked, and then never again (see [forceFirstLaunch]).
+  final _tutorialsSeen = <String>{};
 
-  void dismissHint() {
-    if (hintDismissed) return;
-    hintDismissed = true;
+  bool tutorialSeen(String id) => _tutorialsSeen.contains(id);
+
+  void markTutorialSeen(String id) {
+    if (!_tutorialsSeen.add(id)) return;
+    _prefs.setStringList(_kTutorials, [..._tutorialsSeen]);
     notifyListeners();
   }
 

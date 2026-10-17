@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../l10n.dart';
@@ -73,6 +74,50 @@ class _PressableState extends State<_Pressable> {
 
 enum BtnSize { s, m, l }
 
+/// The least a button may be tapped across, in each direction: smaller ones
+/// (see [BtnSize.s]) still take taps this far out of their box, without
+/// growing or moving (see [_HitSlop]). Each reaches out by half of what it
+/// lacks, so two such buttons need a gap of at least that each for their
+/// zones not to meet.
+const _minTarget = 48.0;
+
+/// Takes taps up to [minSide] across in each direction around its child, though
+/// the child (laid out as ever) is smaller: a tap just outside it is passed on
+/// as if on its edge. A tap only gets here if it also falls within what the
+/// parent lays out around the child, which is so for any button with room round it.
+class _HitSlop extends SingleChildRenderObjectWidget {
+  const _HitSlop({required this.minSide, required super.child});
+  final double minSide;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderHitSlop(minSide);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderHitSlop renderObject) => renderObject.minSide = minSide;
+}
+
+class _RenderHitSlop extends RenderProxyBox {
+  _RenderHitSlop(this.minSide);
+  double minSide;
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) {
+    final c = child;
+    if (c == null) return false;
+    // How far out of its box a tap still counts: half of what it lacks.
+    final dx = math.max(0.0, (minSide - size.width) / 2), dy = math.max(0.0, (minSide - size.height) / 2);
+    if (position.dx < -dx || position.dx >= size.width + dx || position.dy < -dy || position.dy >= size.height + dy) return false;
+    // The child sees the tap brought onto its edge (inside its box, which is
+    // open at the far sides).
+    final onto = Offset(position.dx.clamp(0.0, size.width - .001), position.dy.clamp(0.0, size.height - .001));
+    return result.addWithRawTransform(
+      transform: Matrix4.translationValues(onto.dx - position.dx, onto.dy - position.dy, 0),
+      position: position,
+      hitTest: (r, p) => c.hitTest(r, position: p),
+    );
+  }
+}
+
 class Btn extends StatelessWidget {
   const Btn(
     this.label, {
@@ -113,7 +158,9 @@ class Btn extends StatelessWidget {
     final v = _variants[variant]!;
     final s = _sizes[size]!;
     final fg = disabled ? C.snow500 : v.fg;
-    return _Pressable(
+    return _HitSlop(
+      minSide: _minTarget,
+      child: _Pressable(
       enabled: !disabled,
       onTap: onTap,
       builder: (pressed) {
@@ -163,6 +210,7 @@ class Btn extends StatelessWidget {
           ),
         );
       },
+    ),
     );
   }
 }
@@ -177,6 +225,7 @@ class RoundBtn extends StatelessWidget {
     this.active = false,
     this.flat = false,
     this.disabled = false,
+    this.hitSlop = true,
     this.onTap,
   }) : glyph = null;
 
@@ -190,6 +239,7 @@ class RoundBtn extends StatelessWidget {
     this.active = false,
     this.flat = false,
     this.disabled = false,
+    this.hitSlop = true,
     this.onTap,
   }) : icon = null;
 
@@ -200,6 +250,11 @@ class RoundBtn extends StatelessWidget {
   final Variant variant;
   final BtnSize size;
   final bool active, flat, disabled;
+
+  /// Whether a tap up to [_minTarget] across counts, as it does for any button
+  /// (so a small one is no harder to hit); off for buttons packed closer than
+  /// that, like a grid's cells.
+  final bool hitSlop;
   final VoidCallback? onTap;
 
   static const _sizes = {
@@ -212,7 +267,9 @@ class RoundBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     final v = _variants[variant]!;
     final s = _sizes[size]!;
-    return Tooltip(
+    return _HitSlop(
+      minSide: hitSlop ? _minTarget : 0,
+      child: Tooltip(
       message: label,
       child: _Pressable(
         enabled: !disabled,
@@ -246,6 +303,7 @@ class RoundBtn extends StatelessWidget {
             ),
           );
         },
+      ),
       ),
     );
   }
@@ -639,6 +697,20 @@ class SkyBackground extends StatelessWidget {
   }
 }
 
+/// The night sky's snow dots over [size], as [SkyBackground] shows them:
+/// blurred when [soft].
+void paintSnowDots(Canvas canvas, Size size, {bool soft = false}) {
+  for (final l in _SnowDotsPainter._layers) {
+    final p = Paint()..color = Color.fromRGBO(255, 255, 255, l.a);
+    if (soft) p.maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
+    for (var y = 0.0; y < size.height; y += l.tile) {
+      for (var x = 0.0; x < size.width; x += l.tile) {
+        canvas.drawCircle(Offset(x + l.tile * l.fx, y + l.tile * l.fy), l.r, p);
+      }
+    }
+  }
+}
+
 class _SnowDotsPainter extends CustomPainter {
   _SnowDotsPainter({required this.soft});
   final bool soft;
@@ -650,17 +722,7 @@ class _SnowDotsPainter extends CustomPainter {
   ];
 
   @override
-  void paint(Canvas canvas, Size size) {
-    for (final l in _layers) {
-      final p = Paint()..color = Color.fromRGBO(255, 255, 255, l.a);
-      if (soft) p.maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
-      for (var y = 0.0; y < size.height; y += l.tile) {
-        for (var x = 0.0; x < size.width; x += l.tile) {
-          canvas.drawCircle(Offset(x + l.tile * l.fx, y + l.tile * l.fy), l.r, p);
-        }
-      }
-    }
-  }
+  void paint(Canvas canvas, Size size) => paintSnowDots(canvas, size, soft: soft);
 
   @override
   bool shouldRepaint(_SnowDotsPainter oldDelegate) => oldDelegate.soft != soft;

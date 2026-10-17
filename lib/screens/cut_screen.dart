@@ -574,10 +574,10 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                       onCut: _addCut,
                                       // Until the first touch on the board since launch, a phantom
                                       // stroke shows how to cut.
-                                      demo: !widget.game.hintDismissed && _tool == 'free' && !_eventOn && !_paperOpen,
+                                      demo: !widget.game.tutorialSeen(_cutDemo) && _tool == 'free' && !_eventOn && !_paperOpen,
                                     // Still under the paper dialog: no shimmer ticking unseen.
                                     shimmer: !_paperOpen,
-                                      onTouch: widget.game.dismissHint,
+                                      onTouch: () => widget.game.markTutorialSeen(_cutDemo),
                                     ),
                                   ),
                                 ),
@@ -641,6 +641,8 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                                                 icon,
                                                                 label: tr(label),
                                                                 size: BtnSize.s,
+                                                                // The cells are only 2 apart: no room for a bigger tap zone.
+                                                                hitSlop: false,
                                                                 // Flat and full size even when picked: the colour
                                                                 // alone marks it, inside its cell.
                                                                 variant: _tool == id
@@ -866,6 +868,10 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     );
   }
 }
+
+/// The tutorial of the phantom cut shown on the board: shown until the player
+/// first touches it, then never again.
+const _cutDemo = 'cut_demo';
 
 /// The seasonal event's [id] in [_events]: the panel opens on it.
 const _seasonalEvent = 'halloween';
