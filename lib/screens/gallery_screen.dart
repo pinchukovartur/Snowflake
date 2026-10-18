@@ -12,43 +12,24 @@ class GalleryScreen extends StatelessWidget {
   final GameState game;
   final VoidCallback onBack;
 
-  /// Shows a flake on its own, to turn and zoom.
+  /// Shows a flake on its own, to turn and zoom (and take out of the
+  /// collection, or hang in the window).
   final ValueChanged<SavedFlake> onOpen;
-
-  /// Asks before taking [f] out of the collection.
-  void _confirmRemove(BuildContext context, SavedFlake f) {
-    showDsDialog(
-      context,
-      builder: (ctx) => DsDialog(
-        title: tr('delete_q'),
-        onClose: () => Navigator.pop(ctx),
-        actions: [
-          Btn(tr('delete'), icon: LucideIcons.trash2, block: true, onTap: () {
-            game.remove(f);
-            Navigator.pop(ctx);
-          }),
-          Btn(tr('keep'), variant: Variant.light, block: true, onTap: () => Navigator.pop(ctx)),
-        ],
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          FlakeShadow(size: 120, child: SnowflakeView(cuts: f.cuts, folds: f.folds, color: f.color, pattern: f.pattern, size: 120)),
-          const SizedBox(height: 12),
-          Text(tr('delete_note')),
-        ]),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     final list = game.saved;
     final offerLast = game.last != null && !game.lastSaved;
+    final offerUndo = game.deleted != null;
+    // The buttons at the bottom right, each 40 + 4 lip, 12 apart.
+    final buttons = (offerUndo ? 1 : 0) + (offerLast ? 1 : 0);
     return SkyBackground(
       child: SafeArea(
         bottom: false,
         child: Stack(children: [
           Column(children: [
             TopBar(
-              left: RoundBtn(LucideIcons.arrowLeft, label: tr('back'), variant: Variant.ghost, size: BtnSize.s, onTap: onBack),
+              left: BarBtn(LucideIcons.arrowLeft, label: tr('back'), onTap: onBack),
               title: tr('my_collection'),
               // As wide as the back button, so the title centres on the screen.
               right: const SizedBox(width: 44),
@@ -58,9 +39,8 @@ class GalleryScreen extends StatelessWidget {
               child: list.isEmpty
                   ? Center(child: Text(tr('collection_empty'), style: display(22, color: C.ice200)))
                   : GridView.builder(
-                    // With the button below, room to scroll the last row up clear of it
-                    // (the small button, 40 + 4 lip, and 12 more).
-                    padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.paddingOf(context).bottom + 20 + (offerLast ? 56 : 0)),
+                    // With buttons below, room to scroll the last row up clear of them.
+                    padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.paddingOf(context).bottom + 20 + buttons * 56),
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 14 + 6, crossAxisSpacing: 14),
                     itemCount: list.length,
                     itemBuilder: (_, i) {
@@ -81,22 +61,15 @@ class GalleryScreen extends StatelessWidget {
                                 size: size,
                                 child: SnowflakeView(cuts: s.cuts, folds: s.folds, color: s.color, pattern: s.pattern, size: size),
                               ),
-                              if (s.fav)
+                              // Hanging in the window: said so in the corner, as when picking one for it.
+                              if (game.isHung(s))
                                 Positioned(
-                                  top: 0,
-                                  right: 0,
-                                  child: Semantics(
-                                    button: true,
-                                    label: tr('delete_from_collection'),
-                                    child: GestureDetector(
-                                      behavior: HitTestBehavior.opaque,
-                                      onTap: () => _confirmRemove(context, s),
-                                      // A finger-sized target around the small heart.
-                                      child: const Padding(
-                                        padding: EdgeInsets.all(10),
-                                        child: Icon(Icons.favorite, size: 24, color: C.berry600),
-                                      ),
-                                    ),
+                                  right: 8,
+                                  bottom: 8,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                    decoration: BoxDecoration(color: C.night800, borderRadius: BorderRadius.circular(R.s)),
+                                    child: Text(tr('on_window'), style: display(13, color: Colors.white, height: 1)),
                                   ),
                                 ),
                             ]);
@@ -107,15 +80,21 @@ class GalleryScreen extends StatelessWidget {
                   ),
             ),
           ]),
-          // The last flake unfolded, while it is not in the collection yet.
-          if (offerLast)
+          // A flake just deleted, to put back; and the last flake unfolded,
+          // while it is not in the collection yet.
+          if (buttons > 0)
             Positioned(
               right: 20,
               bottom: MediaQuery.paddingOf(context).bottom + 20,
-              child: Semantics(
-                label: tr('add_last_to_collection'),
-                child: Btn(tr('add_last'), icon: LucideIcons.heart, size: BtnSize.s, onTap: game.saveLast),
-              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                if (offerUndo) Btn(tr('undo_delete'), icon: LucideIcons.undo2, size: BtnSize.s, onTap: game.undoDelete),
+                if (offerUndo && offerLast) const SizedBox(height: 12),
+                if (offerLast)
+                  Semantics(
+                    label: tr('add_last_to_collection'),
+                    child: Btn(tr('add_last'), icon: LucideIcons.heart, size: BtnSize.s, onTap: game.saveLast),
+                  ),
+              ]),
             ),
         ]),
       ),

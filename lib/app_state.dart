@@ -175,6 +175,52 @@ class GameState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Deletes [f] for good, as the player asked: out of the collection, and,
+  /// if it is the [last] one unfolded, no more offered to add back (unlike
+  /// [remove], which "Done"'s toggle uses and may undo).
+  void delete(SavedFlake f) {
+    deleted = (flake: f, at: saved.indexOf(f), panes: [for (final e in window.entries) if (identical(e.value, f)) e.key], wasLast: identical(f, last));
+    remove(f);
+    if (identical(f, last)) {
+      last = null;
+      _lastIsSaved = null;
+      _prefs.remove(_kLast);
+    }
+  }
+
+  /// The flake [delete]d last, with where it was (its place in the
+  /// collection, the panes it hung in, whether it was [last]), while that can
+  /// still be undone: until the player leaves the collection (see
+  /// [forgetDeleted]). Not stored.
+  ({SavedFlake flake, int at, List<int> panes, bool wasLast})? deleted;
+
+  /// Puts the [deleted] flake back as it was.
+  void undoDelete() {
+    final d = deleted;
+    if (d == null) return;
+    deleted = null;
+    saved.insert(d.at.clamp(0, saved.length), d.flake);
+    for (final p in d.panes) {
+      // Unless filled again meanwhile.
+      if (!window.containsKey(p)) window[p] = d.flake;
+    }
+    if (d.wasLast) {
+      last = d.flake;
+      _lastIsSaved = true;
+      _prefs.setString(_kLast, jsonEncode(d.flake.toJson()));
+    }
+    _storeCollection();
+    _storeWindow();
+    notifyListeners();
+  }
+
+  /// The [deleted] flake is gone for good: no more undoing it.
+  void forgetDeleted() {
+    if (deleted == null) return;
+    deleted = null;
+    notifyListeners();
+  }
+
   void remove(SavedFlake f) {
     saved.remove(f);
     if (identical(f, last)) _lastIsSaved = false;

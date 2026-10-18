@@ -12,6 +12,7 @@ import '../snowflake/cut_board.dart';
 import '../snowflake/detach.dart';
 import '../snowflake/geometry.dart';
 import '../snowflake/snowflake_view.dart';
+import '../sound.dart';
 import '../theme/tokens.dart';
 import '../widgets/ds.dart';
 
@@ -365,6 +366,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
 
   void _addCut(Cut c) {
     if (widget.game.vibration) HapticFeedback.lightImpact();
+    if (widget.game.sfx) Sfx.cut();
     final cuts = [..._cuts, c];
     _step((cuts: cuts, drops: [..._drops, detachedPieces(cuts, _fallen, _folds)], folds: _folds));
   }
@@ -1149,7 +1151,7 @@ abstract class _EventWindow extends StatelessWidget {
         bottom: false,
         child: Column(children: [
           TopBar(
-            left: RoundBtn(LucideIcons.arrowLeft, label: tr('back'), variant: Variant.ghost, size: BtnSize.s, onTap: () => Navigator.pop(context)),
+            left: BarBtn(LucideIcons.arrowLeft, label: tr('back'), onTap: () => Navigator.pop(context)),
             title: title,
             titleLines: 2,
             heading: heading(),

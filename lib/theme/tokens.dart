@@ -42,6 +42,9 @@ abstract final class C {
 
   static const surfaceTable = snow100;
   static const surfaceGlass = Color(0x24FFFFFF); // white 14%
+
+  /// Black at 15%: the flakes' shadows, and the top bars' round buttons.
+  static const shade = Color(0x26000000);
   static const textStrong = night800;
   static const textBody = snow700;
   static const ringFocus = Color(0xB37CD3FF);

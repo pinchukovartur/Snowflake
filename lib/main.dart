@@ -10,6 +10,7 @@ import 'screens/gallery_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/reveal_screen.dart';
 import 'snowflake/geometry.dart';
+import 'sound.dart';
 import 'snowflake/svg_flakes.dart';
 import 'theme/tokens.dart';
 
@@ -19,6 +20,7 @@ Future<void> main() async {
   await loadLocalization();
   await loadSvgFlakes();
   await loadPaperTextures();
+  await Sfx.init();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -63,6 +65,9 @@ class _GameShellState extends State<GameShell> {
   late final _game = widget.game;
   Screen _screen = Screen.home;
 
+  /// A flake to hang on reaching the home screen (see [HomeScreen.arriving]).
+  SavedFlake? _toHang;
+
   /// The home screen, asked first about the back button (see [HomeScreenState.handleBack]).
   final _homeKey = GlobalKey<HomeScreenState>();
 
@@ -75,7 +80,12 @@ class _GameShellState extends State<GameShell> {
   Paper _paper = const Paper();
 
 
-  void _go(Screen s) => setState(() => _screen = s);
+  void _go(Screen s) => setState(() {
+        // Leaving the collection (not for one of its flakes): a deletion can
+        // no longer be undone.
+        if (s != Screen.gallery && s != Screen.flake) _game.forgetDeleted();
+        _screen = s;
+      });
 
   /// Opens the cut board with a fresh flake, folded like the last one.
   void _newFlake() => setState(() {
@@ -115,6 +125,8 @@ class _GameShellState extends State<GameShell> {
           // Picks up the unfinished flake, if any: leaving for the home screen keeps it.
           onPlay: () => _go(Screen.cut),
           onGallery: () => _go(Screen.gallery),
+          arriving: _toHang,
+          onArrived: () => _toHang = null,
         );
       case Screen.cut:
         return CutScreen(
@@ -152,7 +164,16 @@ class _GameShellState extends State<GameShell> {
           },
         );
       case Screen.flake:
-        return FlakeScreen(flake: _shownFlake!, onBack: () => _go(Screen.gallery));
+        return FlakeScreen(
+          game: _game,
+          flake: _shownFlake!,
+          freePane: HomeScreen.freePane(_game),
+          onBack: () => _go(Screen.gallery),
+          onHang: () {
+            _toHang = _shownFlake;
+            _go(Screen.home);
+          },
+        );
     }
   }
 

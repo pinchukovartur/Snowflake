@@ -19,6 +19,7 @@
   <string name="vibration">Vibration</string>
   <string name="unhang">Take down</string>
   <string name="empty_glass">Empty glass</string>
+  <string name="hang">Hang</string>
   <string name="on_window">On the window</string>
   <string name="hang_flake">Hang a snowflake</string>
 
@@ -95,6 +96,7 @@
   <string name="delete">Delete</string>
   <string name="keep">Keep</string>
   <string name="delete_note">This snowflake will be removed from the collection.</string>
+  <string name="undo_delete">Undo delete</string>
   <string name="delete_from_collection">Delete from collection</string>
   <string name="share">Share</string>
   <string name="collection_empty">The collection is empty</string>

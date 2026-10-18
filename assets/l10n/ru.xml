@@ -19,6 +19,7 @@
   <string name="vibration">Вибрация</string>
   <string name="unhang">Снять с окна</string>
   <string name="empty_glass">Пустое стекло</string>
+  <string name="hang">Повесить</string>
   <string name="on_window">На окне</string>
   <string name="hang_flake">Повесить снежинку</string>
 
@@ -95,6 +96,7 @@
   <string name="delete">Удалить</string>
   <string name="keep">Оставить</string>
   <string name="delete_note">Эта снежинка пропадёт из коллекции.</string>
+  <string name="undo_delete">Отменить удаление</string>
   <string name="delete_from_collection">Удалить из коллекции</string>
   <string name="share">Поделиться</string>
   <string name="collection_empty">Коллекция пуста</string>

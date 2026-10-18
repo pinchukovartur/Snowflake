@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../theme/tokens.dart';
 import 'geometry.dart';
 
 /// Mirrors a cut wedge into the full flake. `unfold` 0→1 opens the folded
@@ -61,8 +62,8 @@ class FlakeShadow extends StatelessWidget {
   final double size;
   final Widget child;
 
-  /// Black at 15%.
-  static const color = Color(0x26000000);
+  /// Black at 15% (see [C.shade]).
+  static const color = C.shade;
 
   @override
   Widget build(BuildContext context) {

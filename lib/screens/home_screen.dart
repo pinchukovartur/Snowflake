@@ -30,10 +30,29 @@ const season = Season.autumn;
 /// The autumn view: a sunny sky with a maple in leaf, seen through the glass.
 const _autumnView = 'assets/Autumn_Window_Bg.png';
 
+/// A patch of frost behind the game's title on the window.
+const _titleBg = 'assets/Window_Title_Bg.png';
+
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.game, required this.onPlay, required this.onGallery});
+  const HomeScreen({super.key, required this.game, required this.onPlay, required this.onGallery, this.arriving, this.onArrived});
   final GameState game;
   final VoidCallback onPlay, onGallery;
+
+  /// A flake on its way to the window: the window scrolls to its first pane
+  /// still to fill, and it appears there (see [freePane]).
+  final SavedFlake? arriving;
+
+  /// Called once [arriving] hangs.
+  final VoidCallback? onArrived;
+
+  /// The first pane in [game]'s window still to fill (a plus, not glass left
+  /// clear on purpose), or null when every one is.
+  static int? freePane(GameState game) {
+    for (var i = 0; i < HomeScreenState._rows * 2; i++) {
+      if (!game.window.containsKey(i)) return i;
+    }
+    return null;
+  }
 
   @override
   State<HomeScreen> createState() => HomeScreenState();
@@ -44,7 +63,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   final _scroll = ScrollController();
 
-  /// The collection, sliding up from the bottom to pick a flake for a pane.
+  /// The collection, sliding up from the bottom to pick a flake for a pane:
+  /// 1 all the way up. Linear, so a finger dragging it down moves it in step;
+  /// its slides are eased as they run (see [_pick], [_closePicker]).
   late final _sheet = AnimationController(vsync: this, duration: _sheetTime);
   static const _sheetTime = Duration(milliseconds: 280);
 
@@ -66,6 +87,10 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// The collection covers the lower half of the screen.
   double get _sheetHeight => _viewHeight * .5;
 
+  /// A flake just hung from its own screen, coming into its pane.
+  late final _arrive = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
+  int? _arrivingPane;
+
   /// The title shows once per launch: fades in, holds a couple of seconds and
   /// fades away, leaving the window clear.
   late final bool _showTitle = !widget.game.titleShown;
@@ -76,9 +101,17 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0).chain(CurveTween(curve: Curves.easeIn)), weight: 600),
   ]));
 
+  /// The panes' pluses, fading in as the title fades out (its last 600 of
+  /// 5000 ms); there all along when the title isn't shown.
+  late final Animation<double> _plusOpacity =
+      _showTitle ? CurvedAnimation(parent: _title, curve: const Interval(4400 / 5000, 1, curve: Curves.easeOut)) : const AlwaysStoppedAnimation(1.0);
+
   @override
   void initState() {
     super.initState();
+    final f = widget.arriving;
+    // Once the screen has come in and the window is laid out.
+    if (f != null) Future.delayed(const Duration(milliseconds: 250), () => _hangArriving(f));
     if (_showTitle) {
       widget.game.titleShown = true;
       _title.forward().whenComplete(() {
@@ -93,7 +126,29 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _title.dispose();
     _scroll.dispose();
     _sheet.dispose();
+    _arrive.dispose();
     super.dispose();
+  }
+
+  /// Scrolls the window to put its first free pane in the middle of the
+  /// screen, then hangs [f] there, growing into it.
+  Future<void> _hangArriving(SavedFlake f) async {
+    final pane = HomeScreen.freePane(widget.game);
+    if (!mounted || pane == null || !_scroll.hasClients) return;
+    final r = WindowFrame.paneRects(_frame, _rows)[pane];
+    final target = (r.center.dy - _viewHeight / 2).clamp(0.0, _scroll.position.maxScrollExtent);
+    await _scroll.animateTo(target, duration: const Duration(milliseconds: 600), curve: Curves.easeInOutCubic);
+    if (!mounted) return;
+    _hangInto(pane, f);
+    widget.onArrived?.call();
+  }
+
+  /// Hangs [f] in [pane], growing into it.
+  Future<void> _hangInto(int pane, SavedFlake f) async {
+    setState(() => _arrivingPane = pane);
+    widget.game.hang(pane, f);
+    await _arrive.forward(from: 0);
+    if (mounted && _arrivingPane == pane) setState(() => _arrivingPane = null);
   }
 
   void _openSettings() {
@@ -159,7 +214,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _picking = _sheetPane = pane;
       _sheetRoom = true;
     });
-    _sheet.forward();
+    _sheet.animateTo(1, curve: Curves.easeOutCubic);
     // Once the room under the sill is laid out, so the bottom panes can rise.
     WidgetsBinding.instance.addPostFrameCallback((_) => _bringUp(pane));
   }
@@ -184,10 +239,26 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final reach = math.max(0.0, _scroll.position.maxScrollExtent - _sheetHeight);
       if (_scroll.offset > reach) _scroll.animateTo(reach, duration: _sheetTime, curve: Curves.easeInOutCubic);
     }
-    _sheet.reverse().whenComplete(() {
+    _sheet.animateBack(0, curve: Curves.easeInCubic).whenComplete(() {
       if (mounted && _picking == null) setState(() => _sheetRoom = false);
     });
     return true;
+  }
+
+  /// The collection dragged down by its top, [dy] px.
+  void _dragSheet(double dy) {
+    if (_picking != null) _sheet.value -= dy / _sheetHeight;
+  }
+
+  /// The collection let go: flung down, or dragged past a third of the way,
+  /// it closes; else it springs back up.
+  void _dropSheet(double velocity) {
+    if (_picking == null) return;
+    if (velocity > 700 || _sheet.value < 2 / 3) {
+      _closePicker();
+    } else {
+      _sheet.animateTo(1, curve: Curves.easeOutCubic);
+    }
   }
 
   /// The system back button: closes the collection if it is open, and says
@@ -204,6 +275,15 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// there and fades out over [_hazeFade] above.
   static const _playMiddle = 136.0;
   static const _hazeFade = 90.0;
+
+  /// Pane [i]'s [child], growing and fading in if its flake is just arriving.
+  Widget _arriving(int i, Widget child) {
+    if (i != _arrivingPane) return child;
+    return FadeTransition(
+      opacity: CurvedAnimation(parent: _arrive, curve: const Interval(0, .5)),
+      child: ScaleTransition(scale: CurvedAnimation(parent: _arrive, curve: Curves.easeOutBack), child: child),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -253,13 +333,15 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       child: Stack(children: [
                         const Positioned.fill(child: WindowFrame(rows: _rows, onSill: true, snow: season == Season.winter)),
                         // Each pane holds a flake from the collection, or a plus to
-                        // hang one; the top row waits while the title is up.
+                        // hang one; the title, while up, shows over the top row.
                         for (final (i, pane) in WindowFrame.paneRects(frame, _rows).indexed)
-                          if (i >= 2 || !_titleUp)
-                            Positioned.fromRect(
-                              rect: pane,
-                              child: _Pane(flake: g.window[i], clear: g.window.containsKey(i) && g.window[i] == null, onTap: () => _pick(i)),
+                          Positioned.fromRect(
+                            rect: pane,
+                            child: _arriving(
+                              i,
+                              _Pane(flake: g.window[i], clear: g.window.containsKey(i) && g.window[i] == null, plusOpacity: _plusOpacity, onTap: () => _pick(i)),
                             ),
+                          ),
                         // The pane being picked for, outlined.
                         if (_picking case final p?)
                           Positioned.fromRect(
@@ -283,7 +365,20 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               translation: const Offset(0, -.5),
                               child: FadeTransition(
                                 opacity: _titleOpacity,
-                                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                // As wide as the words, not the screen, for the frost to fit them.
+                                child: Center(
+                                child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
+                                  // Frost on the glass behind the title, its soft edges well
+                                  // past the words, so the flakes in the panes show round it;
+                                  // set a little low, under the subtitle more than over the title.
+                                  Positioned(
+                                    left: -48,
+                                    right: -48,
+                                    top: -40,
+                                    bottom: -80,
+                                    child: Image.asset(_titleBg, fit: BoxFit.fill),
+                                  ),
+                                  Column(mainAxisSize: MainAxisSize.min, children: [
                                   Text(
                                     tr('app_title'),
                                     style: display(56, weight: FontWeight.w900, height: 1, shadows: drop(5)).copyWith(letterSpacing: -.56),
@@ -291,10 +386,12 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                   const SizedBox(height: 8),
                                   Text(
                                     tr('home_subtitle'),
-                                    // Pale on the winter night; on the light autumn sky, the title's shadow colour.
-                                    style: body(17, weight: FontWeight.w800, color: season == Season.winter ? C.ice200 : C.night900),
+                                    // The title's shadow colour, on the pale frost behind it in any season.
+                                    style: body(17, weight: FontWeight.w800, color: C.night900),
                                   ),
                                 ]),
+                                ]),
+                                ),
                               ),
                             ),
                           ),
@@ -338,7 +435,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   children: [
                     if (_showCoins) CurrencyPill(amount: g.coins),
                     const Spacer(),
-                    RoundBtn(LucideIcons.settings, label: tr('settings'), variant: Variant.dark, size: BtnSize.s, onTap: _openSettings),
+                    BarBtn(LucideIcons.settings, label: tr('settings'), onTap: _openSettings),
                   ],
                 ),
               ),
@@ -364,14 +461,19 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             bottom: 0,
             height: _sheetHeight,
             child: SlideTransition(
-              position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(
-                CurvedAnimation(parent: _sheet, curve: Curves.easeOutCubic, reverseCurve: Curves.easeInCubic),
-              ),
+              position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(_sheet),
               child: _CollectionSheet(
                 game: g,
                 pane: _sheetPane,
+                onDrag: _dragSheet,
+                onDrop: _dropSheet,
                 onPick: (f) {
-                  g.hang(_sheetPane, f);
+                  // A flake grows into the pane, as one hung from its own screen does.
+                  if (f != null) {
+                    _hangInto(_sheetPane, f);
+                  } else {
+                    g.hang(_sheetPane, null);
+                  }
                   _closePicker();
                 },
                 onUnhang: () {
@@ -509,9 +611,12 @@ class _SnowfallPainter extends CustomPainter {
 /// [clear], or else a faint plus to fill it. Either way a tap anywhere on the
 /// glass calls [onTap].
 class _Pane extends StatelessWidget {
-  const _Pane({required this.flake, required this.clear, required this.onTap});
+  const _Pane({required this.flake, required this.clear, required this.plusOpacity, required this.onTap});
   final SavedFlake? flake;
   final bool clear;
+
+  /// How far the plus has faded in (flakes show at once, whatever this is).
+  final Animation<double> plusOpacity;
   final VoidCallback onTap;
 
   @override
@@ -534,15 +639,18 @@ class _Pane extends StatelessWidget {
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
           child: Center(
-            child: Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: const Color(0x1FFFFFFF),
-                border: Border.all(color: const Color(0x4DFFFFFF), width: 2),
+            child: FadeTransition(
+              opacity: plusOpacity,
+              child: Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: const Color(0x1FFFFFFF),
+                  border: Border.all(color: const Color(0x4DFFFFFF), width: 2),
+                ),
+                child: const Icon(LucideIcons.plus, size: 28, color: Color(0x99FFFFFF)),
               ),
-              child: const Icon(LucideIcons.plus, size: 28, color: Color(0x99FFFFFF)),
             ),
           ),
         ),
@@ -573,9 +681,20 @@ class _Pane extends StatelessWidget {
 /// it down. It opens on that pane's flake, or the first free ones (see
 /// [_CollectionSheetState._showCurrent]).
 class _CollectionSheet extends StatefulWidget {
-  const _CollectionSheet({required this.game, required this.pane, required this.onPick, required this.onUnhang});
+  const _CollectionSheet({
+    required this.game,
+    required this.pane,
+    required this.onPick,
+    required this.onUnhang,
+    required this.onDrag,
+    required this.onDrop,
+  });
   final GameState game;
   final int pane;
+
+  /// Its top (handle and title) dragged down, by so many px; and let go, at
+  /// so many px a second downward.
+  final ValueChanged<double> onDrag, onDrop;
 
   /// A flake, or null to leave the pane clear.
   final ValueChanged<SavedFlake?> onPick;
@@ -646,11 +765,25 @@ class _CollectionSheetState extends State<_CollectionSheet> {
         boxShadow: [BoxShadow(color: Color(0x59101A3F), offset: Offset(0, -6), blurRadius: 30)],
       ),
       child: Column(children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
-          child: Row(children: [
-            Expanded(child: Text(tr('my_collection'), style: display(22, height: 1.1, shadows: drop(3)))),
-            if (filled) Btn(tr('unhang'), variant: Variant.light, icon: LucideIcons.x, size: BtnSize.s, onTap: widget.onUnhang),
+        // Its top takes the drag that pulls it down, the handle showing so.
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onVerticalDragUpdate: (d) => widget.onDrag(d.delta.dy),
+          onVerticalDragEnd: (d) => widget.onDrop(d.velocity.pixelsPerSecond.dy),
+          child: Column(children: [
+            Container(
+              margin: const EdgeInsets.only(top: 10),
+              width: 40,
+              height: 5,
+              decoration: BoxDecoration(color: const Color(0x4DFFFFFF), borderRadius: BorderRadius.circular(3)),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 20, 20),
+              child: Row(children: [
+                Expanded(child: Text(tr('my_collection'), style: display(22, height: 1.1, shadows: drop(3)))),
+                if (filled) Btn(tr('unhang'), variant: Variant.light, icon: LucideIcons.x, size: BtnSize.s, onTap: widget.onUnhang),
+              ]),
+            ),
           ]),
         ),
         Expanded(

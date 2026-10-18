@@ -10,13 +10,12 @@ import '../theme/tokens.dart';
 
 // ---- Buttons -------------------------------------------------------------
 
-enum Variant { primary, secondary, reward, success, light, soft, orange, dark, ghost, clear }
+enum Variant { primary, secondary, reward, success, light, soft, orange, dark, clear }
 
 class _V {
-  const _V(this.bg, this.lip, this.fg, {this.shadowText = false, this.border});
+  const _V(this.bg, this.lip, this.fg, {this.shadowText = false});
   final Color bg, lip, fg;
   final bool shadowText;
-  final Color? border;
 }
 
 const _variants = {
@@ -29,9 +28,8 @@ const _variants = {
   Variant.soft: _V(C.berry100, C.berry300, C.berry700),
   // Warm orange (the orange paper's), standing out against the night panels.
   Variant.orange: _V(Color(0xFFFF9A3C), Color(0xFFD26A12), Colors.white, shadowText: true),
-  // Dark glass like CurrencyPill, for controls over busy backgrounds.
-  Variant.dark: _V(Color(0x8C101A3F), Colors.transparent, Colors.white, border: Color(0x40C4ECFF)),
-  Variant.ghost: _V(C.surfaceGlass, Colors.transparent, Colors.white),
+  // Dark glass for controls over busy backgrounds: the flakes' shadow's tint.
+  Variant.dark: _V(C.shade, Colors.transparent, Colors.white),
   // Just the icon, dark, on whatever lies behind.
   Variant.clear: _V(Colors.transparent, Colors.transparent, C.night800),
 };
@@ -177,7 +175,6 @@ class Btn extends StatelessWidget {
             decoration: BoxDecoration(
               color: disabled ? C.snow200 : v.bg,
               borderRadius: BorderRadius.circular(s.r),
-              border: v.border != null && !disabled ? Border.all(color: v.border!, width: 2) : null,
               boxShadow: v.lip == Colors.transparent
                   ? null
                   : [BoxShadow(color: disabled ? C.snow300 : v.lip, offset: Offset(0, lipH))],
@@ -213,6 +210,18 @@ class Btn extends StatelessWidget {
     ),
     );
   }
+}
+
+/// The small round buttons in the screens' top corners (back, share,
+/// settings): one look for all of them, set here.
+class BarBtn extends StatelessWidget {
+  const BarBtn(this.icon, {super.key, required this.label, required this.onTap});
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => RoundBtn(icon, label: label, variant: Variant.dark, size: BtnSize.s, onTap: onTap);
 }
 
 class RoundBtn extends StatelessWidget {
@@ -290,7 +299,6 @@ class RoundBtn extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: disabled ? C.snow200 : v.bg,
-                border: v.border != null && !disabled ? Border.all(color: v.border!, width: 2) : null,
                 boxShadow: [
                   if (v.lip != Colors.transparent && !flat)
                     BoxShadow(color: disabled ? C.snow300 : v.lip, offset: Offset(0, pressed ? 1 : s.lip)),

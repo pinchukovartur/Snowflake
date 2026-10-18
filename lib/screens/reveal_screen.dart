@@ -135,11 +135,9 @@ class _RevealScreenState extends State<RevealScreen> with TickerProviderStateMix
                   left: const SizedBox(width: 44),
                   title: '',
                   right: Builder(
-                    builder: (ctx) => RoundBtn(
+                    builder: (ctx) => BarBtn(
                       LucideIcons.share2,
                       label: tr('share'),
-                      variant: Variant.ghost,
-                      size: BtnSize.s,
                       onTap: () => shareFlake(ctx, cuts: widget.cuts, folds: widget.folds, color: widget.paper.color, pattern: widget.paper.pattern),
                     ),
                   ),
