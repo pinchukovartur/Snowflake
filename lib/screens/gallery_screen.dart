@@ -8,9 +8,12 @@ import '../theme/tokens.dart';
 import '../widgets/ds.dart';
 
 class GalleryScreen extends StatelessWidget {
-  const GalleryScreen({super.key, required this.game, required this.onBack, required this.onOpen});
+  const GalleryScreen({super.key, required this.game, required this.onBack, required this.onOpen, required this.onPlay});
   final GameState game;
   final VoidCallback onBack;
+
+  /// Goes off to cut a flake: offered while the collection is empty.
+  final VoidCallback onPlay;
 
   /// Shows a flake on its own, to turn and zoom (and take out of the
   /// collection, or hang in the window).
@@ -37,7 +40,15 @@ class GalleryScreen extends StatelessWidget {
             const SizedBox(height: 16),
             Expanded(
               child: list.isEmpty
-                  ? Center(child: Text(tr('collection_empty'), style: display(22, color: C.ice200)))
+                  // Nothing here yet: off to cut the first one.
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Text(tr('collection_empty'), style: display(22, color: C.ice200), textAlign: TextAlign.center),
+                        const SizedBox(height: 20),
+                        Btn(tr('play'), size: BtnSize.l, icon: LucideIcons.play, block: true, onTap: onPlay),
+                      ]),
+                    )
                   : GridView.builder(
                     // With buttons below, room to scroll the last row up clear of them.
                     padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.paddingOf(context).bottom + 20 + buttons * 56),

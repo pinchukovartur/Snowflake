@@ -168,12 +168,6 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   DsSwitch(
-                    label: tr('music'),
-                    checked: g.music,
-                    onChanged: (v) => g.setSetting(music: v),
-                  ),
-                  const SizedBox(height: 16),
-                  DsSwitch(
                     label: tr('sounds'),
                     checked: g.sfx,
                     onChanged: (v) => g.setSetting(sfx: v),
@@ -476,6 +470,10 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   }
                   _closePicker();
                 },
+                onPlay: () {
+                  _closePicker();
+                  widget.onPlay();
+                },
                 onUnhang: () {
                   g.unhang(_sheetPane);
                   _closePicker();
@@ -686,6 +684,7 @@ class _CollectionSheet extends StatefulWidget {
     required this.pane,
     required this.onPick,
     required this.onUnhang,
+    required this.onPlay,
     required this.onDrag,
     required this.onDrop,
   });
@@ -699,6 +698,10 @@ class _CollectionSheet extends StatefulWidget {
   /// A flake, or null to leave the pane clear.
   final ValueChanged<SavedFlake?> onPick;
   final VoidCallback onUnhang;
+
+  /// Goes off to cut a flake: offered in place of the grid while the
+  /// collection is empty.
+  final VoidCallback onPlay;
 
   @override
   State<_CollectionSheet> createState() => _CollectionSheetState();
@@ -787,23 +790,33 @@ class _CollectionSheetState extends State<_CollectionSheet> {
           ]),
         ),
         Expanded(
-          child: GridView.count(
-            controller: _scroll,
-            padding: EdgeInsets.fromLTRB(_pad, _top, _pad, MediaQuery.paddingOf(context).bottom + 20),
-            // Two to a row, as in the collection.
-            crossAxisCount: 2,
-            mainAxisSpacing: _gap,
-            crossAxisSpacing: _gap,
-            children: [
-              for (final f in g.saved)
-                if (identical(f, current) || !g.isHung(f))
-                  _PickTile(flake: f, selected: identical(f, current), onTap: () => onPick(f))
-                else
-                  _PickTile(flake: f, selected: false),
-              // Leaving the pane clear comes last, after every flake.
-              _PickTile(selected: filled && current == null, onTap: () => onPick(null)),
-            ],
-          ),
+          child: g.saved.isEmpty
+              // Nothing to hang yet: off to cut the first one.
+              ? Padding(
+                  padding: EdgeInsets.fromLTRB(32, 0, 32, MediaQuery.paddingOf(context).bottom + 20),
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Text(tr('collection_empty'), style: display(22, color: C.ice200), textAlign: TextAlign.center),
+                    const SizedBox(height: 20),
+                    Btn(tr('play'), size: BtnSize.l, icon: LucideIcons.play, block: true, onTap: widget.onPlay),
+                  ]),
+                )
+              : GridView.count(
+                  controller: _scroll,
+                  padding: EdgeInsets.fromLTRB(_pad, _top, _pad, MediaQuery.paddingOf(context).bottom + 20),
+                  // Two to a row, as in the collection.
+                  crossAxisCount: 2,
+                  mainAxisSpacing: _gap,
+                  crossAxisSpacing: _gap,
+                  children: [
+                    for (final f in g.saved)
+                      if (identical(f, current) || !g.isHung(f))
+                        _PickTile(flake: f, selected: identical(f, current), onTap: () => onPick(f))
+                      else
+                        _PickTile(flake: f, selected: false),
+                    // Leaving the pane clear comes last, after every flake.
+                    _PickTile(selected: filled && current == null, onTap: () => onPick(null)),
+                  ],
+                ),
         ),
       ]),
     );

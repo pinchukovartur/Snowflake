@@ -158,6 +158,7 @@ class _GameShellState extends State<GameShell> {
         return GalleryScreen(
           game: _game,
           onBack: () => _go(Screen.home),
+          onPlay: () => _go(Screen.cut),
           onOpen: (f) {
             _shownFlake = f;
             _go(Screen.flake);

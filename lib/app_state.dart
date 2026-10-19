@@ -58,7 +58,6 @@ class Paper {
 class GameState extends ChangeNotifier {
   GameState(this._prefs) {
     coins = _prefs.getInt(_kCoins) ?? coins;
-    music = _prefs.getBool(_kMusic) ?? music;
     sfx = _prefs.getBool(_kSfx) ?? sfx;
     vibration = _prefs.getBool(_kVibration) ?? vibration;
     // Debug builds only, if the check is put back: `kDebugMode && forceFirstLaunch`.
@@ -125,7 +124,6 @@ class GameState extends ChangeNotifier {
   final SharedPreferences _prefs;
 
   static const _kCoins = 'coins';
-  static const _kMusic = 'settings.music';
   static const _kSfx = 'settings.sfx';
   static const _kVibration = 'settings.vibration';
   static const _kCollection = 'collection.v1';
@@ -135,7 +133,7 @@ class GameState extends ChangeNotifier {
 
   int coins = 128;
 
-  bool music = true, sfx = true, vibration = false;
+  bool sfx = true, vibration = false;
 
   /// The home screen has shown the game's title since launch; coming back to
   /// it leaves the window clear.
@@ -157,11 +155,9 @@ class GameState extends ChangeNotifier {
   /// presets are the game's own, for its events, and never in it.)
   final saved = <SavedFlake>[];
 
-  void setSetting({bool? music, bool? sfx, bool? vibration}) {
-    this.music = music ?? this.music;
+  void setSetting({bool? sfx, bool? vibration}) {
     this.sfx = sfx ?? this.sfx;
     this.vibration = vibration ?? this.vibration;
-    _prefs.setBool(_kMusic, this.music);
     _prefs.setBool(_kSfx, this.sfx);
     _prefs.setBool(_kVibration, this.vibration);
     notifyListeners();
