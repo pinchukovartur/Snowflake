@@ -778,9 +778,12 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                           SizedBox(
                                             height: 52,
                                             child: Center(
-                                              child: Text(
-                                                '${_cuts.length}',
-                                                style: display(15, weight: FontWeight.w700, color: C.night800),
+                                              child: _Bounce(
+                                                value: _cuts.length,
+                                                child: Text(
+                                                  '${_cuts.length}',
+                                                  style: display(15, weight: FontWeight.w700, color: C.night800),
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -1354,4 +1357,38 @@ class _PaperSwatchPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_PaperSwatchPainter o) => o.color != color || o.pattern != pattern || o.dpr != dpr || o.twinkle != twinkle;
+}
+
+/// Gives [child] a light bounce whenever [value] changes: up a little, and
+/// springing back.
+class _Bounce extends StatefulWidget {
+  const _Bounce({required this.value, required this.child});
+  final Object value;
+  final Widget child;
+
+  @override
+  State<_Bounce> createState() => _BounceState();
+}
+
+class _BounceState extends State<_Bounce> with SingleTickerProviderStateMixin {
+  late final _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 350));
+  late final _scale = _anim.drive(TweenSequence([
+    TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.25).chain(CurveTween(curve: Curves.easeOut)), weight: 35),
+    TweenSequenceItem(tween: Tween(begin: 1.25, end: 1.0).chain(CurveTween(curve: Curves.easeOutBack)), weight: 65),
+  ]));
+
+  @override
+  void didUpdateWidget(_Bounce old) {
+    super.didUpdateWidget(old);
+    if (old.value != widget.value) _anim.forward(from: 0);
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ScaleTransition(scale: _scale, child: widget.child);
 }
