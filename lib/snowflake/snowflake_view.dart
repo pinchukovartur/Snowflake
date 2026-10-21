@@ -21,6 +21,7 @@ class SnowflakeView extends StatelessWidget {
     this.spin = 0,
     this.shading = true,
     this.twinkle,
+    this.segments,
   });
 
   final List<Cut>? cuts;
@@ -36,6 +37,10 @@ class SnowflakeView extends StatelessWidget {
   /// frame rather than baked, so kept to a flake on show.
   final double? twinkle;
 
+  /// The segments to draw (numbered clockwise from the one just right of
+  /// the top crease), the rest left out; null for all of them.
+  final Set<int>? segments;
+
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
@@ -49,6 +54,7 @@ class SnowflakeView extends StatelessWidget {
         spin: spin,
         shading: shading,
         twinkle: shimmers(pattern) ? twinkle : null,
+        segments: segments,
         dpr: MediaQuery.devicePixelRatioOf(context),
       ),
     );
@@ -138,16 +144,19 @@ ui.Image _wedgeImage(_WedgeKey k) {
 }
 
 class _FlakeKey {
-  _FlakeKey(this.wedge, this.size, this.shading);
+  _FlakeKey(this.wedge, this.size, this.shading, Set<int>? segments) : segments = segments == null ? '' : ([...segments]..sort()).join(',');
   final _WedgeKey wedge;
   final double size;
   final bool shading;
 
-  @override
-  bool operator ==(Object o) => o is _FlakeKey && o.wedge == wedge && o.size == size && o.shading == shading;
+  /// The segments drawn, as a sorted list ('' for all).
+  final String segments;
 
   @override
-  int get hashCode => Object.hash(wedge, size, shading);
+  bool operator ==(Object o) => o is _FlakeKey && o.wedge == wedge && o.size == size && o.shading == shading && o.segments == segments;
+
+  @override
+  int get hashCode => Object.hash(wedge, size, shading, segments);
 }
 
 // Fully unfolded, unrotated, still (not shimmering) flakes are baked once:
@@ -356,6 +365,7 @@ class SnowflakePainter extends CustomPainter {
     required this.spin,
     required this.shading,
     this.twinkle,
+    this.segments,
     required this.dpr,
   });
 
@@ -366,6 +376,11 @@ class SnowflakePainter extends CustomPainter {
   final double unfold, spin, dpr;
   final bool shading;
   final double? twinkle;
+
+  /// See [SnowflakeView.segments]; only for a flake lying open.
+  final Set<int>? segments;
+
+  bool _drawn(int segment) => segments?.contains(segment) ?? true;
 
   _WedgeKey _wedgeKey(double s) => _WedgeKey(cuts, folds, color, pattern, (s * dpr).round());
 
@@ -379,7 +394,7 @@ class SnowflakePainter extends CustomPainter {
       _paintFlake(canvas, s);
       return;
     }
-    final key = _FlakeKey(_wedgeKey(s), s, shading);
+    final key = _FlakeKey(_wedgeKey(s), s, shading, segments);
     var img = _flakeCache.remove(key);
     if (img == null) {
       final rec = ui.PictureRecorder();
@@ -434,6 +449,7 @@ class SnowflakePainter extends CustomPainter {
     if (flat) {
       final front = _shade(0), back = _shade(shading ? _sideShade : 0);
       for (var i = 0; i < segs; i++) {
+        if (!_drawn(i)) continue;
         canvas.save();
         canvas.rotate(i * step);
         if (i.isOdd) canvas.scale(-1, 1);
@@ -448,6 +464,7 @@ class SnowflakePainter extends CustomPainter {
         final clip = _paperPath(key, r);
         final h = wedgeHalfAngle(folds);
         for (var i = 0; i < segs; i++) {
+          if (!_drawn(i)) continue;
           canvas.save();
           canvas.rotate(i * step);
           if (i.isOdd) canvas.scale(-1, 1);
@@ -545,5 +562,6 @@ class SnowflakePainter extends CustomPainter {
       o.spin != spin ||
       o.twinkle != twinkle ||
       o.shading != shading ||
+      o.segments != segments ||
       o.dpr != dpr;
 }

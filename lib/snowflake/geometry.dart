@@ -78,7 +78,13 @@ List<Cut> _branched({double hole = 0, required double ring, required List<double
 /// Everything but [keep] (a closed outline, in wedge units) cut away: one
 /// contour round the board, joined to [keep] run the other way, so the
 /// non-zero fill leaves it standing.
-Cut _keepOnly(List<Offset> keep) {
+Cut _keepOnly(List<Offset> keep) => _keepAll([keep]);
+
+/// Everything but the [islands] (closed outlines apart from one another, in
+/// wedge units) cut away: one contour round the board, joined to each island
+/// in turn, run the other way, by a bridge out from its first corner and back
+/// (no width, so it cuts nothing).
+Cut _keepAll(List<List<Offset>> islands) {
   double area(List<Offset> p) {
     var a = 0.0;
     for (var i = 0; i < p.length; i++) {
@@ -90,8 +96,14 @@ Cut _keepOnly(List<Offset> keep) {
 
   // Joined below the apex, where the bridge out to it is off the paper.
   const outer = [Offset(0, .5), Offset(2, .5), Offset(2, -2), Offset(-2, -2), Offset(-2, .5)];
-  final k = area(keep).sign == area(outer).sign ? keep.reversed.toList() : keep;
-  return [outer.first, ...k, k.first, ...outer];
+  return [
+    for (final keep in islands) ...[
+      outer.first,
+      ...(area(keep).sign == area(outer).sign ? keep.reversed : keep),
+      area(keep).sign == area(outer).sign ? keep.last : keep.first,
+    ],
+    ...outer,
+  ];
 }
 
 /// A classic flake with forked, swallow-tailed arms on every other fold, a
@@ -274,9 +286,17 @@ List<Cut> _keeping(Path keep, {double half = _h6}) {
     return a.abs();
   }
 
-  // The outline round it all is the biggest; the rest are holes in it.
-  rings.sort((a, b) => area(b).compareTo(area(a)));
-  return [_keepOnly(_straightened(rings.first)), for (final r in rings.skip(1)) _straightened(r)];
+  // A ring inside an odd number of others is a hole, cut; the rest are
+  // islands of paper, each kept (any number of them, the biggest perhaps off
+  // the paper past its rim). An island within a hole is lost with it.
+  final shapes = [for (final r in rings) _poly(r)];
+  bool inside(int i, int j) => i != j && area(rings[j]) > area(rings[i]) && shapes[j].contains(rings[i].first);
+  final islands = <List<Offset>>[], holes = <List<Offset>>[];
+  for (var i = 0; i < rings.length; i++) {
+    final depth = [for (var j = 0; j < rings.length; j++) if (inside(i, j)) j].length;
+    (depth.isEven ? islands : holes).add(_straightened(rings[i]));
+  }
+  return [_keepAll(islands), ...holes];
 }
 
 /// [p] without the points along its straight runs.
@@ -492,7 +512,7 @@ const paperColors = [
   PaperColor('white', Color(0xFFFFFFFF)),
   PaperColor('pink', Color(0xFFFFC7D0)),
   PaperColor('sun', Color(0xFFFFE08A)),
-  PaperColor('mint', Color(0xFFBFF0DC)),
+  PaperColor('mint', Color(0xFF9DFFAA)),
   PaperColor('ice', Color(0xFFC4ECFF)),
   PaperColor('lilac', Color(0xFFDCD2FF)),
   PaperColor('grey', Color(0xFF9AA3B5)),
@@ -519,6 +539,8 @@ const paperPatterns = [
   'holo',
   'butterflies',
   'knit',
+  'gradient',
+  'analogous',
 ];
 
 /// Patterns drawn from a seamless texture (dark lines on white) rather than
@@ -768,13 +790,24 @@ final _tileCache = <(Color, String, int), ui.Image>{};
 Paint makePaperFill(Color color, String pattern, double unitPx) {
   final paint = Paint()..color = color;
   if (pattern == 'plain') return paint;
+  // Gradients from the top of the sheet to the bottom, across the whole
+  // unfolded flake, round the hues (as light and saturated all the way, not
+  // straight through to a dull grey): see [gradientHues].
+  if (gradientHues[pattern] case (final from, final to)) {
+    final hsl = HSLColor.fromColor(color);
+    const steps = 6;
+    final colors = [for (var i = 0; i <= steps; i++) hsl.withHue((hsl.hue + from + (to - from) * i / steps) % 360).toColor()];
+    return paint..shader = ui.Gradient.linear(Offset(0, -unitPx), Offset(0, unitPx), colors, [for (var i = 0; i <= steps; i++) i / steps]);
+  }
   // Scattered patterns get big tiles, so they don't visibly repeat.
   final t = switch (pattern) {
     'sparkle' => sparkleTile(unitPx),
     'bubbles' => sparkleTile(unitPx) * 2.5 * 1.3,
     // One hologram cell: a big burst with small ones at its corners.
     'holo' => math.max(16.0, unitPx * .3),
-    // A texture's tile: a few across the paper, so its motifs read.
+    // A texture's tile: a few across the paper, so its motifs read; the
+    // knit's stitches a fifth bigger still.
+    'knit' => math.max(43.2, unitPx * 1.08),
     _ when textureAssets.containsKey(pattern) => math.max(36.0, unitPx * .9),
     _ => math.max(8.0, unitPx * 0.075),
   };
@@ -796,6 +829,11 @@ Paint makePaperFill(Color color, String pattern, double unitPx) {
       // Smooth, as the tile is scaled a little.
       filterQuality: FilterQuality.medium);
 }
+
+/// The gradient patterns, by the hues they run between, in degrees from the
+/// paper's own: to its complement (half round), or its analogous neighbours
+/// (30° either side, through the paper's colour in the middle).
+const gradientHues = {'gradient': (0.0, 180.0), 'analogous': (-30.0, 30.0)};
 
 /// Side of the glitter pattern's tile, for paper [unitPx] in radius: four
 /// times the other patterns', so its dots don't visibly repeat.

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,6 +12,11 @@ import 'snowflake/geometry.dart';
 /// release build with this on clears them too, so turn it off before one goes
 /// to players.
 const forceFirstLaunch = true;
+
+/// For testing the Halloween duel: a tap on the boss's flake knocks a cone
+/// off it, as if the next flake had been cut. Debug builds only: a release
+/// never has it, whatever this says.
+const duelCheat = true && kDebugMode;
 
 /// A flake the player cut and kept.
 class SavedFlake {
@@ -63,6 +69,10 @@ class GameState extends ChangeNotifier {
     // Debug builds only, if the check is put back: `kDebugMode && forceFirstLaunch`.
     if (forceFirstLaunch /* && kDebugMode */) _prefs.remove(_kTutorials);
     _tutorialsSeen.addAll(_prefs.getStringList(_kTutorials) ?? const []);
+    // Started afresh along with the tutorials, for trying it out again.
+    if (forceFirstLaunch) _prefs.remove(_kDuel);
+    duelHits.addAll(_prefs.getStringList(_kDuel) ?? const []);
+    duelSeen = duelHits.length;
     // As stored, built-in presets (from older versions) still in it, as null.
     var stored = <SavedFlake?>[];
     final raw = _prefs.getString(_kCollection);
@@ -130,6 +140,7 @@ class GameState extends ChangeNotifier {
   static const _kWindow = 'window.v1';
   static const _kLast = 'last.v1';
   static const _kTutorials = 'tutorials.seen.v1';
+  static const _kDuel = 'duel.halloween.v1';
 
   int coins = 128;
 
@@ -144,6 +155,25 @@ class GameState extends ChangeNotifier {
   final _tutorialsSeen = <String>{};
 
   bool tutorialSeen(String id) => _tutorialsSeen.contains(id);
+
+  /// The Halloween duel: the event flakes (by preset) the player has cut,
+  /// each one taking a cone off the boss's flake; cutting one again doesn't.
+  final duelHits = <String>{};
+
+  /// How many of [duelHits] the duel's window has shown landing: the rest
+  /// still to knock their cones off as it opens. Not stored.
+  int duelSeen = 0;
+
+  /// The flake (by preset) just cut for the first time, whose blow the duel's
+  /// window is to show landing; cleared once it has. Not stored.
+  String? duelFresh;
+
+  void duelHit(String preset) {
+    if (!duelHits.add(preset)) return;
+    duelFresh = preset;
+    _prefs.setStringList(_kDuel, [...duelHits]);
+    notifyListeners();
+  }
 
   void markTutorialSeen(String id) {
     if (!_tutorialsSeen.add(id)) return;

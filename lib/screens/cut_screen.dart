@@ -190,17 +190,37 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
   /// Bumped to give the board a fresh start (unzoomed) when an event begins.
   int _boardKey = 0;
 
-  /// Shows the event's flakes full screen; the one picked starts it.
+  @override
+  void initState() {
+    super.initState();
+    // Back from cutting a duel's flake for the first time: its window opens,
+    // to show the blow land.
+    if (widget.game.duelFresh != null) {
+      final duel = _events.indexWhere((e) => e.boss != null);
+      if (duel >= 0) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _event = duel);
+          _chooseEventFlake();
+        });
+      }
+    }
+  }
+
+  /// Shows the event's flakes full screen; the one picked starts it (ending
+  /// the one under way, if any).
   Future<void> _chooseEventFlake() async {
     final e = _events[_event];
     final f = await Navigator.of(context).push<_EventFlake>(
       PageRouteBuilder(
         // On a Material of its own, for the text styles a route of its own lacks.
-        pageBuilder: (_, _, _) => Material(type: MaterialType.transparency, child: e.window(title: tr('pick_flake'), flakes: e.flakes)),
+        pageBuilder: (_, _, _) => Material(type: MaterialType.transparency, child: e.window(title: tr('pick_flake'), flakes: e.flakes, game: widget.game)),
         transitionsBuilder: (_, anim, _, child) => FadeTransition(opacity: anim, child: child),
       ),
     );
-    if (f != null && mounted) _startEvent(f);
+    if (f == null || !mounted) return;
+    if (_eventOn) _endEvent();
+    _startEvent(f);
   }
 
   void _startEvent(_EventFlake f) {
@@ -861,7 +881,11 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                       size: BtnSize.l,
                       block: true,
                       disabled: _cuts.isEmpty,
-                      onTap: () => widget.onUnfold([..._cuts, ..._fallen], _folds, _paper),
+                      onTap: () {
+                        // A duel's flake, cut: a blow to its boss.
+                        if (_s._event?.flake case final f? when _duelFlakes.contains(f)) widget.game.duelHit(f.preset);
+                        widget.onUnfold([..._cuts, ..._fallen], _folds, _paper);
+                      },
                     ),
                   ),
                 ],
@@ -888,12 +912,15 @@ typedef _EventFlake = ({String preset, int folds, Color color, String pattern});
 /// [flakes] in turn over its [title]: on the panel's night blue, or on its
 /// [image] across the whole panel. A [loud] title is heavier, purple outlined
 /// in white. Tapping the panel opens the event's [window] to pick a flake in.
+/// An event with a [boss] is a duel (see [_DuelWindow]): each of its flakes
+/// cut takes a cone off the boss's flake.
 const _events = [
   (
     id: 'repeat',
     title: 'event_repeat',
     image: null,
     loud: false,
+    boss: null,
     window: _RepeatWindow.new,
     flakes: [
       (preset: 'default_6_1', folds: 6, color: Color(0xFFC4ECFF), pattern: 'plain'),
@@ -901,7 +928,7 @@ const _events = [
       (preset: 'fern', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
       (preset: 'leafy', folds: 6, color: Color(0xFFFFE08A), pattern: 'plain'),
       (preset: 'spiky', folds: 6, color: Color(0xFFDCD2FF), pattern: 'plain'),
-      (preset: 'forked', folds: 6, color: Color(0xFFBFF0DC), pattern: 'plain'),
+      (preset: 'forked', folds: 6, color: Color(0xFF9DFFAA), pattern: 'plain'),
       (preset: 'chevrons', folds: 6, color: Color(0xFFFFC7D0), pattern: 'plain'),
       (preset: 'rhombi', folds: 6, color: Color(0xFFB8F0C8), pattern: 'plain'),
     ],
@@ -911,7 +938,10 @@ const _events = [
     title: 'event_halloween',
     image: 'assets/Halloween_Event_Ico.png',
     loud: true,
-    window: _HalloweenWindow.new,
+    // A stand-in, till the boss's own flake is drawn.
+    boss: (preset: 'chevrons', folds: 6, color: Color(0xFF1E1F26), pattern: 'plain'),
+    window: _DuelWindow.new,
+    // One for each of the boss flake's twelve cones.
     flakes: [
       (preset: 'halloween_1', folds: 6, color: Color(0xFFFF9A3C), pattern: 'plain'),
       (preset: 'halloween_2', folds: 6, color: Color(0xFF1E1F26), pattern: 'plain'),
@@ -920,10 +950,21 @@ const _events = [
       (preset: 'ghosts', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
       (preset: 'hats', folds: 6, color: Color(0xFF1E6B4F), pattern: 'plain'),
       (preset: 'cats', folds: 6, color: Color(0xFF1E2F6B), pattern: 'plain'),
-      (preset: 'zombies', folds: 6, color: Color(0xFFBFF0DC), pattern: 'plain'),
+      (preset: 'zombies', folds: 6, color: Color(0xFF9DFFAA), pattern: 'plain'),
+      // Stand-ins, till their own are drawn.
+      (preset: 'halloween_3', folds: 4, color: Color(0xFFE0405E), pattern: 'plain'),
+      (preset: 'halloween_4', folds: 6, color: Color(0xFF8B5A2B), pattern: 'plain'),
+      (preset: 'halloween_5', folds: 6, color: Color(0xFF2FB37E), pattern: 'plain'),
+      (preset: 'rhombi', folds: 6, color: Color(0xFF9AA3B5), pattern: 'plain'),
     ],
   ),
 ];
+
+/// Every duel's flakes: cutting one is a blow to its boss.
+final _duelFlakes = {
+  for (final e in _events)
+    if (e.boss != null) ...e.flakes,
+};
 
 /// Mark for the number of folds, wherever it is shown.
 const _foldsIcon = LucideIcons.layers2;
@@ -1138,9 +1179,10 @@ double _wordsFit(String text, TextStyle style, double width, TextScaler scaler) 
 /// two to a row, each over its shadow. Tapping one picks it (popped as the
 /// route's result), the button at the top goes back.
 abstract class _EventWindow extends StatelessWidget {
-  const _EventWindow({super.key, required this.title, required this.flakes});
+  const _EventWindow({super.key, required this.title, required this.flakes, required this.game});
   final String title;
   final List<_EventFlake> flakes;
+  final GameState game;
 
   /// What the window lies on, filling the screen.
   Widget backdrop(Widget child);
@@ -1224,21 +1266,425 @@ class _ShadowedFlake extends StatelessWidget {
 
 /// The repeat event's window, on the night sky.
 class _RepeatWindow extends _EventWindow {
-  const _RepeatWindow({super.key, required super.title, required super.flakes});
+  const _RepeatWindow({super.key, required super.title, required super.flakes, required super.game});
 
   @override
   Widget backdrop(Widget child) => SkyBackground(child: child);
 }
 
-/// The Halloween event's window, on plain lilac.
-class _HalloweenWindow extends _EventWindow {
-  const _HalloweenWindow({super.key, required super.title, required super.flakes});
+/// A duel's window (the Halloween event's), on plain lilac: the boss and
+/// its flake at the top, a cone gone for each of the event's flakes cut;
+/// below, the flakes in a carousel (those cut ticked), the one in the middle
+/// picked with a tap; the player's witch at the foot. Cones knocked off since
+/// it was last open fade away as it opens.
+class _DuelWindow extends StatefulWidget {
+  const _DuelWindow({super.key, required this.title, required this.flakes, required this.game});
+  final String title;
+  final List<_EventFlake> flakes;
+  final GameState game;
 
   @override
-  Widget backdrop(Widget child) => ColoredBox(color: const Color(0xFFEECDFF), child: child);
+  State<_DuelWindow> createState() => _DuelWindowState();
+}
+
+class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin {
+  /// The flake just cut for the first time, by its place among them (see
+  /// [GameState.duelFresh]), or −1: it flies at the boss's flake as the window
+  /// opens, knocks its cone off, and comes back to its place, glowing.
+  late int _fresh = widget.flakes.indexWhere((f) => f.preset == widget.game.duelFresh);
+
+  /// Opening on the flake just cut, or else the first not cut yet (or the
+  /// first, every one cut).
+  late final _carousel = PageController(
+    viewportFraction: .5,
+    initialPage: _fresh >= 0 ? _fresh : math.max(0, widget.flakes.indexWhere((f) => !widget.game.duelHits.contains(f.preset))),
+  );
+
+  /// The fresh flake's flight: out to the boss's flake, a moment there, back,
+  /// and its glow coming up.
+  /// 348 ms out, 160 at the flake, 768 back, 192 for the glow.
+  late final _fly = AnimationController(vsync: this, duration: const Duration(milliseconds: 1468));
+  static const _arrive = 348 / 1468, _leave = 508 / 1468, _home = 1276 / 1468;
+
+  /// Where the flight runs between: the carousel's middle and the boss's flake.
+  final _rootKey = GlobalKey(), _carouselKey = GlobalKey(), _bossKey = GlobalKey();
+
+  /// The cones knocked off since the window was last open, fading away.
+  late final _blow = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
+
+  /// The witch's hands swaying gently to and fro, round and round.
+  late final _sway = AnimationController(vsync: this, duration: const Duration(milliseconds: 3000))..repeat();
+
+  /// How many cones were gone before, and are now.
+  late int _before, _hits;
 
   @override
-  Widget? heading() => _EventTitle(title, loud: true, size: 24, maxLines: 2);
+  void initState() {
+    super.initState();
+    final g = widget.game;
+    _hits = widget.flakes.where((f) => g.duelHits.contains(f.preset)).length;
+    _before = math.min(g.duelSeen, _hits);
+    g.duelSeen = _hits;
+    // Read before it is cleared (it is late, so else read only after).
+    final fresh = _fresh;
+    g.duelFresh = null;
+    // The cones fall as the flake gets there.
+    _fly.addListener(() {
+      if (_fly.value >= _arrive && _blow.isDismissed) {
+        _blow.forward();
+        // Felt as it strikes, if the player wants that.
+        if (widget.game.vibration) HapticFeedback.mediumImpact();
+      }
+    });
+    // The carousel locked while a flake is away, and free again after.
+    _fly.addStatusListener((_) {
+      if (mounted) setState(() {});
+    });
+    if (fresh >= 0) {
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) _fly.forward();
+      });
+    } else if (_before < _hits) {
+      Future.delayed(const Duration(milliseconds: 400), () {
+        if (mounted) _blow.forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _carousel.dispose();
+    _blow.dispose();
+    _sway.dispose();
+    _fly.dispose();
+    super.dispose();
+  }
+
+  /// The boss's flake ([_events]' `boss`).
+  _EventFlake get _boss => _events.firstWhere((e) => e.boss != null && identical(e.flakes, widget.flakes)).boss!;
+
+  /// The cones in the order they go: from the bottom up, left then right.
+  /// (Segment 0 lies just right of the top crease, the rest clockwise.)
+  static const _order = [6, 5, 7, 4, 8, 3, 9, 2, 10, 1, 11, 0];
+
+  Set<int> _cones(int gone) => {for (final i in _order.skip(gone)) i};
+
+  /// The cheat (see [duelCheat]): the next flake not yet cut counts as cut,
+  /// and its blow plays as if just cut: the carousel turns to it, and it flies
+  /// at the boss's flake. Not while one is flying already.
+  void _cheatHit() {
+    if (_cheating) return;
+    final g = widget.game;
+    final next = widget.flakes.indexWhere((f) => !g.duelHits.contains(f.preset));
+    if (next < 0) return;
+    g.duelHit(widget.flakes[next].preset);
+    g.duelFresh = null;
+    setState(() {
+      _fresh = next;
+      _before = _hits;
+      _hits++;
+      g.duelSeen = _hits;
+    });
+    // Its glow waits for it to come back.
+    _fly.value = 0;
+    _blow.value = 0;
+    setState(() => _cheating = true);
+    _carousel.animateToPage(next, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic).then((_) async {
+      if (mounted) await _fly.forward(from: 0);
+      if (mounted) setState(() => _cheating = false);
+    });
+  }
+
+  /// A cheat's blow under way, from turning the carousel to the flake's
+  /// return: no other till it is done.
+  bool _cheating = false;
+
+  /// While a flake flies (or the cheat sends one), the carousel stays still.
+  bool get _locked => _cheating || _fly.isAnimating;
+
+  /// The middle of [key]'s box, in the window's frame.
+  Offset? _centreOf(GlobalKey key) {
+    final box = key.currentContext?.findRenderObject() as RenderBox?, root = _rootKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || root == null || !box.hasSize) return null;
+    return root.globalToLocal(box.localToGlobal(box.size.center(Offset.zero)));
+  }
+
+  /// The fresh flake in flight, over everything (taking no touches).
+  Widget _flight() {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: AnimatedBuilder(
+      animation: _fly,
+      builder: (_, _) {
+        final v = _fly.value;
+        if (_fresh < 0 || v <= 0 || v >= _home) return const SizedBox.shrink();
+        final from = _centreOf(_carouselKey), to = _centreOf(_bossKey);
+        if (from == null || to == null) return const SizedBox.shrink();
+        // Out, setting off gently and quickening to the strike, spinning;
+        // a moment at the flake; back, easing.
+        final out = Curves.easeInSine.transform((v / _arrive).clamp(0.0, 1.0));
+        final back = Curves.easeOutCubic.transform(((v - _leave) / (_home - _leave)).clamp(0.0, 1.0));
+        final at = v < _leave ? Offset.lerp(from, to, out)! : Offset.lerp(to, from, back)!;
+        final there = v < _leave ? out : 1 - back;
+        const size = 170.0;
+        return Stack(children: [
+          Positioned(
+            left: at.dx - size / 2,
+            top: at.dy - size / 2,
+            child: Transform.rotate(
+              angle: there * math.pi,
+              child: Transform.scale(scale: 1 - .45 * there, child: _ShadowedFlake(widget.flakes[_fresh], size: size)),
+            ),
+          ),
+        ]);
+      },
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final boss = _boss;
+    final pad = MediaQuery.paddingOf(context);
+    Widget bossFlake(Set<int> cones, double size) => SnowflakeView(
+          preset: boss.preset,
+          folds: boss.folds,
+          color: boss.color,
+          pattern: boss.pattern,
+          size: size,
+          segments: cones,
+        );
+    return ColoredBox(
+      color: _bg,
+      child: Stack(key: _rootKey, children: [
+        SafeArea(
+          bottom: false,
+          child: Column(children: [
+            TopBar(
+              left: BarBtn(LucideIcons.arrowLeft, label: tr('back'), onTap: () => Navigator.pop(context)),
+              title: tr('duel_title'),
+              heading: _EventTitle(tr('duel_title'), loud: true, size: 24, maxLines: 1),
+              right: const SizedBox(width: 44),
+            ),
+            // The boss and its flake, its cones its life.
+            SizedBox(
+              height: 300,
+              child: LayoutBuilder(builder: (_, c) {
+                final size = math.min(204.0, c.maxWidth * .5);
+                return Stack(children: [
+                  // The boss in the middle; its flake held before it, low and a
+                  // little to the right, like a shield.
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    height: 240,
+                    child: Image.asset(_bossPicture, fit: BoxFit.contain),
+                  ),
+                  Positioned(
+                    left: (c.maxWidth - size) / 2 + c.maxWidth * .16,
+                    bottom: 0,
+                    child: GestureDetector(
+                      key: _bossKey,
+                      onTap: duelCheat ? _cheatHit : null,
+                      child: FlakeShadow(
+                      size: size,
+                      child: AnimatedBuilder(
+                        animation: _blow,
+                        builder: (_, child) {
+                          // Struck: knocked up and to the right, then bouncing
+                          // back, dying away.
+                          final t = _blow.isAnimating ? _blow.value : 0.0;
+                          final kick = math.sin(t * 3 * math.pi) * math.pow(1 - t, 2);
+                          return Transform.translate(
+                            offset: Offset(.6, -1) * (12 * kick),
+                            child: Transform.scale(scale: 1 + .05 * kick, child: child),
+                          );
+                        },
+                        child: AnimatedBuilder(
+                        animation: _blow,
+                        builder: (_, _) => Stack(children: [
+                          bossFlake(_cones(_hits), size),
+                          // The cones just knocked off, fading.
+                          if (_hits > _before)
+                            Opacity(
+                              opacity: 1 - _blow.value,
+                              child: bossFlake({for (final i in _order.sublist(_before, _hits)) i}, size),
+                            ),
+                        ]),
+                        ),
+                      ),
+                    ),
+                    ),
+                  ),
+                ]);
+              }),
+            ),
+            // How far the duel has got, under the boss: the flakes cut of all
+            // of them, filling up as the cones fall.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+              child: AnimatedBuilder(
+                animation: _blow,
+                builder: (_, _) {
+                  final n = widget.flakes.length;
+                  final done = _before + (_hits - _before) * Curves.easeOut.transform(_blow.value);
+                  return Row(children: [
+                    Expanded(
+                      child: Container(
+                        height: 18,
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(9)),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: FractionallySizedBox(
+                            widthFactor: n == 0 ? 0 : done / n,
+                            child: Container(decoration: BoxDecoration(color: _ink, borderRadius: BorderRadius.circular(6))),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _EventTitle('$_hits/$n', loud: true, size: 20, maxLines: 1),
+                  ]);
+                },
+              ),
+            ),
+            const Spacer(),
+            _EventTitle(tr('pick_flake'), loud: true, size: 24, maxLines: 2),
+            const SizedBox(height: 8),
+            // The flakes, the one in the middle picked with a tap, the others
+            // brought there by a swipe or a tap.
+            SizedBox(
+              key: _carouselKey,
+              height: 200,
+              // Still while a flake flies (or the cheat turns it to one): its
+              // touches held off, not its physics swapped (which would start its
+              // scroll position afresh, the flakes' sizes jumping).
+              child: AbsorbPointer(
+                absorbing: _locked,
+                child: PageView.builder(
+                controller: _carousel,
+                itemCount: widget.flakes.length,
+                itemBuilder: (_, i) {
+                  final f = widget.flakes[i];
+                  final cut = widget.game.duelHits.contains(f.preset);
+                  // The fresh flake: away while in flight, its glow coming up
+                  // once back.
+                  final fresh = i == _fresh;
+                  return AnimatedBuilder(
+                    animation: Listenable.merge([_carousel, _fly]),
+                    builder: (_, child) {
+                      // Smaller away from the middle.
+                      final page = _carousel.hasClients && _carousel.position.haveDimensions ? _carousel.page ?? 0.0 : _carousel.initialPage.toDouble();
+                      final d = (page - i).abs().clamp(0.0, 1.0);
+                      final away = fresh && _fly.value > 0 && _fly.value < _home;
+                      return Opacity(opacity: away ? 0 : 1, child: Transform.scale(scale: 1 - .3 * d, child: child));
+                    },
+                    child: Semantics(
+                      button: true,
+                      label: tr('flake_n', {'n': i + 1}),
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          if ((_carousel.page ?? 0).round() == i) {
+                            Navigator.pop(context, f);
+                          } else {
+                            _carousel.animateToPage(i, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic);
+                          }
+                        },
+                        child: Center(
+                          child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
+                            // Cut already (still to be cut again, for no harm): a
+                            // soft green glow behind it, a disc fading out at its rim
+                            // (a gradient, as cheap as a fill, not a blur).
+                            if (cut)
+                              AnimatedBuilder(
+                                animation: _fly,
+                                builder: (_, glow) => Opacity(
+                                  opacity: fresh && !_fly.isCompleted ? ((_fly.value - _home) / (1 - _home)).clamp(0.0, 1.0) : 1,
+                                  child: glow,
+                                ),
+                                child: Container(
+                                  width: 226,
+                                  height: 226,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: RadialGradient(
+                                      colors: [_glow, _glow, _glow.withValues(alpha: 0)],
+                                      stops: const [0, .5, 1],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            _ShadowedFlake(f, size: 170),
+                          ]),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              ),
+            ),
+            // Room for the witch's hat under the flakes.
+            SizedBox(height: pad.bottom + 190),
+          ]),
+        ),
+        // The player's witch, at the foot of the screen, over the carousel
+        // (taking no touches): 90% of the screen's width, in the middle.
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: IgnorePointer(
+            child: FractionallySizedBox(
+              widthFactor: .9,
+              child: Stack(children: [
+              // The hands, the one picture (the right hand) and its mirror for the
+              // left, each turning a little about its shoulder (at the picture's
+              // foot): the two in mirror, swaying apart and together; behind the
+              // witch.
+              for (final mirrored in const [true, false])
+                Transform.flip(
+                  flipX: mirrored,
+                  child: AnimatedBuilder(
+                    animation: _sway,
+                    builder: (_, child) => Transform.rotate(
+                      angle: _swayAngle * math.sin(_sway.value * 2 * math.pi),
+                      alignment: _shoulder,
+                      child: child,
+                    ),
+                    child: Image.asset(_hand, fit: BoxFit.fitWidth),
+                  ),
+                ),
+              Image.asset(_witch, fit: BoxFit.fitWidth),
+              ]),
+            ),
+          ),
+        ),
+        _flight(),
+      ]),
+    );
+  }
+
+  static const _bg = Color(0xFFEECDFF);
+
+  /// The event's purple, as in its titles.
+  static const _ink = Color(0xFF7B3FD1);
+
+  /// The glow round a flake already cut.
+  static const _glow = Color(0xFF3DFF6E);
+  static const _witch = 'assets/Halloween_Event_Fight_Player.png';
+  static const _hand = 'assets/Halloween_Event_Fight_Player_Hand.png';
+
+  /// Where the hand's picture meets the witch's shoulder, which it turns about.
+  static const _shoulder = Alignment(.75, 1);
+
+  /// How far the hands sway either way: 3°.
+  static const _swayAngle = 3 * math.pi / 180;
+  static const _bossPicture = 'assets/Halloween_Event_Fight_Boss.png';
 }
 
 /// A chevron pointing left (`step` −1) or right (+1), red on a white halo
@@ -1334,8 +1780,16 @@ class _PaperSwatchPainter extends CustomPainter {
     // The pattern tile is a bitmap: lay it out in device pixels so it stays crisp.
     canvas.save();
     canvas.scale(1 / dpr);
-    final rr = RRect.fromRectAndRadius(Offset.zero & size * dpr, Radius.circular(_radius * dpr));
-    canvas.drawRRect(rr, makePaperFill(color, pattern, 100 * dpr));
+    var rr = RRect.fromRectAndRadius(Offset.zero & size * dpr, Radius.circular(_radius * dpr));
+    if (gradientHues.containsKey(pattern)) {
+      // The whole run of colours on the swatch: the sheet's middle at its
+      // middle, and its top and bottom at the swatch's.
+      canvas.translate(rr.width / 2, rr.height / 2);
+      rr = rr.shift(Offset(-rr.width / 2, -rr.height / 2));
+      canvas.drawRRect(rr, makePaperFill(color, pattern, rr.height / 2));
+    } else {
+      canvas.drawRRect(rr, makePaperFill(color, pattern, 100 * dpr));
+    }
     final tw = twinkle;
     if (tw != null && pattern == 'sparkle') {
       canvas.clipRRect(rr);

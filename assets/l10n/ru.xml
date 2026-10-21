@@ -34,9 +34,10 @@
   <string name="undo">Отменить</string>
   <string name="redo">Вернуть</string>
   <string name="unfold">Раскрыть</string>
+  <string name="duel_title">Победите Пса</string>
   <string name="pick_flake">Выберите снежинку</string>
   <string name="event_repeat">Повторить снежинку</string>
-  <string name="event_halloween">Хэллоуинская снежинка</string>
+  <string name="event_halloween">Хэллоуинская дуэль</string>
 
   <!-- Трафареты -->
   <string name="stencil_star">Звезда</string>
@@ -82,6 +83,8 @@
   <string name="pattern_holo">Голограмма</string>
   <string name="pattern_butterflies">Бабочки</string>
   <string name="pattern_knit">Вязка</string>
+  <string name="pattern_gradient">Градиент</string>
+  <string name="pattern_analogous">Оттенки</string>
 
   <!-- Раскрытие -->
   <string name="unfolding">Раскрываем…</string>

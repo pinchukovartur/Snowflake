@@ -34,9 +34,10 @@
   <string name="undo">Undo</string>
   <string name="redo">Redo</string>
   <string name="unfold">Unfold</string>
+  <string name="duel_title">Defeat the Dog</string>
   <string name="pick_flake">Pick a snowflake</string>
   <string name="event_repeat">Repeat the snowflake</string>
-  <string name="event_halloween">Halloween snowflake</string>
+  <string name="event_halloween">Halloween duel</string>
 
   <!-- Stencils -->
   <string name="stencil_star">Star</string>
@@ -82,6 +83,8 @@
   <string name="pattern_holo">Hologram</string>
   <string name="pattern_butterflies">Butterflies</string>
   <string name="pattern_knit">Knit</string>
+  <string name="pattern_gradient">Gradient</string>
+  <string name="pattern_analogous">Hues</string>
 
   <!-- Reveal -->
   <string name="unfolding">Unfolding…</string>

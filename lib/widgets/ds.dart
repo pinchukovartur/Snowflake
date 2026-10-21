@@ -8,7 +8,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../l10n.dart';
 import '../theme/tokens.dart';
 
-// ---- Buttons -------------------------------------------------------------
+// ---- Buttons -------------------------------------К------------------------
 
 enum Variant { primary, secondary, reward, success, light, soft, orange, dark, clear }
 
