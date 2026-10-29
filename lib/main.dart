@@ -10,8 +10,8 @@ import 'screens/gallery_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/reveal_screen.dart';
 import 'snowflake/geometry.dart';
-import 'sound.dart';
 import 'snowflake/svg_flakes.dart';
+import 'sound.dart';
 import 'theme/tokens.dart';
 
 Future<void> main() async {

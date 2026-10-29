@@ -42,7 +42,7 @@ class HomeScreen extends StatefulWidget {
   /// still to fill, and it appears there (see [freePane]).
   final SavedFlake? arriving;
 
-  /// Called once [arriving] hangs.
+  /// Called as soon as the screen takes [arriving] in hand.
   final VoidCallback? onArrived;
 
   /// The first pane in [game]'s window still to fill (a plus, not glass left
@@ -94,24 +94,33 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// The title shows once per launch: fades in, holds a couple of seconds and
   /// fades away, leaving the window clear.
   late final bool _showTitle = !widget.game.titleShown;
-  late final _title = AnimationController(vsync: this, duration: const Duration(milliseconds: 5000));
+  late final _title = AnimationController(vsync: this, duration: const Duration(milliseconds: _titleIn + _titleHold + _titleOut));
   late final _titleOpacity = _title.drive(TweenSequence([
-    TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.easeOut)), weight: 400),
-    TweenSequenceItem(tween: ConstantTween(1.0), weight: 4000),
-    TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0).chain(CurveTween(curve: Curves.easeIn)), weight: 600),
+    TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.easeOut)), weight: _titleIn.toDouble()),
+    TweenSequenceItem(tween: ConstantTween(1.0), weight: _titleHold.toDouble()),
+    TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0).chain(CurveTween(curve: Curves.easeIn)), weight: _titleOut.toDouble()),
   ]));
 
-  /// The panes' pluses, fading in as the title fades out (its last 600 of
-  /// 5000 ms); there all along when the title isn't shown.
-  late final Animation<double> _plusOpacity =
-      _showTitle ? CurvedAnimation(parent: _title, curve: const Interval(4400 / 5000, 1, curve: Curves.easeOut)) : const AlwaysStoppedAnimation(1.0);
+  /// The title's fade in, hold and fade out, in ms.
+  static const _titleIn = 400, _titleHold = 4000, _titleOut = 600;
+
+  /// The panes' pluses, fading in as the title fades out; there all along
+  /// when the title isn't shown.
+  late final Animation<double> _plusOpacity = _showTitle
+      ? CurvedAnimation(parent: _title, curve: const Interval((_titleIn + _titleHold) / (_titleIn + _titleHold + _titleOut), 1, curve: Curves.easeOut))
+      : const AlwaysStoppedAnimation(1.0);
 
   @override
   void initState() {
     super.initState();
     final f = widget.arriving;
-    // Once the screen has come in and the window is laid out.
-    if (f != null) Future.delayed(const Duration(milliseconds: 250), () => _hangArriving(f));
+    if (f != null) {
+      // Taken in hand at once, so it never comes again on a later visit, even
+      // if it can't be hung after all.
+      widget.onArrived?.call();
+      // Once the screen has come in and the window is laid out.
+      Future.delayed(const Duration(milliseconds: 250), () => _hangArriving(f));
+    }
     if (_showTitle) {
       widget.game.titleShown = true;
       _title.forward().whenComplete(() {
@@ -138,9 +147,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final r = WindowFrame.paneRects(_frame, _rows)[pane];
     final target = (r.center.dy - _viewHeight / 2).clamp(0.0, _scroll.position.maxScrollExtent);
     await _scroll.animateTo(target, duration: const Duration(milliseconds: 600), curve: Curves.easeInOutCubic);
-    if (!mounted) return;
-    _hangInto(pane, f);
-    widget.onArrived?.call();
+    if (mounted) _hangInto(pane, f);
   }
 
   /// Hangs [f] in [pane], growing into it.

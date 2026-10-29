@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/material.dart';
 
 import '../theme/tokens.dart';
@@ -562,6 +563,6 @@ class SnowflakePainter extends CustomPainter {
       o.spin != spin ||
       o.twinkle != twinkle ||
       o.shading != shading ||
-      o.segments != segments ||
+      !setEquals(o.segments, segments) ||
       o.dpr != dpr;
 }
