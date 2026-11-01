@@ -13,6 +13,8 @@
   <string name="home_subtitle">Fold. Cut. Unfold.</string>
   <string name="play">Play</string>
   <string name="my_collection">My collection</string>
+  <string name="whole_window">Whole window</string>
+  <string name="zoom_in">Zoom in</string>
   <string name="settings">Settings</string>
   <string name="sounds">Sounds</string>
   <string name="vibration">Vibration</string>
@@ -34,6 +36,8 @@
   <string name="undo">Undo</string>
   <string name="redo">Redo</string>
   <string name="unfold">Unfold</string>
+  <string name="duel_won_title">Congratulations!</string>
+  <string name="duel_won_subtitle">The boss's snowflake is yours now!</string>
   <string name="duel_title">Defeat the Dog</string>
   <string name="pick_flake">Pick a snowflake</string>
   <string name="event_repeat">Repeat the snowflake</string>

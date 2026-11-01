@@ -871,8 +871,7 @@ const _events = [
     title: 'event_halloween',
     image: 'assets/Halloween_Event_Ico.png',
     loud: true,
-    // A stand-in, till the boss's own flake is drawn.
-    boss: (preset: 'chevrons', folds: 6, color: Color(0xFF1E1F26), pattern: 'plain'),
+    boss: (preset: 'halloween_boss', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
     window: _duelWindow,
     // One for each of the boss flake's twelve cones.
     flakes: [
@@ -1278,7 +1277,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
     // The cones fall as the flake gets there.
     _fly.addListener(() {
       if (_fly.value >= _arrive && _blow.isDismissed) {
-        _blow.forward();
+        _strike();
         // Felt as it strikes, if the player wants that.
         if (widget.game.vibration) HapticFeedback.mediumImpact();
       }
@@ -1293,9 +1292,90 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
       });
     } else if (_before < _hits) {
       Future.delayed(const Duration(milliseconds: 400), () {
-        if (mounted) _blow.forward();
+        if (mounted) _strike();
       });
     }
+  }
+
+  /// A blow lands: the cones it knocks off start to fall; with the last of
+  /// them, the duel is won (see [_showVictory]).
+  void _strike() {
+    _blow.forward();
+    if (_hits == widget.flakes.length) {
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) _showVictory();
+      });
+    }
+  }
+
+  /// The dark purple glow round the boss's flake, filling its box: growing
+  /// and shrinking in step with the flake bobbing, biggest as it rises
+  /// highest; fading out with the last cone, and gone once that has.
+  Widget _bossGlowDisc() => AnimatedBuilder(
+        animation: Listenable.merge([_bob, _blow]),
+        builder: (_, glow) => Opacity(
+          opacity: _hits < widget.flakes.length ? 1 : (_before < _hits ? 1 - _blow.value : 0),
+          child: Transform.scale(
+            // The bob's offset is down at +sin: the glow swells as it goes up.
+            scale: 1 - _pulseScale * math.sin(_bob.value * 2 * math.pi),
+            child: glow,
+          ),
+        ),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: RadialGradient(
+              colors: [_bossGlow, _bossGlow, _bossGlow.withValues(alpha: 0)],
+              stops: const [0, .5, 1],
+            ),
+          ),
+        ),
+      );
+
+  /// How far the boss's glow reaches round its flake, as a share of the
+  /// flake's size: 81% of the green one's round the carousel's flakes (226
+  /// round 170).
+  static const _bossGlowReach = 226 / 170 * .81;
+
+  /// The duel won: the boss's flake, whole and now the player's (kept in the
+  /// collection), over the window dimmed; a tap anywhere closes it and the
+  /// window both.
+  void _showVictory() {
+    final b = widget.boss;
+    widget.game.keep(SavedFlake(cuts: snowflakePresets[b.preset] ?? const [], folds: b.folds, color: b.color, pattern: b.pattern));
+    showGeneralDialog(
+      context: context,
+      barrierColor: const Color(0xB3101A3F),
+      transitionDuration: const Duration(milliseconds: 300),
+      transitionBuilder: (_, anim, _, child) => FadeTransition(
+        opacity: anim,
+        child: ScaleTransition(scale: Tween(begin: .9, end: 1.0).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutBack)), child: child),
+      ),
+      pageBuilder: (ctx, _, _) => Material(
+        type: MaterialType.transparency,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            Navigator.pop(ctx);
+            Navigator.pop(context);
+          },
+          child: SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  _EventTitle(tr('duel_won_title'), loud: true, size: 36, maxLines: 1),
+                  const SizedBox(height: 8),
+                  Text(tr('duel_won_subtitle'), textAlign: TextAlign.center, style: display(20, color: Colors.white, shadows: drop(3))),
+                  const SizedBox(height: 28),
+                  FlakeShadow(size: 280, child: SnowflakeView(preset: b.preset, folds: b.folds, color: b.color, pattern: b.pattern, size: 280)),
+                ]),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -1418,7 +1498,8 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
               height: 300,
               child: LayoutBuilder(builder: (_, c) {
                 final size = math.min(204.0, c.maxWidth * .5);
-                return Stack(children: [
+                // Its glow free to spill out past the bottom.
+                return Stack(clipBehavior: Clip.none, children: [
                   // The boss in the middle; its flake held before it, low and a
                   // little to the right, like a shield.
                   Positioned(
@@ -1440,7 +1521,16 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                         offset: Offset(0, _bobHeight * math.sin(_bob.value * 2 * math.pi)),
                         child: child,
                       ),
-                      child: GestureDetector(
+                      child: Stack(clipBehavior: Clip.none, children: [
+                      // Over its glow.
+                      Positioned.fill(
+                        left: -size * (_bossGlowReach - 1) / 2,
+                        top: -size * (_bossGlowReach - 1) / 2,
+                        right: -size * (_bossGlowReach - 1) / 2,
+                        bottom: -size * (_bossGlowReach - 1) / 2,
+                        child: IgnorePointer(child: _bossGlowDisc()),
+                      ),
+                      GestureDetector(
                         key: _bossKey,
                         onTap: duelCheat ? _cheatHit : null,
                         child: FlakeShadow(
@@ -1471,6 +1561,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                           ),
                         ),
                       ),
+                      ]),
                     ),
                   ),
                 ]);
@@ -1501,7 +1592,13 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                       ),
                     ),
                     const SizedBox(width: 10),
-                    _EventTitle('$_hits/$n', loud: true, size: 20, maxLines: 1),
+                    // As wide as the widest count it can show, whatever it shows
+                    // now, so the bar beside it keeps still as it changes.
+                    IndexedStack(
+                      index: _hits,
+                      alignment: Alignment.center,
+                      children: [for (var k = 0; k <= n; k++) _EventTitle('$k/$n', loud: true, size: 20, maxLines: 1)],
+                    ),
                   ]);
                 },
               ),
@@ -1635,6 +1732,9 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
 
   /// The glow round a flake already cut.
   static const _glow = Color(0xFF3DFF6E);
+
+  /// The glow round the boss's flake in the duel.
+  static const _bossGlow = Color(0xFF5A1FA8);
   static const _witch = 'assets/Halloween_Event_Fight_Player.png';
   static const _hand = 'assets/Halloween_Event_Fight_Player_Hand.png';
 

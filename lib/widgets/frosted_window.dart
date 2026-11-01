@@ -59,6 +59,97 @@ class WindowFrame extends StatelessWidget {
   }
 }
 
+/// A glass dome roofing [windows] [WindowFrame]s side by side, filling its
+/// box (as wide as they are, and [heightFor] tall): half an ellipse rising
+/// from their tops, glazed between wooden bars, a rib curving up to the top
+/// from each sash's edge (broad where two windows meet), and two rings round
+/// it.
+class WindowDome extends StatelessWidget {
+  const WindowDome({super.key, required this.windows});
+  final int windows;
+
+  /// The dome's height over windows each [windowWidth] wide.
+  static double heightFor(double windowWidth) => windowWidth * .9;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(child: CustomPaint(painter: _DomePainter(windows), size: Size.infinite));
+}
+
+/// The heights of the dome's rings, as shares of its own.
+const _domeRings = [.32, .64];
+
+class _DomePainter extends CustomPainter {
+  _DomePainter(this.windows);
+  final int windows;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = Offset(size.width / 2, size.height);
+    final a = size.width / 2, b = size.height;
+    Rect oval(double halfWidth) => Rect.fromCenter(center: c, width: 2 * halfWidth, height: 2 * b);
+    final shell = Path()
+      ..addArc(oval(a), math.pi, math.pi)
+      ..close();
+    canvas.save();
+    canvas.clipPath(shell);
+    // The glass: the view through it, with the light on it the windows have.
+    canvas.drawRect(Offset.zero & size, Paint()..shader = _sheen.createShader(Offset.zero & size));
+    // The rings, straight across seen from the front.
+    for (final f in _domeRings) {
+      final half = a * math.sqrt(1 - f * f);
+      _FramePainter._woodBar(canvas, Rect.fromCenter(center: Offset(c.dx, b - b * f), width: 2 * half, height: _bar));
+    }
+    // The ribs, from the edge of every sash up to the top: wood with a lit
+    // edge on the left and a shaded one on the right.
+    const w = 1.5;
+    for (var i = 1; i < 2 * windows; i++) {
+      final x = size.width * i / (2 * windows);
+      final rib = (x - c.dx).abs() < 1
+          ? (Path()
+            ..moveTo(c.dx, b)
+            ..lineTo(c.dx, 0))
+          : (Path()..addArc(oval((x - c.dx).abs()), x < c.dx ? math.pi : 1.5 * math.pi, math.pi / 2));
+      // Where two windows meet, as wide as the two casings side by side there.
+      final width = i % 2 == 0 ? 2 * _casing : _bar;
+      canvas.drawPath(rib, Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width
+        ..color = _wood);
+      for (final (dx, color) in [(-(width - w) / 2, _woodLight), ((width - w) / 2, _woodDark)]) {
+        canvas.drawPath(rib.shift(Offset(dx, 0)), Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = w
+          ..color = color);
+      }
+    }
+    // Its rim: wood as wide as the windows' casing, stepping down into the glass.
+    final rim = Path()..addArc(oval(a), math.pi, math.pi);
+    canvas.drawPath(rim, Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2 * _casing
+      ..color = _wood);
+    canvas.drawPath(
+      Path()..addArc(Rect.fromCenter(center: c, width: 2 * (a - _casing), height: 2 * (b - _casing)), math.pi, math.pi),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3
+        ..color = _woodDark,
+    );
+    canvas.restore();
+    // Lit along its outer edge.
+    canvas.drawPath(
+      Path()..addArc(oval(a - w / 2), math.pi, math.pi),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w
+        ..color = _woodLight,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_DomePainter oldDelegate) => oldDelegate.windows != windows;
+}
+
 /// Solid wood below a [WindowFrame] with `onSill`: the casing carried on
 /// down, bevelled at the sides like it.
 class WindowSill extends StatelessWidget {

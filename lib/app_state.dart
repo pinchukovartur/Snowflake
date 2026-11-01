@@ -206,6 +206,11 @@ class GameState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Adds [f] to the collection, unless one just like it is there already.
+  void keep(SavedFlake f) {
+    if (_inCollection(f, jsonEncode(f.toJson())) == null) save(f);
+  }
+
   /// Deletes [f] for good, as the player asked: out of the collection, and,
   /// if it is the [last] one unfolded, no more offered to add back (unlike
   /// [remove], which "Done"'s toggle uses and may undo).

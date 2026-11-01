@@ -48,7 +48,7 @@ class HomeScreen extends StatefulWidget {
   /// The first pane in [game]'s window still to fill (a plus, not glass left
   /// clear on purpose), or null when every one is.
   static int? freePane(GameState game) {
-    for (var i = 0; i < HomeScreenState._rows * 2; i++) {
+    for (var i = 0; i < HomeScreenState._panes; i++) {
       if (!game.window.containsKey(i)) return i;
     }
     return null;
@@ -61,7 +61,11 @@ class HomeScreen extends StatefulWidget {
 class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late final _ticker = AnimationController(vsync: this, duration: const Duration(hours: 1))..forward();
 
-  final _scroll = ScrollController();
+  /// Where the windows have been panned to (only ever moved, never zoomed).
+  final _view = TransformationController();
+
+  /// The windows panned for the player: see [_panTo].
+  late final _pan = AnimationController(vsync: this);
 
   /// The collection, sliding up from the bottom to pick a flake for a pane:
   /// 1 all the way up. Linear, so a finger dragging it down moves it in step;
@@ -80,9 +84,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// scroll up clear of it: there while it is open and until it has gone.
   bool _sheetRoom = false;
 
-  /// The frame and the screen it scrolls in, as last laid out.
+  /// One window's frame and the screen they pan in, as last laid out.
   Size _frame = Size.zero;
-  double _viewHeight = 0;
+  double _viewWidth = 0, _viewHeight = 0;
 
   /// The collection covers the lower half of the screen.
   double get _sheetHeight => _viewHeight * .5;
@@ -133,7 +137,8 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void dispose() {
     _ticker.dispose();
     _title.dispose();
-    _scroll.dispose();
+    _view.dispose();
+    _pan.dispose();
     _sheet.dispose();
     _arrive.dispose();
     super.dispose();
@@ -143,10 +148,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// screen, then hangs [f] there, growing into it.
   Future<void> _hangArriving(SavedFlake f) async {
     final pane = HomeScreen.freePane(widget.game);
-    if (!mounted || pane == null || !_scroll.hasClients) return;
-    final r = WindowFrame.paneRects(_frame, _rows)[pane];
-    final target = (r.center.dy - _viewHeight / 2).clamp(0.0, _scroll.position.maxScrollExtent);
-    await _scroll.animateTo(target, duration: const Duration(milliseconds: 600), curve: Curves.easeInOutCubic);
+    if (!mounted || pane == null || _frame.isEmpty) return;
+    final r = _paneOnView(_frame, pane);
+    await _panTo(r.center - Offset(_viewWidth / 2, _viewHeight / 2), const Duration(milliseconds: 600), Curves.easeInOutCubic);
     if (mounted) _hangInto(pane, f);
   }
 
@@ -196,8 +200,75 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   bool get _titleUp => _showTitle && !_title.isCompleted;
 
-  /// Pane rows in each sash of the window, in bands of three.
-  static const _rows = 24;
+  /// Windows side by side, each as wide as the screen, with an arch of its own
+  /// over its two sashes; pane rows in each sash, in bands of three.
+  static const _windows = 3, _rows = 8;
+
+  /// Panes in all: numbered window by window, then (as in a window of its
+  /// own) row by row from the top, left sash first. So the first window's
+  /// panes come first, as when there was just the one, twenty-four rows deep.
+  static const _panes = _windows * _rows * 2;
+
+  /// Pane [i]'s glass, in the frame of all the windows, each [frame] in size.
+  static Rect _paneRect(Size frame, int i) =>
+      WindowFrame.paneRects(frame, _rows)[i % (_rows * 2)].shift(Offset(i ~/ (_rows * 2) * frame.width, 0));
+
+  /// Pane [i]'s glass as panned about: under the dome over the windows.
+  static Rect _paneOnView(Size frame, int i) => _paneRect(frame, i).shift(Offset(0, WindowDome.heightFor(frame.width)));
+
+  /// The windows have been laid out once, and panned to start just under the
+  /// dome, the first one's top at the top of the screen, as before it.
+  bool _placed = false;
+
+  /// The sill under the windows: as tall as the buttons, so the bottom row
+  /// can come up clear of them.
+  double get _sillHeight => _buttonsHeight + 16 + MediaQuery.paddingOf(context).bottom;
+
+  /// How far the windows can be panned each way, from the top left.
+  Offset get _panReach => Offset(
+        math.max(0, _windows * _frame.width - _viewWidth),
+        math.max(0, WindowDome.heightFor(_frame.width) + _frame.height + _sillHeight + (_sheetRoom ? _sheetHeight : 0) - _viewHeight),
+      );
+
+  /// How far the windows are panned, from the top left.
+  Offset get _panned {
+    final t = _view.value.getTranslation();
+    return Offset(-t.x, -t.y);
+  }
+
+  /// Pans the windows so [to] (as near as they reach) is at the screen's top
+  /// left, at their full size.
+  Future<void> _panTo(Offset to, Duration duration, Curve curve) {
+    final reach = _panReach;
+    return _viewTo(1, -Offset(to.dx.clamp(0.0, reach.dx), to.dy.clamp(0.0, reach.dy)), duration, curve);
+  }
+
+  /// Brings the windows to [scale], their top left at [shift] on the screen:
+  /// the point of them in the middle of the screen gliding straight to the
+  /// one that ends there, and the scale changing evenly (by ratio, not by
+  /// difference), so a zoom heads for where it lands rather than swinging
+  /// about a corner.
+  Future<void> _viewTo(double scale, Offset shift, Duration duration, Curve curve) {
+    final from = _view.value, t = from.getTranslation();
+    // Along x (not getMaxScaleOnAxis, which counts the depth's 1 too).
+    final scaleFrom = from.entry(0, 0);
+    final middle = Offset(_viewWidth / 2, _viewHeight / 2);
+    // The windows' points in the middle of the screen, now and at the end.
+    final aimFrom = (middle - Offset(t.x, t.y)) / scaleFrom, aim = (middle - shift) / scale;
+    final ease = CurveTween(curve: curve);
+    void move() {
+      final v = ease.transform(_pan.value);
+      final k = scaleFrom * math.pow(scale / scaleFrom, v);
+      final o = middle - Offset.lerp(aimFrom, aim, v)! * k;
+      _view.value = Matrix4.translationValues(o.dx, o.dy, 0)..scaleByDouble(k, k, 1, 1);
+    }
+
+    _pan
+      ..stop()
+      ..duration = duration
+      ..addListener(move);
+    return _pan.forward(from: 0).whenComplete(() => _pan.removeListener(move));
+  }
 
   /// The panes are as tall as when eight rows filled two screens.
   static double _frameHeight(Size view) =>
@@ -223,11 +294,10 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// Scrolls the window so [pane] sits in the upper half, between the
   /// settings button and the collection.
   void _bringUp(int pane) {
-    if (!mounted || !_scroll.hasClients) return;
-    final r = WindowFrame.paneRects(_frame, _rows)[pane];
+    if (!mounted || _frame.isEmpty) return;
+    final r = _paneOnView(_frame, pane);
     final top = MediaQuery.paddingOf(context).top + 64;
-    final target = r.center.dy - (top + _viewHeight - _sheetHeight) / 2;
-    _scroll.animateTo(target.clamp(0.0, _scroll.position.maxScrollExtent), duration: const Duration(milliseconds: 350), curve: Curves.easeOutCubic);
+    _panTo(Offset(r.center.dx - _viewWidth / 2, r.center.dy - (top + _viewHeight - _sheetHeight) / 2), const Duration(milliseconds: 350), Curves.easeOutCubic);
   }
 
   /// Closes the collection, if open; the window stays where it was scrolled,
@@ -236,10 +306,8 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _closePicker() {
     if (_picking == null) return false;
     setState(() => _picking = null);
-    if (_scroll.hasClients) {
-      final reach = math.max(0.0, _scroll.position.maxScrollExtent - _sheetHeight);
-      if (_scroll.offset > reach) _scroll.animateTo(reach, duration: _sheetTime, curve: Curves.easeInOutCubic);
-    }
+    final reach = math.max(0.0, _panReach.dy - _sheetHeight);
+    if (_panned.dy > reach) _panTo(Offset(_panned.dx, reach), _sheetTime, Curves.easeInOutCubic);
     _sheet.animateBack(0, curve: Curves.easeInCubic).whenComplete(() {
       if (mounted && _picking == null) setState(() => _sheetRoom = false);
     });
@@ -264,7 +332,47 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   /// The system back button: closes the collection if it is open, and says
   /// whether it did (if not, the back is the app's to handle).
-  bool handleBack() => _closePicker();
+  bool handleBack() => _closePicker() || _leaveOverview();
+
+  /// All the windows shown at once, small, to see the whole of them: panning
+  /// is off, and a tap on a pane brings the windows back to full size there.
+  bool _overview = false;
+
+  /// Where the windows were panned before the overview, to go back to.
+  Offset _beforeOverview = Offset.zero;
+
+  static const _overviewTime = Duration(milliseconds: 450);
+
+  /// Shrinks the windows to fit between the top bar and the buttons, in the
+  /// middle; or, shown so already, brings them back as they were.
+  void _toggleOverview() {
+    if (_leaveOverview()) return;
+    if (_frame.isEmpty) return;
+    _closePicker();
+    final pad = MediaQuery.paddingOf(context);
+    final top = pad.top + 64, bottom = _viewHeight - _buttonsHeight - pad.bottom;
+    final width = _windows * _frame.width;
+    // The windows fitted in, the dome over them going up off the screen.
+    final scale = math.min(_viewWidth / width, (bottom - top) / _frame.height);
+    final windowsTop = top + (bottom - top - _frame.height * scale) / 2;
+    _beforeOverview = _panned;
+    setState(() => _overview = true);
+    _viewTo(scale, Offset((_viewWidth - width * scale) / 2, windowsTop - WindowDome.heightFor(_frame.width) * scale), _overviewTime, Curves.easeInOutCubic);
+  }
+
+  /// Back from the overview to where the windows were; whether it was up.
+  bool _leaveOverview() {
+    if (!_overview) return false;
+    setState(() => _overview = false);
+    _panTo(_beforeOverview, _overviewTime, Curves.easeInOutCubic);
+    return true;
+  }
+
+  /// Back from the overview to full size, with pane [i] in the middle.
+  void _zoomInTo(int i) {
+    setState(() => _overview = false);
+    _panTo(_paneOnView(_frame, i).center - Offset(_viewWidth / 2, _viewHeight / 2), _overviewTime, Curves.easeInOutCubic);
+  }
 
 
   /// The Play and Collection buttons with their gap and bottom padding:
@@ -309,44 +417,65 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                 ),
         ),
-        // The view outside stays put; the frame, taller than the screen, scrolls
-        // past with the title on its top half, and a sill under it as tall
-        // as the buttons, so the bottom row can come up clear of them.
+        // The view outside stays put; the windows, wider and taller than the
+        // screen, pan past in any direction with the title on the first one's
+        // top half, and the sill under them. They stop dead at the edges.
         Positioned.fill(
-          // Stops dead at either end: no overscroll stretch or glow.
-          child: ScrollConfiguration(
-            behavior: ScrollConfiguration.of(context).copyWith(overscroll: false),
-            child: LayoutBuilder(
-              builder: (_, c) {
-                final frame = Size(c.maxWidth, _frameHeight(c.biggest));
-                _frame = frame;
-                _viewHeight = c.maxHeight;
-                return SingleChildScrollView(
-                  controller: _scroll,
-                  // With the collection open, a tap on the frame or sill closes it
-                  // (a pane takes its own taps, moving the choice to it).
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: _picking == null ? null : _closePicker,
+          child: LayoutBuilder(
+            builder: (_, c) {
+              final frame = Size(c.maxWidth, _frameHeight(c.biggest));
+              _frame = frame;
+              _viewWidth = c.maxWidth;
+              _viewHeight = c.maxHeight;
+              if (!_placed) {
+                _placed = true;
+                _view.value = Matrix4.translationValues(0, -WindowDome.heightFor(frame.width), 0);
+              }
+              return InteractiveViewer(
+                transformationController: _view,
+                constrained: false,
+                scaleEnabled: false,
+                // Still in the overview: the whole of them is in sight.
+                panEnabled: !_overview,
+                boundaryMargin: EdgeInsets.zero,
+                // A finger on the glass takes over from a pan under way.
+                onInteractionStart: (_) => _pan.stop(),
+                // With the collection open, a tap on a frame or the sill closes it
+                // (a pane takes its own taps, moving the choice to it).
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _picking == null ? null : _closePicker,
+                  child: SizedBox(
+                    width: _windows * frame.width,
                     child: Column(children: [
+                    // A dome roofing the windows, above the screen at first.
+                    SizedBox(height: WindowDome.heightFor(frame.width), child: const WindowDome(windows: _windows)),
                     SizedBox(
                       height: frame.height,
                       child: Stack(children: [
-                        const Positioned.fill(child: WindowFrame(rows: _rows, onSill: true, snow: season == Season.winter)),
+                        for (var w = 0; w < _windows; w++)
+                          Positioned(
+                            left: w * frame.width,
+                            top: 0,
+                            width: frame.width,
+                            height: frame.height,
+                            child: const WindowFrame(rows: _rows, onSill: true, snow: season == Season.winter),
+                          ),
                         // Each pane holds a flake from the collection, or a plus to
-                        // hang one; the title, while up, shows over the top row.
-                        for (final (i, pane) in WindowFrame.paneRects(frame, _rows).indexed)
+                        // hang one; the title, while up, shows over the first
+                        // window's top row.
+                        for (var i = 0; i < _panes; i++)
                           Positioned.fromRect(
-                            rect: pane,
+                            rect: _paneRect(frame, i),
                             child: _arriving(
                               i,
-                              _Pane(flake: g.window[i], clear: g.window.containsKey(i) && g.window[i] == null, plusOpacity: _plusOpacity, onTap: () => _pick(i)),
+                              _Pane(flake: g.window[i], clear: g.window.containsKey(i) && g.window[i] == null, plusOpacity: _plusOpacity, onTap: () => _overview ? _zoomInTo(i) : _pick(i)),
                             ),
                           ),
                         // The pane being picked for, outlined.
                         if (_picking case final p?)
                           Positioned.fromRect(
-                            rect: WindowFrame.paneRects(frame, _rows)[p],
+                            rect: _paneRect(frame, p),
                             child: IgnorePointer(
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
@@ -359,7 +488,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         if (_titleUp)
                           Positioned(
                             left: 0,
-                            right: 0,
+                            width: frame.width,
                             // Centred in the top pane under the arch, clear of the bars.
                             top: WindowFrame.paneMiddle(frame, _rows, 0),
                             child: FractionalTranslation(
@@ -398,13 +527,13 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           ),
                       ]),
                     ),
-                    SizedBox(height: _buttonsHeight + 16 + bottomInset, child: const WindowSill()),
+                    SizedBox(height: _sillHeight, child: const WindowSill()),
                     if (_sheetRoom) SizedBox(height: _sheetHeight),
                   ]),
                   ),
-                );
-              },
-            ),
+                ),
+              );
+            },
           ),
         ),
         // Shade behind the buttons, fading out above them; the snow there is
@@ -436,6 +565,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   children: [
                     if (_showCoins) CurrencyPill(amount: g.coins),
                     const Spacer(),
+                    // All the windows at once, small, and back.
+                    BarBtn(_overview ? LucideIcons.zoomIn : LucideIcons.zoomOut, label: tr(_overview ? 'zoom_in' : 'whole_window'), onTap: _toggleOverview),
+                    const SizedBox(width: 8),
                     BarBtn(LucideIcons.settings, label: tr('settings'), onTap: _openSettings),
                   ],
                 ),
