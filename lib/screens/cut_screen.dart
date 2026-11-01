@@ -532,9 +532,10 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                     ),
                                   ),
                                 ),
-                                // For testing (see [detachReadout]): how the last cut weighed the
-                                // paper's pieces, at the bottom left.
-                                if (detachReadout && lastWeighing != null)
+                                // For testing (see [detachReadout]): how the cut that made the
+                                // paper as it is weighed its pieces, at the bottom left; none
+                                // once a step is undone past it.
+                                if (detachReadout && identical(lastWeighing?.cuts, _cuts))
                                   Positioned(
                                     left: 16,
                                     bottom: _toolsH + 8,
@@ -1211,7 +1212,9 @@ class _RepeatWindow extends _EventWindow {
 /// its flake at the top, a cone gone for each of the event's flakes cut;
 /// below, the flakes in a carousel (those cut glowing), the one in the middle
 /// picked with a tap; the player's witch at the foot. Cones knocked off since
-/// it was last open fade away as it opens.
+/// it was last open fade away as it opens, the boss's flake over a dark
+/// purple glow that goes with the last of them; then the duel is won (see
+/// [_DuelWindowState._showVictory]).
 class _DuelWindow extends StatefulWidget {
   const _DuelWindow({required this.flakes, required this.boss, required this.game});
   final List<_EventFlake> flakes;
@@ -1317,7 +1320,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
           opacity: _hits < widget.flakes.length ? 1 : (_before < _hits ? 1 - _blow.value : 0),
           child: Transform.scale(
             // The bob's offset is down at +sin: the glow swells as it goes up.
-            scale: 1 - _pulseScale * math.sin(_bob.value * 2 * math.pi),
+            scale: 1 - _bossGlowSwell * math.sin(_bob.value * 2 * math.pi),
             child: glow,
           ),
         ),
@@ -1336,6 +1339,10 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
   /// flake's size: 81% of the green one's round the carousel's flakes (226
   /// round 170).
   static const _bossGlowReach = 226 / 170 * .81;
+
+  /// How far the boss's glow grows and shrinks either way, as a share of its
+  /// size.
+  static const _bossGlowSwell = .06;
 
   /// The duel won: the boss's flake, whole and now the player's (kept in the
   /// collection), over the window dimmed; a tap anywhere closes it and the
@@ -1813,7 +1820,7 @@ class _BounceState extends State<_Bounce> with SingleTickerProviderStateMixin {
 /// the weight that makes; those that fell in red, the one that stayed in green.
 class _WeighingReadout extends StatelessWidget {
   const _WeighingReadout(this.weighing);
-  final ({List<PieceWeight> fell, PieceWeight? kept}) weighing;
+  final ({List<Cut> cuts, List<PieceWeight> fell, PieceWeight? kept}) weighing;
 
   @override
   Widget build(BuildContext context) {

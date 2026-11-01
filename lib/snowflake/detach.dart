@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
+
 import 'geometry.dart';
 
 /// Raster cell in wedge units: about a pixel on the cut board.
@@ -15,9 +17,10 @@ const _pad = 0.007;
 /// (in %), and how many times over it shows unfolded, all in one piece.
 typedef PieceWeight = ({double share, int times});
 
-/// What the last call to [detachedPieces] weighed: the pieces that fell, and
-/// the one that stayed (null with no paper left). For a debug readout.
-({List<PieceWeight> fell, PieceWeight? kept})? lastWeighing;
+/// What the last call to [detachedPieces] weighed: the [cuts] it was given,
+/// the pieces that fell, and the one that stayed (null with no paper left).
+/// For a readout in debug builds only; never kept in a release.
+({List<Cut> cuts, List<PieceWeight> fell, PieceWeight? kept})? lastWeighing;
 
 /// Outlines of the paper pieces that no longer hold on after [cuts]
 /// (pieces in [fallen] are already gone).
@@ -64,12 +67,16 @@ List<Cut> detachedPieces(List<Cut> cuts, List<Cut> fallen, int folds) {
   for (var k = 1; k < weights.length; k++) {
     if (weights[k] > weights[kept]) kept = k;
   }
-  // The wedge's area (a sector of radius 1) in cells.
-  PieceWeight weighed(int k) => (share: cells[k] * _cell * _cell / half * 100, times: times[k]);
-  lastWeighing = (
-    fell: [for (var k = 0; k < starts.length; k++) if (k != kept) weighed(k)],
-    kept: starts.isEmpty ? null : weighed(kept),
-  );
+  if (kDebugMode) {
+    // A piece's cells as a share of the wedge, a sector of radius 1 and
+    // area [half].
+    PieceWeight weighed(int k) => (share: cells[k] * _cell * _cell / half * 100, times: times[k]);
+    lastWeighing = (
+      cuts: cuts,
+      fell: [for (var k = 0; k < starts.length; k++) if (k != kept) weighed(k)],
+      kept: starts.isEmpty ? null : weighed(kept),
+    );
+  }
   if (starts.length < 2) return const [];
   return [
     for (var k = 0; k < starts.length; k++)

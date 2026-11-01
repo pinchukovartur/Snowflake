@@ -61,11 +61,15 @@ class HomeScreen extends StatefulWidget {
 class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late final _ticker = AnimationController(vsync: this, duration: const Duration(hours: 1))..forward();
 
-  /// Where the windows have been panned to (only ever moved, never zoomed).
+  /// Where the windows have been panned to, and how far shrunk (only in the
+  /// overview: see [_toggleOverview]).
   final _view = TransformationController();
 
-  /// The windows panned for the player: see [_panTo].
+  /// The windows moved for the player: see [_viewTo].
   late final _pan = AnimationController(vsync: this);
+
+  /// What moves them along [_pan], for the move under way (or cut short).
+  VoidCallback? _panMove;
 
   /// The collection, sliding up from the bottom to pick a flake for a pane:
   /// 1 all the way up. Linear, so a finger dragging it down moves it in step;
@@ -216,9 +220,20 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// Pane [i]'s glass as panned about: under the dome over the windows.
   static Rect _paneOnView(Size frame, int i) => _paneRect(frame, i).shift(Offset(0, WindowDome.heightFor(frame.width)));
 
-  /// The windows have been laid out once, and panned to start just under the
-  /// dome, the first one's top at the top of the screen, as before it.
+  /// The windows have been panned to start just under the dome, the first
+  /// one's top at the top of the screen, as before it (see
+  /// [didChangeDependencies]).
   bool _placed = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The windows are as wide as the screen, and so the dome as tall as that
+    // makes it: known before they are laid out.
+    if (_placed) return;
+    _placed = true;
+    _view.value = Matrix4.translationValues(0, -WindowDome.heightFor(MediaQuery.sizeOf(context).width), 0);
+  }
 
   /// The sill under the windows: as tall as the buttons, so the bottom row
   /// can come up clear of them.
@@ -230,14 +245,15 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         math.max(0, WindowDome.heightFor(_frame.width) + _frame.height + _sillHeight + (_sheetRoom ? _sheetHeight : 0) - _viewHeight),
       );
 
-  /// How far the windows are panned, from the top left.
+  /// How far the windows are panned, from the top left; meant for them at
+  /// full size, not in the overview (where they are shrunk too).
   Offset get _panned {
     final t = _view.value.getTranslation();
     return Offset(-t.x, -t.y);
   }
 
   /// Pans the windows so [to] (as near as they reach) is at the screen's top
-  /// left, at their full size.
+  /// left, at their full size. Done when the pan is, or cut short.
   Future<void> _panTo(Offset to, Duration duration, Curve curve) {
     final reach = _panReach;
     return _viewTo(1, -Offset(to.dx.clamp(0.0, reach.dx), to.dy.clamp(0.0, reach.dy)), duration, curve);
@@ -263,11 +279,20 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       _view.value = Matrix4.translationValues(o.dx, o.dy, 0)..scaleByDouble(k, k, 1, 1);
     }
 
+    // A move cut short (by a finger, or by another move) leaves its own off,
+    // and never completes: its follower goes here, and its wait ends below.
+    if (_panMove case final last?) _pan.removeListener(last);
+    _panMove = move;
     _pan
       ..stop()
       ..duration = duration
       ..addListener(move);
-    return _pan.forward(from: 0).whenComplete(() => _pan.removeListener(move));
+    return _pan.forward(from: 0).orCancel.then<void>((_) {}, onError: (Object _) {}).whenComplete(() {
+      if (_panMove == move) {
+        _pan.removeListener(move);
+        _panMove = null;
+      }
+    });
   }
 
   /// The panes are as tall as when eight rows filled two screens.
@@ -291,8 +316,8 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     WidgetsBinding.instance.addPostFrameCallback((_) => _bringUp(pane));
   }
 
-  /// Scrolls the window so [pane] sits in the upper half, between the
-  /// settings button and the collection.
+  /// Pans the windows so [pane] sits in the middle across, and in the upper
+  /// half between the settings button and the collection.
   void _bringUp(int pane) {
     if (!mounted || _frame.isEmpty) return;
     final r = _paneOnView(_frame, pane);
@@ -374,7 +399,6 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _panTo(_paneOnView(_frame, i).center - Offset(_viewWidth / 2, _viewHeight / 2), _overviewTime, Curves.easeInOutCubic);
   }
 
-
   /// The Play and Collection buttons with their gap and bottom padding:
   /// 64 + 6 lip, 12, 52 + 6 lip, 28.
   static const _buttonsHeight = 168.0;
@@ -427,10 +451,6 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               _frame = frame;
               _viewWidth = c.maxWidth;
               _viewHeight = c.maxHeight;
-              if (!_placed) {
-                _placed = true;
-                _view.value = Matrix4.translationValues(0, -WindowDome.heightFor(frame.width), 0);
-              }
               return InteractiveViewer(
                 transformationController: _view,
                 constrained: false,
