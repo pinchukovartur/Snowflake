@@ -11,6 +11,14 @@ const _cell = 1 / 400;
 /// SnowflakeView, so fallen outlines cover that pad too.
 const _pad = 0.007;
 
+/// A piece of paper as [detachedPieces] weighed it: its share of the wedge
+/// (in %), and how many times over it shows unfolded, all in one piece.
+typedef PieceWeight = ({double share, int times});
+
+/// What the last call to [detachedPieces] weighed: the pieces that fell, and
+/// the one that stayed (null with no paper left). For a debug readout.
+({List<PieceWeight> fell, PieceWeight? kept})? lastWeighing;
+
 /// Outlines of the paper pieces that no longer hold on after [cuts]
 /// (pieces in [fallen] are already gone).
 ///
@@ -25,7 +33,7 @@ List<Cut> detachedPieces(List<Cut> cuts, List<Cut> fallen, int folds) {
   // 4-connected pieces; label = piece index + 1.
   final label = Int32List(cols * rows);
   final queue = Int32List(cols * rows);
-  final starts = <int>[], weights = <int>[];
+  final starts = <int>[], weights = <int>[], cells = <int>[], times = <int>[];
   for (var start = 0; start < paper.length; start++) {
     if (paper[start] == 0 || label[start] != 0) continue;
     final id = starts.length + 1;
@@ -47,14 +55,22 @@ List<Cut> detachedPieces(List<Cut> cuts, List<Cut> fallen, int folds) {
       }
     }
     starts.add(start);
-    weights.add(tail * (left && right ? 2 * folds : left || right ? 2 : 1));
+    cells.add(tail);
+    times.add(left && right ? 2 * folds : left || right ? 2 : 1);
+    weights.add(tail * times.last);
   }
-  if (starts.length < 2) return const [];
 
   var kept = 0;
   for (var k = 1; k < weights.length; k++) {
     if (weights[k] > weights[kept]) kept = k;
   }
+  // The wedge's area (a sector of radius 1) in cells.
+  PieceWeight weighed(int k) => (share: cells[k] * _cell * _cell / half * 100, times: times[k]);
+  lastWeighing = (
+    fell: [for (var k = 0; k < starts.length; k++) if (k != kept) weighed(k)],
+    kept: starts.isEmpty ? null : weighed(kept),
+  );
+  if (starts.length < 2) return const [];
   return [
     for (var k = 0; k < starts.length; k++)
       if (k != kept) _outline(label, cols, rows, k + 1, starts[k], x0, y0),

@@ -18,6 +18,11 @@ const forceFirstLaunch = true;
 /// never has it, whatever this says.
 const duelCheat = true && kDebugMode;
 
+/// For testing what falls off a flake: the cut board shows how the last cut
+/// weighed the paper's pieces (see [lastWeighing]), those that fell in red
+/// and the one that stayed in green. Debug builds only, as [duelCheat].
+const detachReadout = true && kDebugMode;
+
 /// A flake the player cut and kept.
 class SavedFlake {
   const SavedFlake({required this.cuts, this.folds = 6, this.color, this.pattern = 'plain', this.fav = false});
@@ -254,6 +259,27 @@ class GameState extends ChangeNotifier {
     _storeCollection();
     _storeWindow();
     notifyListeners();
+  }
+
+  /// [f] on other paper, the cuts the same: in its place in the collection,
+  /// in the panes it hangs in, and as [last] if it is. Returns the flake as
+  /// it is now.
+  SavedFlake recolor(SavedFlake f, Paper paper) {
+    final i = saved.indexWhere((s) => identical(s, f));
+    if (i < 0) return f;
+    final n = SavedFlake(cuts: f.cuts, folds: f.folds, color: paper.color, pattern: paper.pattern, fav: f.fav);
+    saved[i] = n;
+    for (final e in window.entries.toList()) {
+      if (identical(e.value, f)) window[e.key] = n;
+    }
+    if (identical(f, last)) {
+      last = n;
+      _prefs.setString(_kLast, jsonEncode(n.toJson()));
+    }
+    _storeCollection();
+    _storeWindow();
+    notifyListeners();
+    return n;
   }
 
   /// The flake unfolded last, kept (only the one) so it can still be added

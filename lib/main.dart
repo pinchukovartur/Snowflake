@@ -170,6 +170,7 @@ class _GameShellState extends State<GameShell> {
           flake: _shownFlake!,
           freePane: HomeScreen.freePane(_game),
           onBack: () => _go(Screen.gallery),
+          onRecolor: (f) => _shownFlake = f,
           onHang: () {
             _toHang = _shownFlake;
             _go(Screen.home);
