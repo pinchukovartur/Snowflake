@@ -107,6 +107,10 @@
   <string name="undo_delete">Undo delete</string>
   <string name="delete_from_collection">Delete from collection</string>
   <string name="share">Share</string>
+  <string name="share_hint">A picture of the flake, or a looping animation of it unfolding.</string>
+  <string name="share_picture">Picture</string>
+  <string name="share_animation">Animation</string>
+  <string name="share_making">Making…</string>
   <string name="collection_empty">The collection is empty</string>
   <string name="add_last_to_collection">Add the last snowflake to the collection</string>
   <string name="add_last">Add the last one</string>

@@ -107,6 +107,10 @@
   <string name="undo_delete">Отменить удаление</string>
   <string name="delete_from_collection">Удалить из коллекции</string>
   <string name="share">Поделиться</string>
+  <string name="share_hint">Картинка снежинки или анимация, как она раскрывается.</string>
+  <string name="share_picture">Картинка</string>
+  <string name="share_animation">Анимация</string>
+  <string name="share_making">Готовим…</string>
   <string name="collection_empty">Коллекция пуста</string>
   <string name="add_last_to_collection">Добавить последнюю снежинку в коллекцию</string>
   <string name="add_last">Добавить последнюю</string>
