@@ -1032,19 +1032,30 @@ class _EventPanelState extends State<_EventPanel> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // 60% of the panel, leaving room for a two-line title.
-                    flake(side * .6),
+                    // 66% of the panel, leaving room for a two-line title.
+                    flake(side * .66),
                     const SizedBox(height: 6),
-                    // Set a little lower than its place in the column, the flake left where it is.
-                    Transform.translate(
-                      offset: const Offset(0, 4),
-                      child: LayoutBuilder(
-                        builder: (ctx, c) {
-                          // Wraps between words as usual, made smaller only if the longest
-                          // word would not fit on a line: never broken inside a word.
-                          final size = _wordsFit(tr(e.title), _titleStyle(e.loud), c.maxWidth, MediaQuery.textScalerOf(ctx));
-                          return _EventTitle(tr(e.title), loud: e.loud, size: size);
-                        },
+                    // Room for two lines of the bigger (loud) title whatever this one is,
+                    // its text at the top: so the column, and the flake in it, sits the
+                    // same in every event's panel.
+                    SizedBox(
+                      height: 2 * _titleStyle(true).height! * MediaQuery.textScalerOf(context).scale(_titleStyle(true).fontSize!),
+                      // A longer one (by a big system font) runs on below, not cut off.
+                      child: OverflowBox(
+                        alignment: Alignment.topCenter,
+                        maxHeight: double.infinity,
+                        // Set a little lower than its place in the column, the flake left where it is.
+                        child: Transform.translate(
+                          offset: const Offset(0, 4),
+                          child: LayoutBuilder(
+                            builder: (ctx, c) {
+                              // Wraps between words as usual, made smaller only if the longest
+                              // word would not fit on a line: never broken inside a word.
+                              final size = _wordsFit(tr(e.title), _titleStyle(e.loud), c.maxWidth, MediaQuery.textScalerOf(ctx));
+                              return _EventTitle(tr(e.title), loud: e.loud, size: size);
+                            },
+                          ),
+                        ),
                       ),
                     ),
                   ],

@@ -149,7 +149,7 @@ class GameState extends ChangeNotifier {
 
   int coins = 128;
 
-  bool sfx = true, vibration = false;
+  bool sfx = true, vibration = true;
 
   /// The home screen has shown the game's title since launch; coming back to
   /// it leaves the window clear.

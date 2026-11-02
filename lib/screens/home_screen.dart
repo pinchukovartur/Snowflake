@@ -359,8 +359,8 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// whether it did (if not, the back is the app's to handle).
   bool handleBack() => _closePicker() || _leaveOverview();
 
-  /// All the windows shown at once, small, to see the whole of them: panning
-  /// is off, and a tap on a pane brings the windows back to full size there.
+  /// All the windows shown at once, small: shrunk to the screen's width and
+  /// panned up and down; a tap on a pane brings them back to full size there.
   bool _overview = false;
 
   /// Where the windows were panned before the overview, to go back to.
@@ -368,21 +368,21 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   static const _overviewTime = Duration(milliseconds: 450);
 
-  /// Shrinks the windows to fit between the top bar and the buttons, in the
-  /// middle; or, shown so already, brings them back as they were.
+  /// Shrinks the windows to the screen's width, edge to edge, the part of
+  /// them in the middle of the screen staying there; or, shown so already,
+  /// brings them back as they were.
   void _toggleOverview() {
     if (_leaveOverview()) return;
     if (_frame.isEmpty) return;
     _closePicker();
-    final pad = MediaQuery.paddingOf(context);
-    final top = pad.top + 64, bottom = _viewHeight - _buttonsHeight - pad.bottom;
-    final width = _windows * _frame.width;
-    // The windows fitted in, the dome over them going up off the screen.
-    final scale = math.min(_viewWidth / width, (bottom - top) / _frame.height);
-    final windowsTop = top + (bottom - top - _frame.height * scale) / 2;
+    final scale = _viewWidth / (_windows * _frame.width);
+    // All of them, top to bottom, as they shrink; kept on the screen.
+    final height = (WindowDome.heightFor(_frame.width) + _frame.height + _sillHeight) * scale;
+    final middle = _panned.dy + _viewHeight / 2;
+    final top = (_viewHeight / 2 - middle * scale).clamp(math.min(0.0, _viewHeight - height), 0.0).toDouble();
     _beforeOverview = _panned;
     setState(() => _overview = true);
-    _viewTo(scale, Offset((_viewWidth - width * scale) / 2, windowsTop - WindowDome.heightFor(_frame.width) * scale), _overviewTime, Curves.easeInOutCubic);
+    _viewTo(scale, Offset(0, top), _overviewTime, Curves.easeInOutCubic);
   }
 
   /// Back from the overview to where the windows were; whether it was up.
@@ -455,8 +455,8 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 transformationController: _view,
                 constrained: false,
                 scaleEnabled: false,
-                // Still in the overview: the whole of them is in sight.
-                panEnabled: !_overview,
+                // In the overview too: as wide as the screen there, they pan
+                // up and down.
                 boundaryMargin: EdgeInsets.zero,
                 // A finger on the glass takes over from a pan under way.
                 onInteractionStart: (_) => _pan.stop(),
