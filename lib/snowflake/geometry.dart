@@ -537,6 +537,7 @@ const paperPatterns = [
   'sparkle',
   'bubbles',
   'holo',
+  'glass',
   'butterflies',
   'knit',
   'gradient',
@@ -790,6 +791,10 @@ final _tileCache = <(Color, String, int), ui.Image>{};
 Paint makePaperFill(Color color, String pattern, double unitPx) {
   final paint = Paint()..color = color;
   if (pattern == 'plain') return paint;
+  // Tinted glass, as see-through as its colour is light: white glass all but
+  // clear, dark glass rich. Its glints fall on it from outside (see
+  // [drawGlassGlints]).
+  if (pattern == 'glass') return paint..color = glassTint(color).withValues(alpha: glassOpacity(color));
   // Gradients from the top of the sheet to the bottom, across the whole
   // unfolded flake, round the hues (as light and saturated all the way, not
   // straight through to a dull grey): see [gradientHues].
@@ -1175,12 +1180,76 @@ void drawWedge(Canvas canvas, double s, List<Cut> cuts, double half, Paint fill,
   canvas.drawRect(bounds, fill);
   if (pattern == 'holo' && sheen) drawHoloSheen(canvas, bounds, s, time: sheenTime);
   canvas.restore();
+  // Unturned by the segment's place on the sheet: light on glass keeps to
+  // the screen.
+  if (pattern == 'glass' && sheen) {
+    canvas.save();
+    canvas.clipPath(wedge);
+    drawGlassGlints(canvas, Rect.fromCircle(center: Offset.zero, radius: s), fill.color);
+    canvas.restore();
+  }
   final clear = Paint()..blendMode = BlendMode.clear;
   for (final c in cuts) {
     if (c.length < 3) continue;
     canvas.drawPath(cutPath(c, s)..fillType = PathFillType.nonZero, clear);
   }
   canvas.restore();
+}
+
+/// Glass's thickness, showing below its edges in [glassShade] the way its
+/// shadow falls, but close: how far down, as a share of the flake's (or the
+/// board's wedge's) size.
+const glassDepth = .01;
+
+/// How opaque glass of [color] is: as see-through as the colour is light,
+/// from a quarter (white) to three quarters (black).
+double glassOpacity(Color color) => ui.lerpDouble(.75, .25, color.computeLuminance())!;
+
+/// Glass is richer than the paper colour picked for it: its saturation (as
+/// in HSV) times this, the hue and brightness kept; white, black and greys,
+/// with none, stay as they are.
+const _glassSaturation = 1.35;
+
+/// The colour of glass of paper [color]: richer (see [_glassSaturation]),
+/// solid; [glassOpacity] says how see-through.
+Color glassTint(Color color) {
+  final hsv = HSVColor.fromColor(color.withValues(alpha: 1));
+  return hsv.withSaturation(math.min(1, hsv.saturation * _glassSaturation)).toColor();
+}
+
+/// The shade of glass of [color] seen in its thickness: as two panes of it
+/// one over the other look, the same colour, denser.
+Color glassShade(Color color) {
+  final clear = 1 - glassOpacity(color);
+  return glassTint(color).withValues(alpha: 1 - clear * clear);
+}
+
+/// Paints whatever is drawn solid [color] wherever it is drawn at all: see-
+/// through glass (never under a quarter opaque) as well, its edges kept soft.
+ColorFilter glassSolid(Color color) => ColorFilter.matrix([
+      0, 0, 0, 0, color.r * 255, //
+      0, 0, 0, 0, color.g * 255,
+      0, 0, 0, 0, color.b * 255,
+      0, 0, 0, 4, 0,
+    ]);
+
+/// Glints on glass are white with this share of the glass's own colour in.
+const _glintTint = .35;
+
+/// Light glinting on glass of [tint] (its colour, see [glassTint]) over
+/// [area]: two pale streaks slanting across it, white touched with the
+/// glass's colour, laid on the screen however the glass turns, as the
+/// hologram's sheen is. [blend] lays them only over what is drawn already
+/// (srcATop).
+void drawGlassGlints(Canvas canvas, Rect area, Color tint, {BlendMode blend = BlendMode.srcOver}) {
+  final light = Color.lerp(const Color(0xFFFFFFFF), tint.withValues(alpha: 1), _glintTint)!;
+  final clear = light.withValues(alpha: 0), glint = light.withValues(alpha: .45), faint = light.withValues(alpha: .3);
+  canvas.drawRect(
+    area,
+    Paint()
+      ..blendMode = blend
+      ..shader = ui.Gradient.linear(area.topLeft, area.bottomRight, [clear, clear, glint, clear, clear, faint, clear], [0, .3, .37, .44, .66, .7, .76]),
+  );
 }
 
 /// The outline of [c] as seen, [s] px to a unit: each closed loop on its own,

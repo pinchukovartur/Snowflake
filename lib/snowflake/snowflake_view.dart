@@ -442,57 +442,103 @@ class SnowflakePainter extends CustomPainter {
     final flat = t >= 1;
 
     // Flaps lifted towards the viewer grow past the flake's box.
-    canvas.saveLayer(Rect.fromLTWH(0, 0, s, s).inflate(flat ? 0 : s * .3), Paint());
-    canvas.translate(s / 2, s / 2);
-    // Unfolded, a flake rests with a crease upright, half a segment round from
-    // the folded wedge's upright middle; it turns there as it opens.
-    canvas.rotate(spin + t * wedgeHalfAngle(folds));
-    if (flat) {
-      final front = _shade(0), back = _shade(shading ? _sideShade : 0);
-      for (var i = 0; i < segs; i++) {
-        if (!_drawn(i)) continue;
-        canvas.save();
-        canvas.rotate(i * step);
-        if (i.isOdd) canvas.scale(-1, 1);
-        canvas.drawImageRect(_wedgeImage(key.at(i)), src, dst, i.isOdd ? back : front);
-        canvas.restore();
-      }
-      final tw = twinkle;
-      if (tw != null && pattern == 'sparkle') {
-        // The glints, drawn straight on (no image per frame): each segment
-        // clipped to its paper and showing its own part of the sheet's.
-        final r = s / 2 * .96;
-        final clip = _paperPath(key, r);
-        final h = wedgeHalfAngle(folds);
+    final bounds = Rect.fromLTWH(0, 0, s, s).inflate(flat ? 0 : s * .3);
+    // The flake itself, turned as it lies; run again for glass's thickness.
+    void body() {
+      canvas.save();
+      canvas.translate(s / 2, s / 2);
+      // Unfolded, a flake rests with a crease upright, half a segment round from
+      // the folded wedge's upright middle; it turns there as it opens.
+      canvas.rotate(spin + t * wedgeHalfAngle(folds));
+      if (flat) {
+        final front = _shade(0), back = _shade(shading ? _sideShade : 0);
         for (var i = 0; i < segs; i++) {
           if (!_drawn(i)) continue;
           canvas.save();
           canvas.rotate(i * step);
           if (i.isOdd) canvas.scale(-1, 1);
-          canvas.clipPath(clip);
-          toSheet(canvas, i, folds);
-          // Only where this segment lies on the sheet.
-          final corners = [Offset.zero, Offset(-r * math.sin(h), -r * math.cos(h)), Offset(r * math.sin(h), -r * math.cos(h)), Offset(0, -r)];
-          final onSheet = [
-            for (final q in corners) _sheetPoint(i.isOdd ? Offset(-q.dx, q.dy) : q, i * step),
-          ];
-          var area = Rect.fromPoints(onSheet.first, onSheet.first);
-          for (final q in onSheet) {
-            area = area.expandToInclude(Rect.fromPoints(q, q));
-          }
-          drawGlints(canvas, area.inflate(r * .05), color, r, tw);
+          canvas.drawImageRect(_wedgeImage(key.at(i)), src, dst, i.isOdd ? back : front);
           canvas.restore();
         }
+        final tw = twinkle;
+        if (tw != null && pattern == 'sparkle') {
+          // The glints, drawn straight on (no image per frame): each segment
+          // clipped to its paper and showing its own part of the sheet's.
+          final r = s / 2 * .96;
+          final clip = _paperPath(key, r);
+          final h = wedgeHalfAngle(folds);
+          for (var i = 0; i < segs; i++) {
+            if (!_drawn(i)) continue;
+            canvas.save();
+            canvas.rotate(i * step);
+            if (i.isOdd) canvas.scale(-1, 1);
+            canvas.clipPath(clip);
+            toSheet(canvas, i, folds);
+            // Only where this segment lies on the sheet.
+            final corners = [Offset.zero, Offset(-r * math.sin(h), -r * math.cos(h)), Offset(r * math.sin(h), -r * math.cos(h)), Offset(0, -r)];
+            final onSheet = [
+              for (final q in corners) _sheetPoint(i.isOdd ? Offset(-q.dx, q.dy) : q, i * step),
+            ];
+            var area = Rect.fromPoints(onSheet.first, onSheet.first);
+            for (final q in onSheet) {
+              area = area.expandToInclude(Rect.fromPoints(q, q));
+            }
+            drawGlints(canvas, area.inflate(r * .05), color, r, tw);
+            canvas.restore();
+          }
+        }
+      } else {
+        _paintFolded(canvas, key, src, dst, s, t);
       }
-    } else {
-      _paintFolded(canvas, key, src, dst, s, t);
+      if (pattern == 'holo') {
+        // The hologram's sheen stays put on the screen, as light on foil does,
+        // however the flake turns: laid over the paper drawn so far.
+        canvas.rotate(-(spin + t * wedgeHalfAngle(folds)));
+        drawHoloSheen(canvas, Rect.fromCircle(center: Offset.zero, radius: s * .8), s * .48, blend: BlendMode.srcATop, time: twinkle ?? 0);
+      }
+      canvas.restore();
     }
-    if (pattern == 'holo') {
-      // The hologram's sheen stays put on the screen, as light on foil does,
-      // however the flake turns: laid over the paper drawn so far.
-      canvas.rotate(-(spin + t * wedgeHalfAngle(folds)));
-      drawHoloSheen(canvas, Rect.fromCircle(center: Offset.zero, radius: s * .8), s * .48, blend: BlendMode.srcATop, time: twinkle ?? 0);
-    }
+
+    if (pattern == 'glass') _paintThickness(canvas, s, bounds, body);
+    canvas.saveLayer(bounds, Paint());
+    body();
+    canvas.restore();
+    if (pattern == 'glass') _paintGlints(canvas, s, bounds, body);
+  }
+
+  /// Glass's glints over the flake [body] paints, staying put on the screen
+  /// however it turns. Light on glass, not in it: laid over it as they are,
+  /// not as see-through as the glass (which would show what lies behind
+  /// through them), but kept to the glass.
+  void _paintGlints(Canvas canvas, double s, Rect bounds, void Function() body) {
+    canvas.saveLayer(bounds, Paint());
+    drawGlassGlints(canvas, Rect.fromCircle(center: Offset(s / 2, s / 2), radius: s * .5), glassTint(color));
+    canvas.saveLayer(bounds, Paint()
+      ..blendMode = BlendMode.dstIn
+      ..colorFilter = glassSolid(const Color(0xFF000000)));
+    body();
+    canvas.restore();
+    canvas.restore();
+  }
+
+  /// Glass's thickness under the flake [body] paints: the flake again, solid
+  /// in its colour darkened, a little down the screen (the way its shadow
+  /// falls, but close), showing only past the flake's own edges.
+  void _paintThickness(Canvas canvas, double s, Rect bounds, void Function() body) {
+    final shade = glassShade(color);
+    canvas.saveLayer(bounds, Paint()..color = Color.fromRGBO(0, 0, 0, shade.a));
+    canvas.save();
+    canvas.translate(0, s * glassDepth);
+    canvas.saveLayer(bounds, Paint()..colorFilter = glassSolid(shade));
+    body();
+    canvas.restore();
+    canvas.restore();
+    // Wiped from under the flake, so none shows through the glass.
+    canvas.saveLayer(bounds, Paint()
+      ..blendMode = BlendMode.dstOut
+      ..colorFilter = glassSolid(const Color(0xFF000000)));
+    body();
+    canvas.restore();
     canvas.restore();
   }
 

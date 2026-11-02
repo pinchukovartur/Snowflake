@@ -191,6 +191,13 @@ class _PaperSwatchPainter extends CustomPainter {
       canvas.clipRRect(rr);
       drawHoloSheen(canvas, rr.outerRect, 100 * dpr, time: tw ?? 0);
     }
+    // Glass glinting.
+    if (pattern == 'glass') {
+      canvas.save();
+      canvas.clipRRect(rr);
+      drawGlassGlints(canvas, rr.outerRect, glassTint(color));
+      canvas.restore();
+    }
     canvas.restore();
     canvas.drawRRect(
       r.deflate(1),

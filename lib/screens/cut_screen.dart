@@ -917,7 +917,7 @@ final _duelFlakes = {
 /// Mark for the number of folds, wherever it is shown.
 const _foldsIcon = LucideIcons.layers2;
 
-/// One event at a time, stepped through with the arrows; its flakes take
+/// One event at a time, stepped through with the arrows or a swipe; its flakes take
 /// turns every [_flakeEvery], the next rising in from below.
 class _EventPanel extends StatefulWidget {
   const _EventPanel({required this.side, required this.index, required this.onStep, required this.onOpen, this.paused = false});
@@ -942,6 +942,19 @@ const _flakeEvery = Duration(seconds: 5);
 class _EventPanelState extends State<_EventPanel> {
   int _flake = 0;
   Timer? _timer;
+
+  /// How far a finger has dragged across the panel, in dp.
+  double _dragged = 0;
+
+  /// Swiped across: to the left, on to the next event (as the right arrow);
+  /// to the right, back to the one before. Taken when flicked, or dragged
+  /// past a fifth of the panel.
+  void _swiped(DragEndDetails d) {
+    final v = d.primaryVelocity ?? 0, dx = _dragged;
+    _dragged = 0;
+    final way = v.abs() > 300 ? v : (dx.abs() > widget.side * .2 ? dx : 0.0);
+    if (way != 0) widget.onStep(way < 0 ? 1 : -1);
+  }
 
   void _startTimer() {
     _timer?.cancel();
@@ -1012,11 +1025,18 @@ class _EventPanelState extends State<_EventPanel> {
       child: _ShadowedFlake(f, size: size, angle: 10 * math.pi / 180, key: ValueKey('${widget.index}/$_flake')),
     );
     final image = e.image;
+    // The flake 66% of the panel; under it, what the panel has left (the gap
+    // and the title's drop taken, [_titleMargin] kept clear) for the title.
+    final flakeSize = side * .66;
+    final titleRoom = side - flakeSize - 6 - _titleDrop - 2 * _titleMargin;
     return Semantics(
       label: tr(e.title),
       button: true,
       child: GestureDetector(
         onTap: widget.onOpen,
+        onHorizontalDragStart: (_) => _dragged = 0,
+        onHorizontalDragUpdate: (d) => _dragged += d.delta.dx,
+        onHorizontalDragEnd: _swiped,
         child: Container(
           width: side,
           height: side,
@@ -1027,31 +1047,35 @@ class _EventPanelState extends State<_EventPanel> {
             children: [
               if (image != null) Positioned.fill(child: Image.asset(image, fit: BoxFit.cover)),
               // The title runs under the arrows, so it gets nearly the whole width.
-              Padding(
+              // Raised by half the title's drop below, to centre what is drawn.
+              Transform.translate(
+                offset: const Offset(0, -_titleDrop / 2),
+                child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // 66% of the panel, leaving room for a two-line title.
-                    flake(side * .66),
+                    flake(flakeSize),
                     const SizedBox(height: 6),
-                    // Room for two lines of the bigger (loud) title whatever this one is,
-                    // its text at the top: so the column, and the flake in it, sits the
-                    // same in every event's panel.
+                    // The same room in every event's panel, its title at the top: so
+                    // the column, and the flake in it, sits the same in them all.
                     SizedBox(
-                      height: 2 * _titleStyle(true).height! * MediaQuery.textScalerOf(context).scale(_titleStyle(true).fontSize!),
-                      // A longer one (by a big system font) runs on below, not cut off.
+                      height: titleRoom,
+                      // Should the smallest size still not fit, it runs on below rather
+                      // than being cut off.
                       child: OverflowBox(
                         alignment: Alignment.topCenter,
                         maxHeight: double.infinity,
                         // Set a little lower than its place in the column, the flake left where it is.
                         child: Transform.translate(
-                          offset: const Offset(0, 4),
+                          offset: const Offset(0, _titleDrop),
                           child: LayoutBuilder(
                             builder: (ctx, c) {
-                              // Wraps between words as usual, made smaller only if the longest
-                              // word would not fit on a line: never broken inside a word.
-                              final size = _wordsFit(tr(e.title), _titleStyle(e.loud), c.maxWidth, MediaQuery.textScalerOf(ctx));
+                              // Wraps between words as usual, made smaller if the longest
+                              // word would not fit on a line (never broken inside a word),
+                              // or if two lines would not fit in the room under the flake.
+                              final style = _titleStyle(e.loud), scaler = MediaQuery.textScalerOf(ctx);
+                              final size = math.min(_wordsFit(tr(e.title), style, c.maxWidth, scaler), _twoLinesFit(style, titleRoom, scaler));
                               return _EventTitle(tr(e.title), loud: e.loud, size: size);
                             },
                           ),
@@ -1059,6 +1083,7 @@ class _EventPanelState extends State<_EventPanel> {
                       ),
                     ),
                   ],
+                ),
                 ),
               ),
               Positioned(left: 0, child: arrow(-1)),
@@ -1073,6 +1098,20 @@ class _EventPanelState extends State<_EventPanel> {
 
 /// An event title's face: heavier and bigger when [loud].
 TextStyle _titleStyle(bool loud) => loud ? display(17, weight: FontWeight.w900, height: 1.1) : display(16, height: 1.1);
+
+/// In an event panel, how far the title is set below its place under the
+/// flake, and the room kept clear between it and the panel's edge.
+const _titleDrop = 4.0, _titleMargin = 3.0;
+
+/// The font size, at most [style]'s, at which two lines of it, as the
+/// system's text [scaler] enlarges them, are no taller than [height].
+double _twoLinesFit(TextStyle style, double height, TextScaler scaler) {
+  var size = style.fontSize!;
+  while (size > 8 && 2 * style.height! * scaler.scale(size) > height) {
+    size -= .5;
+  }
+  return size;
+}
 
 /// An event's title, centred, [size] px: white, or purple on a white outline
 /// when [loud].

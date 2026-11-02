@@ -101,11 +101,16 @@ class GameState extends ChangeNotifier {
     }
     // Panes refer to flakes by their place in the collection as stored; a
     // pane that held a preset is left to fill again.
-    final win = _prefs.getString(_kWindow);
+    // Windows stored as eight rows deep (16 panes each) keep their panes
+    // where they were, the new rows coming in empty under them.
+    final oldWin = _prefs.getString(_kWindow) == null ? _prefs.getString(_kWindowV1) : null;
+    final win = _prefs.getString(_kWindow) ?? oldWin;
     if (win != null) {
       try {
         (jsonDecode(win) as Map).forEach((k, v) {
-          final pane = int.parse(k as String), i = v as int?;
+          var pane = int.parse(k as String);
+          if (oldWin != null) pane = pane ~/ 16 * panesPerWindow + pane % 16;
+          final i = v as int?;
           if (i == null) {
             window[pane] = null;
           } else if (i >= 0 && i < stored.length && stored[i] != null) {
@@ -116,6 +121,10 @@ class GameState extends ChangeNotifier {
         window.clear();
         debugPrint('Window not restored: $e');
       }
+    }
+    if (oldWin != null) {
+      _storeWindow();
+      _prefs.remove(_kWindowV1);
     }
     // Stored again without the presets, the panes renumbered to match.
     if (stored.contains(null)) {
@@ -142,7 +151,11 @@ class GameState extends ChangeNotifier {
   static const _kSfx = 'settings.sfx';
   static const _kVibration = 'settings.vibration';
   static const _kCollection = 'collection.v1';
-  static const _kWindow = 'window.v1';
+  static const _kWindow = 'window.v2';
+  static const _kWindowV1 = 'window.v1';
+
+  /// Panes in each of the home screen's windows: two sashes of twelve rows.
+  static const panesPerWindow = 24;
   static const _kLast = 'last.v1';
   static const _kTutorials = 'tutorials.seen.v1';
   static const _kDuel = 'duel.halloween.v1';

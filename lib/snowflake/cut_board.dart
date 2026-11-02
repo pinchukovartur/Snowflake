@@ -648,6 +648,20 @@ class _BoardPainter extends CustomPainter {
         ..close();
       canvas.drawPath(shadow, Paint()..color = const Color(0x292E4A94));
 
+      // Glass's thickness: the wedge again in its colour darkened, a little
+      // down as its shadow falls, wiped from under the wedge itself.
+      if (pattern == 'glass') {
+        final shade = glassShade(color);
+        canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, shade.a));
+        canvas.save();
+        canvas.translate(0, s * glassDepth);
+        drawWedge(canvas, s, [...cuts, ...fallen], half, Paint()..color = shade.withValues(alpha: 1));
+        canvas.restore();
+        canvas.saveLayer(null, Paint()..blendMode = BlendMode.dstOut);
+        drawWedge(canvas, s, [...cuts, ...fallen], half, Paint()..color = const Color(0xFF000000));
+        canvas.restore();
+        canvas.restore();
+      }
       // The folded paper shows its top layer (see [foldedTop]), so the flake
       // opens from just what the board showed.
       drawWedge(canvas, s, [...cuts, ...fallen], half, fill, pattern: pattern, sheenTime: twinkle ?? 0, pos: foldedTop(folds), folds: folds);

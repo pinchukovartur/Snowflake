@@ -18,7 +18,7 @@ const _showCoins = false;
 
 /// The night, darker under the window: the glass's white haze (about 11% where
 /// it is clear of glints) lifts it back to the other screens' sky. Each is
-/// `(c − 255·a) / (1 − a)` of [SkyBackground.night], for a = .11.
+/// `(c в€’ 255В·a) / (1 в€’ a)` of [SkyBackground.night], for a = .11.
 const _skyUnderHaze = [Color(0xFF001047), Color(0xFF153487), Color(0xFF264EAF)];
 
 /// What the window looks out on. Set by hand for each release: autumn now,
@@ -49,7 +49,7 @@ class HomeScreen extends StatefulWidget {
   /// clear on purpose), or null when every one is.
   static int? freePane(GameState game) {
     for (var i = 0; i < HomeScreenState._panes; i++) {
-      if (!game.window.containsKey(i)) return i;
+      if (!game.window.containsKey(i) && !HomeScreenState._behindTree(i)) return i;
     }
     return null;
   }
@@ -206,16 +206,30 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   /// Windows side by side, each as wide as the screen, with an arch of its own
   /// over its two sashes; pane rows in each sash, in bands of three.
-  static const _windows = 3, _rows = 8;
+  static const _windows = 3, _rows = GameState.panesPerWindow ~/ 2;
 
   /// Panes in all: numbered window by window, then (as in a window of its
   /// own) row by row from the top, left sash first. So the first window's
-  /// panes come first, as when there was just the one, twenty-four rows deep.
+  /// panes come first, as when there was just the one.
   static const _panes = _windows * _rows * 2;
 
   /// Pane [i]'s glass, in the frame of all the windows, each [frame] in size.
   static Rect _paneRect(Size frame, int i) =>
       WindowFrame.paneRects(frame, _rows)[i % (_rows * 2)].shift(Offset(i ~/ (_rows * 2) * frame.width, 0));
+
+  /// A fir tree stands in front of the middle window, hiding its bottom
+  /// [_treeRows] rows: those panes hold nothing and take no taps.
+  static const _treeWindow = 1, _treeRows = 3;
+
+  static bool _behindTree(int i) => i ~/ (_rows * 2) == _treeWindow && i % (_rows * 2) ~/ 2 >= _rows - _treeRows;
+
+  /// Where the tree stands, in [frame] of all the windows: over the panes it
+  /// hides, down to the sill.
+  static Rect _treeRect(Size frame) {
+    final top = _paneRect(frame, _treeWindow * _rows * 2 + (_rows - _treeRows) * 2);
+    final right = _paneRect(frame, _treeWindow * _rows * 2 + 1);
+    return Rect.fromLTRB(top.left, top.top, right.right, frame.height);
+  }
 
   /// Pane [i]'s glass as panned about: under the dome over the windows.
   static Rect _paneOnView(Size frame, int i) => _paneRect(frame, i).shift(Offset(0, WindowDome.heightFor(frame.width)));
@@ -266,7 +280,6 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// about a corner.
   Future<void> _viewTo(double scale, Offset shift, Duration duration, Curve curve) {
     final from = _view.value, t = from.getTranslation();
-    // Along x (not getMaxScaleOnAxis, which counts the depth's 1 too).
     final scaleFrom = from.entry(0, 0);
     final middle = Offset(_viewWidth / 2, _viewHeight / 2);
     // The windows' points in the middle of the screen, now and at the end.
@@ -276,7 +289,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       final v = ease.transform(_pan.value);
       final k = scaleFrom * math.pow(scale / scaleFrom, v);
       final o = middle - Offset.lerp(aimFrom, aim, v)! * k;
-      _view.value = Matrix4.translationValues(o.dx, o.dy, 0)..scaleByDouble(k, k, 1, 1);
+      // Depth scaled too: InteractiveViewer reads the scale with
+      // getMaxScaleOnAxis, and a depth left at 1 would throw its clamping off.
+      _view.value = Matrix4.translationValues(o.dx, o.dy, 0)..scaleByDouble(k, k, k, 1);
     }
 
     // A move cut short (by a finger, or by another move) leaves its own off,
@@ -368,6 +383,16 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   static const _overviewTime = Duration(milliseconds: 450);
 
+  /// How far the overview shrinks the windows: to the screen's width.
+  double get _overviewScale => _viewWidth / (_windows * _frame.width);
+
+  /// The sill is grown for the overview, so shrunk it is still as tall as
+  /// the buttons and the bottom row comes up clear of them; from going into
+  /// the overview till back out of it at full size.
+  bool _tallSill = false;
+
+  double get _sillShown => _tallSill ? _sillHeight / _overviewScale : _sillHeight;
+
   /// Shrinks the windows to the screen's width, edge to edge, the part of
   /// them in the middle of the screen staying there; or, shown so already,
   /// brings them back as they were.
@@ -375,28 +400,33 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (_leaveOverview()) return;
     if (_frame.isEmpty) return;
     _closePicker();
-    final scale = _viewWidth / (_windows * _frame.width);
+    final scale = _overviewScale;
     // All of them, top to bottom, as they shrink; kept on the screen.
-    final height = (WindowDome.heightFor(_frame.width) + _frame.height + _sillHeight) * scale;
+    final height = (WindowDome.heightFor(_frame.width) + _frame.height) * scale + _sillHeight;
     final middle = _panned.dy + _viewHeight / 2;
     final top = (_viewHeight / 2 - middle * scale).clamp(math.min(0.0, _viewHeight - height), 0.0).toDouble();
     _beforeOverview = _panned;
-    setState(() => _overview = true);
+    setState(() => _overview = _tallSill = true);
     _viewTo(scale, Offset(0, top), _overviewTime, Curves.easeInOutCubic);
   }
 
   /// Back from the overview to where the windows were; whether it was up.
   bool _leaveOverview() {
     if (!_overview) return false;
-    setState(() => _overview = false);
-    _panTo(_beforeOverview, _overviewTime, Curves.easeInOutCubic);
+    _backTo(_beforeOverview);
     return true;
   }
 
   /// Back from the overview to full size, with pane [i] in the middle.
-  void _zoomInTo(int i) {
+  void _zoomInTo(int i) => _backTo(_paneOnView(_frame, i).center - Offset(_viewWidth / 2, _viewHeight / 2));
+
+  /// Back from the overview to full size, panned to [to]; the sill shrinks
+  /// back once there.
+  void _backTo(Offset to) {
     setState(() => _overview = false);
-    _panTo(_paneOnView(_frame, i).center - Offset(_viewWidth / 2, _viewHeight / 2), _overviewTime, Curves.easeInOutCubic);
+    _panTo(to, _overviewTime, Curves.easeInOutCubic).whenComplete(() {
+      if (mounted && !_overview) setState(() => _tallSill = false);
+    });
   }
 
   /// The Play and Collection buttons with their gap and bottom padding:
@@ -485,13 +515,19 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         // hang one; the title, while up, shows over the first
                         // window's top row.
                         for (var i = 0; i < _panes; i++)
-                          Positioned.fromRect(
-                            rect: _paneRect(frame, i),
-                            child: _arriving(
-                              i,
-                              _Pane(flake: g.window[i], clear: g.window.containsKey(i) && g.window[i] == null, plusOpacity: _plusOpacity, onTap: () => _overview ? _zoomInTo(i) : _pick(i)),
+                          if (!_behindTree(i))
+                            Positioned.fromRect(
+                              rect: _paneRect(frame, i),
+                              child: _arriving(
+                                i,
+                                _Pane(flake: g.window[i], clear: g.window.containsKey(i) && g.window[i] == null, plusOpacity: _plusOpacity, onTap: () => _overview ? _zoomInTo(i) : _pick(i)),
+                              ),
                             ),
-                          ),
+                        // The tree in front of the middle window.
+                        Positioned.fromRect(
+                          rect: _treeRect(frame),
+                          child: const IgnorePointer(child: CustomPaint(painter: _TreePainter())),
+                        ),
                         // The pane being picked for, outlined.
                         if (_picking case final p?)
                           Positioned.fromRect(
@@ -547,7 +583,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           ),
                       ]),
                     ),
-                    SizedBox(height: _sillHeight, child: const WindowSill()),
+                    SizedBox(height: _sillShown, child: const WindowSill()),
                     if (_sheetRoom) SizedBox(height: _sheetHeight),
                   ]),
                   ),
@@ -763,6 +799,54 @@ class _SnowfallPainter extends CustomPainter {
   @override
   bool shouldRepaint(_SnowfallPainter o) =>
       !identical(o.flecks, flecks) || o.ticker != ticker || o.dpr != dpr || o.hazeHeight != hazeHeight || o.hazeFade != hazeFade;
+}
+
+/// A fir tree of three tiers of triangles, lit from the left like the window,
+/// on a trunk standing at the bottom of its box, a star on top and baubles
+/// hung about it.
+class _TreePainter extends CustomPainter {
+  const _TreePainter();
+
+  static const _lit = Color(0xFF2E9E73), _dark = Color(0xFF1C7354), _trunk = Color(0xFF8A5A3C);
+
+  /// Each tier's apex and base heights, and its base's width, as shares of
+  /// the box: top tier first, each base overlapping the next one's apex.
+  static const _tiers = [(.07, .38, .56), (.24, .62, .78), (.44, .9, 1.0)];
+
+  /// Baubles: across from the middle, down, and colour.
+  static const _baubles = [
+    (-.12, .33, C.berry500), (.14, .3, C.sun500),
+    (.2, .55, C.ice400), (-.24, .57, C.sun500), (0.0, .5, C.berry500),
+    (-.36, .84, C.ice400), (.33, .85, C.berry500), (.04, .8, C.sun500),
+  ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height, mid = w / 2;
+    canvas.drawRect(Rect.fromLTRB(mid - w * .07, h * .86, mid + w * .07, h), Paint()..color = _trunk);
+    for (final (apex, base, width) in _tiers) {
+      final a = Offset(mid, h * apex), half = w * width / 2;
+      canvas.drawPath(Path()..addPolygon([a, Offset(mid - half, h * base), Offset(mid, h * base)], true), Paint()..color = _lit);
+      canvas.drawPath(Path()..addPolygon([a, Offset(mid, h * base), Offset(mid + half, h * base)], true), Paint()..color = _dark);
+    }
+    final r = w * .035;
+    for (final (x, y, c) in _baubles) {
+      canvas.drawCircle(Offset(mid + w * x, h * y), r, Paint()..color = c);
+    }
+    // A five-pointed star on the top tier's apex.
+    final star = Offset(mid, h * _tiers.first.$1), outer = w * .08, inner = outer * .45;
+    canvas.drawPath(
+      Path()
+        ..addPolygon([
+          for (var k = 0; k < 10; k++)
+            star + Offset.fromDirection(-math.pi / 2 + k * math.pi / 5, k.isEven ? outer : inner),
+        ], true),
+      Paint()..color = C.sun500,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_TreePainter oldDelegate) => false;
 }
 
 /// One pane of the home window: the flake hanging in it, clear glass when
