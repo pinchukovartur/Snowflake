@@ -621,11 +621,12 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 onDrag: _dragSheet,
                 onDrop: _dropSheet,
                 onPick: (f) {
-                  // A flake grows into the pane, as one hung from its own screen does.
-                  if (f != null) {
-                    _hangInto(_sheetPane, f);
-                  } else {
+                  // A flake grows into the pane, as one hung from its own screen does;
+                  // the one hanging there already, picked again, just stays.
+                  if (f == null) {
                     g.hang(_sheetPane, null);
+                  } else if (!identical(f, g.window[_sheetPane])) {
+                    _hangInto(_sheetPane, f);
                   }
                   _closePicker();
                 },

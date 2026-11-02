@@ -109,14 +109,12 @@ class CutSession {
   /// The event being played, if any: kept here, not on the screen, so it
   /// outlasts leaving the screen and coming back.
   _EventRun? _event;
-
-  /// Helps left in the event: each shows its flake's cuts for a moment.
-  int _helps = 0;
 }
 
-/// Helps an event starts with, and how long one shows the cuts.
-const _eventHelps = 2;
+/// How long a help shows the event flake's cuts, and how long from asking
+/// for one till the next can be (as many as the player likes, one at a time).
 const _helpLength = Duration(seconds: 3);
+const _helpCooldown = Duration(seconds: 6);
 
 /// An event under way: its [flake], and the paper as it was before (cuts,
 /// folds, look and undo history), which leaving the event brings back.
@@ -128,8 +126,10 @@ class CutScreen extends StatefulWidget {
   final CutSession session;
   final VoidCallback onHome;
 
-  /// [shape] is the player's cuts plus the pieces that fell off.
-  final void Function(List<Cut> shape, int folds, Paper paper) onUnfold;
+  /// [shape] is the player's cuts plus the pieces that fell off; [duelFlake]
+  /// the preset of the duel's flake being cut, if it is one (its blow lands
+  /// only once the flake is done, see [GameState.duelHit]).
+  final void Function(List<Cut> shape, int folds, Paper paper, String? duelFlake) onUnfold;
 
   @override
   State<CutScreen> createState() => _CutScreenState();
@@ -194,8 +194,8 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    // Back from cutting a duel's flake for the first time: its window opens,
-    // to show the blow land.
+    // On to a fresh flake after a duel's flake was done for the first time:
+    // its window opens, to show the blow land.
     if (widget.game.duelFresh != null) {
       final duel = _events.indexWhere((e) => e.boss != null);
       if (duel >= 0) {
@@ -226,7 +226,6 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
 
   void _startEvent(_EventFlake f) {
     _s._event = (flake: f, before: _state, paper: _paper, past: [..._s.past], future: [..._s.future]);
-    _s._helps = _eventHelps;
     _s.past.clear();
     _s.future.clear();
     _stencilsOpen = false;
@@ -276,6 +275,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     _intro = null;
     _help?.dispose();
     _help = null;
+    _cooldown.reset();
     _paper = e.paper;
     _s.past
       ..clear()
@@ -291,6 +291,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
   void dispose() {
     _intro?.dispose();
     _help?.dispose();
+    _cooldown.dispose();
     _frame.dispose();
     super.dispose();
   }
@@ -306,9 +307,15 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     return math.min(t / .3, (end - t) / .4).clamp(0.0, 1.0);
   }
 
+  /// From asking for a help till the next can be, shown as the help button's own
+  /// white coming back over its face; the button is back once it has.
+  late final _cooldown = AnimationController(vsync: this, duration: _helpCooldown)..addStatusListener((_) => setState(() {}));
+
+  bool get _helpReady => !_cooldown.isAnimating && !_helping && !_introRunning;
+
   void _useHelp() {
-    if (_s._helps == 0 || _helping || _introRunning) return;
-    setState(() => _s._helps--);
+    if (!_helpReady) return;
+    _cooldown.forward(from: 0);
     _help?.dispose();
     _help = AnimationController(vsync: this, duration: _helpLength)
       ..addListener(_onTick)
@@ -385,10 +392,10 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     _show(next);
   }
 
-  /// Unfolds the flake as cut; a duel's flake, cut, is a blow to its boss.
+  /// Unfolds the flake as cut, saying whether it is a duel's.
   void _unfold() {
-    if (_s._event?.flake case final f? when _duelFlakes.contains(f)) widget.game.duelHit(f.preset);
-    widget.onUnfold([..._cuts, ..._fallen], _folds, _paper);
+    final f = _s._event?.flake;
+    widget.onUnfold([..._cuts, ..._fallen], _folds, _paper, f != null && _duelFlakes.contains(f) ? f.preset : null);
   }
 
   void _addCut(Cut c) {
@@ -711,19 +718,23 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                               Btn(tr('home'), icon: LucideIcons.house, variant: Variant.orange, size: BtnSize.l, fontSize: 26, padX: 12, block: true, onTap: widget.onHome),
                               const SizedBox(height: 12),
                               // Folds and cuts of this flake, each under its mark, centred
-                              // under the home button.
+                              // under the home button. Repeating an event's flake, its folds
+                              // are the flake's own, not to change: the cuts alone, in the
+                              // middle.
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Column(
-                                    children: [
-                                      // Lets touches through to the board beneath.
-                                      const IgnorePointer(child: Icon(_foldsIcon, size: 18, color: C.snow700)),
-                                      const SizedBox(height: 4),
-                                      Segmented<int>(options: const [SegOption(4, '4'), SegOption(6, '6')], value: _folds, onChanged: _refold, fontSize: 14),
-                                    ],
-                                  ),
-                                  const SizedBox(width: 14),
+                                  if (!_eventOn) ...[
+                                    Column(
+                                      children: [
+                                        // Lets touches through to the board beneath.
+                                        const IgnorePointer(child: Icon(_foldsIcon, size: 18, color: C.snow700)),
+                                        const SizedBox(height: 4),
+                                        Segmented<int>(options: const [SegOption(4, '4'), SegOption(6, '6')], value: _folds, onChanged: _refold, fontSize: 14),
+                                      ],
+                                    ),
+                                    const SizedBox(width: 14),
+                                  ],
                                   // Lets touches through to the board. Fixed width, so the
                                   // scissors stay put however many digits the count has.
                                   IgnorePointer(
@@ -757,8 +768,9 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                       ),
                       const SizedBox(width: 12),
                       // During an event its panel gives way, in the same room, to the way
-                      // out of it and, under that, a help with how many are left. The panel
-                      // stays alive meanwhile, so it picks up where it was.
+                      // out of it and, under that, a help, its white face coming back till the
+                      // next can be. The panel stays alive meanwhile, so it picks up where
+                      // it was.
                       if (_eventOn)
                         SizedBox(
                           width: _eventSide(MediaQuery.sizeOf(context).width),
@@ -767,18 +779,17 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                             children: [
                               Btn(tr('back'), icon: LucideIcons.arrowLeft, variant: Variant.light, size: BtnSize.l, padX: 8, block: true, onTap: _endEvent),
                               const SizedBox(height: 12),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  RoundBtn.text(
+                              Center(
+                                child: AnimatedBuilder(
+                                  animation: _cooldown,
+                                  builder: (_, _) => RoundBtn.text(
                                     '?',
                                     label: tr('hint'),
-                                    disabled: _s._helps == 0 || _helping || _introRunning,
+                                    disabled: !_helpReady,
+                                    progress: _cooldown.isAnimating ? _cooldown.value : null,
                                     onTap: _useHelp,
                                   ),
-                                  const SizedBox(width: 10),
-                                  Text('×${_s._helps}', style: display(24, color: C.night800)),
-                                ],
+                                ),
                               ),
                             ],
                           ),
@@ -1228,7 +1239,7 @@ class _DuelWindow extends StatefulWidget {
 }
 
 class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin {
-  /// The flake just cut for the first time, by its place among them (see
+  /// The flake just done for the first time, by its place among them (see
   /// [GameState.duelFresh]), or −1: it flies at the boss's flake as the window
   /// opens, knocks its cone off, and comes back to its place, glowing.
   late int _fresh;
@@ -1816,8 +1827,8 @@ class _BounceState extends State<_Bounce> with SingleTickerProviderStateMixin {
 }
 
 /// The pieces the last cut weighed (see [detachReadout]), a line each: its
-/// share of the wedge, times how often it shows unfolded in one piece, and
-/// the weight that makes; those that fell in red, the one that stayed in green.
+/// share of the wedge, times how often it shows unfolded in one piece, the
+/// weight that makes, and the edge the earlier cuts gave it; those that fell in red, the one that stayed in green.
 class _WeighingReadout extends StatelessWidget {
   const _WeighingReadout(this.weighing);
   final ({List<Cut> cuts, List<PieceWeight> fell, PieceWeight? kept}) weighing;
@@ -1825,7 +1836,7 @@ class _WeighingReadout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     Widget line(PieceWeight w, Color color) => Text(
-          '${w.share.toStringAsFixed(1)}% ×${w.times} = ${(w.share * w.times).toStringAsFixed(1)}',
+          '${w.share.toStringAsFixed(1)}% ×${w.times} = ${(w.share * w.times).toStringAsFixed(1)} · ✂ ${w.edge.toStringAsFixed(2)}',
           style: display(13, weight: FontWeight.w700, color: color),
         );
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

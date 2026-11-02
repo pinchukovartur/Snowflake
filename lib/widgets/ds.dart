@@ -235,6 +235,7 @@ class RoundBtn extends StatelessWidget {
     this.flat = false,
     this.disabled = false,
     this.hitSlop = true,
+    this.progress,
     this.onTap,
   }) : glyph = null;
 
@@ -249,6 +250,7 @@ class RoundBtn extends StatelessWidget {
     this.flat = false,
     this.disabled = false,
     this.hitSlop = true,
+    this.progress,
     this.onTap,
   }) : icon = null;
 
@@ -264,6 +266,11 @@ class RoundBtn extends StatelessWidget {
   /// (so a small one is no harder to hit); off for buttons packed closer than
   /// that, like a grid's cells.
   final bool hitSlop;
+
+  /// How far along something the button waits on is (0 to 1), shown on its
+  /// face as its own colour coming back over the disabled one, clockwise
+  /// from the top; under the icon. Null for none.
+  final double? progress;
   final VoidCallback? onTap;
 
   static const _sizes = {
@@ -287,6 +294,10 @@ class RoundBtn extends StatelessWidget {
           final pressed = down && !disabled;
           // An active (selected) button stands a little larger instead of sinking.
           final grow = active && !disabled ? 1.12 : 1.0;
+          final content = switch (glyph) {
+            final g? => Center(child: Text(g, style: display(s.i * 1.15, weight: FontWeight.w400, color: disabled ? C.snow500 : v.fg, height: 1))),
+            null => Icon(icon, size: s.i, color: disabled ? C.snow500 : v.fg),
+          };
           return Padding(
             padding: EdgeInsets.only(bottom: s.lip),
             child: AnimatedContainer(
@@ -298,16 +309,18 @@ class RoundBtn extends StatelessWidget {
               transform: Matrix4.translationValues(0, pressed ? s.lip - 1 : 0, 0)..multiply(Matrix4.diagonal3Values(grow, grow, 1)),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: disabled ? C.snow200 : v.bg,
+                // With [progress], its own colour all along, the disabled one
+                // painted over what is still to go: so it doesn't fade from that
+                // to its own once done, flashing grey.
+                color: disabled && progress == null ? C.snow200 : v.bg,
                 boxShadow: [
                   if (v.lip != Colors.transparent && !flat)
                     BoxShadow(color: disabled ? C.snow300 : v.lip, offset: Offset(0, pressed ? 1 : s.lip)),
                 ],
               ),
-              child: switch (glyph) {
-                final g? => Center(child: Text(g, style: display(s.i * 1.15, weight: FontWeight.w400, color: disabled ? C.snow500 : v.fg, height: 1))),
-                null => Icon(icon, size: s.i, color: disabled ? C.snow500 : v.fg),
-              },
+              child: progress == null
+                  ? content
+                  : CustomPaint(painter: _ConePainter(progress!, C.snow200), child: SizedBox.expand(child: content)),
             ),
           );
         },
@@ -315,6 +328,23 @@ class RoundBtn extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A [RoundBtn]'s progress on its face: the part still to go in [color]
+/// (the disabled one), [done] of the way round clockwise from the top left
+/// showing the face's own.
+class _ConePainter extends CustomPainter {
+  _ConePainter(this.done, this.color);
+  final double done;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawArc(Offset.zero & size, -math.pi / 2 + 2 * math.pi * done, 2 * math.pi * (1 - done), true, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_ConePainter o) => o.done != done || o.color != color;
 }
 
 // ---- Dialog --------------------------------------------------------------

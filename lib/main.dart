@@ -79,6 +79,10 @@ class _GameShellState extends State<GameShell> {
   int _folds = 6;
   Paper _paper = const Paper();
 
+  /// The duel's flake (its preset) on show unfolded, if it is one: its blow
+  /// lands with "Done", not on going back to it.
+  String? _duelFlake;
+
 
   void _go(Screen s) => setState(() {
         // Leaving the collection (not for one of its flakes): a deletion can
@@ -87,8 +91,11 @@ class _GameShellState extends State<GameShell> {
         _screen = s;
       });
 
-  /// Opens the cut board with a fresh flake, folded like the last one.
+  /// Opens the cut board with a fresh flake, folded like the last one; the
+  /// flake just done, if a duel's, strikes its boss.
   void _newFlake() => setState(() {
+        if (_duelFlake case final f?) _game.duelHit(f);
+        _duelFlake = null;
         _runKey++;
         _session = CutSession()..folds = _session.folds;
         _screen = Screen.cut;
@@ -133,7 +140,8 @@ class _GameShellState extends State<GameShell> {
           game: _game,
           session: _session,
           onHome: () => _go(Screen.home),
-          onUnfold: (shape, folds, paper) => setState(() {
+          onUnfold: (shape, folds, paper, duelFlake) => setState(() {
+            _duelFlake = duelFlake;
             _cuts = shape;
             _folds = folds;
             _paper = paper;

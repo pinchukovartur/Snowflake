@@ -161,7 +161,7 @@ class GameState extends ChangeNotifier {
 
   bool tutorialSeen(String id) => _tutorialsSeen.contains(id);
 
-  /// The Halloween duel: the event flakes (by preset) the player has cut,
+  /// The Halloween duel: the event flakes (by preset) the player has done,
   /// each one taking a cone off the boss's flake; cutting one again doesn't.
   final duelHits = <String>{};
 
@@ -169,7 +169,7 @@ class GameState extends ChangeNotifier {
   /// still to knock their cones off as it opens. Not stored.
   int duelSeen = 0;
 
-  /// The flake (by preset) just cut for the first time, whose blow the duel's
+  /// The flake (by preset) just done for the first time, whose blow the duel's
   /// window is to show landing; cleared once it has. Not stored.
   String? duelFresh;
 

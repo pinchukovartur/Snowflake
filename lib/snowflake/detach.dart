@@ -14,8 +14,13 @@ const _cell = 1 / 400;
 const _pad = 0.007;
 
 /// A piece of paper as [detachedPieces] weighed it: its share of the wedge
-/// (in %), and how many times over it shows unfolded, all in one piece.
-typedef PieceWeight = ({double share, int times});
+/// (in %), how many times over it shows unfolded, all in one piece, and the
+/// length of its edge the player's earlier cuts made (in wedge radii).
+typedef PieceWeight = ({double share, int times, double edge});
+
+/// Pieces weighing within this share of the heaviest are close enough for
+/// the player's work on them to decide: see [detachedPieces].
+const _closeWeights = .4;
 
 /// What the last call to [detachedPieces] weighed: the [cuts] it was given,
 /// the pieces that fell, and the one that stayed (null with no paper left).
@@ -28,6 +33,9 @@ typedef PieceWeight = ({double share, int times});
 /// Unfolded, a piece touching a fold edge is joined to its mirror image, and one
 /// touching both edges runs right round the flake. So a piece's real size is its
 /// area in the wedge ×1, ×2 or ×(2·folds): the biggest stays, the rest fall off.
+/// But of pieces about as big (within [_closeWeights] of the biggest), the one
+/// the player has worked on most stays: the most edge cut by their earlier
+/// cuts (not the last, which cuts them all alike, nor the wedge's own).
 List<Cut> detachedPieces(List<Cut> cuts, List<Cut> fallen, int folds) {
   final half = wedgeHalfAngle(folds);
   final cosH = math.cos(half), sinH = math.sin(half);
@@ -63,14 +71,20 @@ List<Cut> detachedPieces(List<Cut> cuts, List<Cut> fallen, int folds) {
     weights.add(tail * times.last);
   }
 
-  var kept = 0;
+  var heaviest = 0;
   for (var k = 1; k < weights.length; k++) {
-    if (weights[k] > weights[kept]) kept = k;
+    if (weights[k] > weights[heaviest]) heaviest = k;
+  }
+  final edges = starts.length < 2 ? List.filled(starts.length, 0) : _earlierEdges(cuts, folds, paper, label, starts.length);
+  var kept = heaviest;
+  for (var k = 0; k < weights.length; k++) {
+    if (weights[k] < weights[heaviest] * _closeWeights) continue;
+    if (edges[k] > edges[kept] || (edges[k] == edges[kept] && weights[k] > weights[kept])) kept = k;
   }
   if (kDebugMode) {
     // A piece's cells as a share of the wedge, a sector of radius 1 and
     // area [half].
-    PieceWeight weighed(int k) => (share: cells[k] * _cell * _cell / half * 100, times: times[k]);
+    PieceWeight weighed(int k) => (share: cells[k] * _cell * _cell / half * 100, times: times[k], edge: edges[k] * _cell);
     lastWeighing = (
       cuts: cuts,
       fell: [for (var k = 0; k < starts.length; k++) if (k != kept) weighed(k)],
@@ -82,6 +96,26 @@ List<Cut> detachedPieces(List<Cut> cuts, List<Cut> fallen, int folds) {
     for (var k = 0; k < starts.length; k++)
       if (k != kept) _outline(label, cols, rows, k + 1, starts[k], x0, y0),
   ];
+}
+
+/// How many cells of each of [count] pieces (as [label]ed on [paper]) border
+/// paper that [cuts] but the last had cut away.
+List<int> _earlierEdges(List<Cut> cuts, int folds, Uint8List paper, Int32List label, int count) {
+  final edges = List.filled(count, 0);
+  if (cuts.length < 2) return edges;
+  final (wedge, cols, rows, _, _) = _paperLeft(const [], folds);
+  final (before, _, _, _, _) = _paperLeft(cuts.sublist(0, cuts.length - 1), folds);
+  for (var p = 0; p < paper.length; p++) {
+    if (paper[p] == 0) continue;
+    final i = p % cols, j = p ~/ cols;
+    for (final q in [if (i > 0) p - 1, if (i < cols - 1) p + 1, if (j > 0) p - cols, if (j < rows - 1) p + cols]) {
+      if (wedge[q] == 1 && before[q] == 0) {
+        edges[label[p] - 1]++;
+        break;
+      }
+    }
+  }
+  return edges;
 }
 
 /// Whether [cut] would take away any of the paper left after [gone] (cuts and
