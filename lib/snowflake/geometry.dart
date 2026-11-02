@@ -1185,7 +1185,7 @@ void drawWedge(Canvas canvas, double s, List<Cut> cuts, double half, Paint fill,
   if (pattern == 'glass' && sheen) {
     canvas.save();
     canvas.clipPath(wedge);
-    drawGlassGlints(canvas, Rect.fromCircle(center: Offset.zero, radius: s), fill.color);
+    drawGlassGlints(canvas, Rect.fromCircle(center: Offset.zero, radius: s));
     canvas.restore();
   }
   final clear = Paint()..blendMode = BlendMode.clear;
@@ -1217,11 +1217,15 @@ Color glassTint(Color color) {
   return hsv.withSaturation(math.min(1, hsv.saturation * _glassSaturation)).toColor();
 }
 
-/// The shade of glass of [color] seen in its thickness: as two panes of it
-/// one over the other look, the same colour, denser.
+/// How dark glass's thickness is: its colour's brightness (as in HSV) times
+/// this. Seen as see-through as the glass, it is as dense as that.
+const _thicknessShade = .55;
+
+/// The colour of glass of [color] seen in its thickness: the glass's own
+/// (see [glassTint]), darker; solid.
 Color glassShade(Color color) {
-  final clear = 1 - glassOpacity(color);
-  return glassTint(color).withValues(alpha: 1 - clear * clear);
+  final hsv = HSVColor.fromColor(glassTint(color));
+  return hsv.withValue(hsv.value * _thicknessShade).toColor();
 }
 
 /// Paints whatever is drawn solid [color] wherever it is drawn at all: see-
@@ -1233,22 +1237,39 @@ ColorFilter glassSolid(Color color) => ColorFilter.matrix([
       0, 0, 0, 4, 0,
     ]);
 
-/// Glints on glass are white with this share of the glass's own colour in.
-const _glintTint = .35;
+/// Makes see-through glass (never under a quarter opaque) solid, its colours
+/// and soft edges kept: to be laid down as see-through again as a whole.
+const glassOpaque = ColorFilter.matrix([
+  1, 0, 0, 0, 0, //
+  0, 1, 0, 0, 0,
+  0, 0, 1, 0, 0,
+  0, 0, 0, 4, 0,
+]);
 
-/// Light glinting on glass of [tint] (its colour, see [glassTint]) over
-/// [area]: two pale streaks slanting across it, white touched with the
-/// glass's colour, laid on the screen however the glass turns, as the
+/// Light glinting on glass over [area]: two pale white streaks slanting
+/// across it, each swelling and fading smoothly (no sharp ridge of white
+/// down its middle), laid on the screen however the glass turns, as the
 /// hologram's sheen is. [blend] lays them only over what is drawn already
 /// (srcATop).
-void drawGlassGlints(Canvas canvas, Rect area, Color tint, {BlendMode blend = BlendMode.srcOver}) {
-  final light = Color.lerp(const Color(0xFFFFFFFF), tint.withValues(alpha: 1), _glintTint)!;
-  final clear = light.withValues(alpha: 0), glint = light.withValues(alpha: .45), faint = light.withValues(alpha: .3);
+void drawGlassGlints(Canvas canvas, Rect area, {BlendMode blend = BlendMode.srcOver}) {
+  const light = Color(0xFFFFFFFF);
+  Color at(double a) => light.withValues(alpha: a);
+  // Each streak, from [from] to [to] along the diagonal at most [peak]
+  // strong, a smooth bump (a cosine's) sampled in a few steps.
+  const steps = 8;
+  final colors = <Color>[], stops = <double>[];
+  for (final (from, to, peak) in const [(.32, .42, .3), (.67, .74, .2)]) {
+    for (var k = 0; k <= steps; k++) {
+      final t = k / steps;
+      colors.add(at(peak * (1 - math.cos(2 * math.pi * t)) / 2));
+      stops.add(from + (to - from) * t);
+    }
+  }
   canvas.drawRect(
     area,
     Paint()
       ..blendMode = blend
-      ..shader = ui.Gradient.linear(area.topLeft, area.bottomRight, [clear, clear, glint, clear, clear, faint, clear], [0, .3, .37, .44, .66, .7, .76]),
+      ..shader = ui.Gradient.linear(area.topLeft, area.bottomRight, colors, stops),
   );
 }
 

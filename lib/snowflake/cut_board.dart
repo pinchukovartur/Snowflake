@@ -648,23 +648,26 @@ class _BoardPainter extends CustomPainter {
         ..close();
       canvas.drawPath(shadow, Paint()..color = const Color(0x292E4A94));
 
-      // Glass's thickness: the wedge again in its colour darkened, a little
-      // down as its shadow falls, wiped from under the wedge itself.
-      if (pattern == 'glass') {
-        final shade = glassShade(color);
-        canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, shade.a));
+      // Glass: its thickness (the wedge again in its colour darkened, a little
+      // down as its shadow falls) and over it the wedge, both solid, laid down
+      // together as see-through as the glass is: the solid glass hides the
+      // thickness under it. Its glints go on after, over it, not see-through.
+      final glass = pattern == 'glass';
+      if (glass) {
+        canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, glassOpacity(color)));
         canvas.save();
         canvas.translate(0, s * glassDepth);
-        drawWedge(canvas, s, [...cuts, ...fallen], half, Paint()..color = shade.withValues(alpha: 1));
-        canvas.restore();
-        canvas.saveLayer(null, Paint()..blendMode = BlendMode.dstOut);
-        drawWedge(canvas, s, [...cuts, ...fallen], half, Paint()..color = const Color(0xFF000000));
-        canvas.restore();
+        drawWedge(canvas, s, [...cuts, ...fallen], half, Paint()..color = glassShade(color));
         canvas.restore();
       }
       // The folded paper shows its top layer (see [foldedTop]), so the flake
       // opens from just what the board showed.
-      drawWedge(canvas, s, [...cuts, ...fallen], half, fill, pattern: pattern, sheenTime: twinkle ?? 0, pos: foldedTop(folds), folds: folds);
+      drawWedge(canvas, s, [...cuts, ...fallen], half, glass ? (Paint()..color = glassTint(color)) : fill, pattern: pattern, sheen: !glass, sheenTime: twinkle ?? 0, pos: foldedTop(folds), folds: folds);
+      if (glass) {
+        canvas.restore();
+        // Nothing but the glints, kept to the wedge and out of its holes.
+        drawWedge(canvas, s, [...cuts, ...fallen], half, Paint()..color = const Color(0x00000000), pattern: pattern, pos: foldedTop(folds), folds: folds);
+      }
       final tw = twinkle;
       if (tw != null && pattern == 'sparkle') drawWedgeGlints(canvas, s, [...cuts, ...fallen], half, color, tw, pos: foldedTop(folds), folds: folds);
       if (fading) canvas.restore();

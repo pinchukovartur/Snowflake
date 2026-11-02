@@ -18,7 +18,7 @@ const _showCoins = false;
 
 /// The night, darker under the window: the glass's white haze (about 11% where
 /// it is clear of glints) lifts it back to the other screens' sky. Each is
-/// `(c в€’ 255В·a) / (1 в€’ a)` of [SkyBackground.night], for a = .11.
+/// `(c − 255·a) / (1 − a)` of [SkyBackground.night], for a = .11.
 const _skyUnderHaze = [Color(0xFF001047), Color(0xFF153487), Color(0xFF264EAF)];
 
 /// What the window looks out on. Set by hand for each release: autumn now,

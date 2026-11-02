@@ -195,7 +195,7 @@ class _PaperSwatchPainter extends CustomPainter {
     if (pattern == 'glass') {
       canvas.save();
       canvas.clipRRect(rr);
-      drawGlassGlints(canvas, rr.outerRect, glassTint(color));
+      drawGlassGlints(canvas, rr.outerRect);
       canvas.restore();
     }
     canvas.restore();

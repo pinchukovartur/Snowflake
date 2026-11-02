@@ -165,6 +165,11 @@ class _FlakeKey {
 // per frame.
 final _flakeCache = <_FlakeKey, ui.Image>{};
 
+/// Baked flakes kept at most: every pane of the home windows (72, less the
+/// three rows behind the tree) and room to spare, so a full window never
+/// has them push one another out and bake again.
+const _flakeCacheSize = 100;
+
 // ---- Unfolding ------------------------------------------------------------
 //
 // Segment positions are integers: position p is the wedge turned by p·step,
@@ -410,7 +415,7 @@ class SnowflakePainter extends CustomPainter {
       for (var i = 0; i < folds * 2; i++) {
         _dropWedge(w.at(i));
       }
-      while (_flakeCache.length >= 60) {
+      while (_flakeCache.length >= _flakeCacheSize) {
         _flakeCache.remove(_flakeCache.keys.first)?.dispose();
       }
     }
@@ -499,43 +504,39 @@ class SnowflakePainter extends CustomPainter {
       canvas.restore();
     }
 
-    if (pattern == 'glass') _paintThickness(canvas, s, bounds, body);
-    canvas.saveLayer(bounds, Paint());
-    body();
-    canvas.restore();
-    if (pattern == 'glass') _paintGlints(canvas, s, bounds, body);
+    if (pattern == 'glass') {
+      _paintGlass(canvas, s, bounds, body);
+    } else {
+      canvas.saveLayer(bounds, Paint());
+      body();
+      canvas.restore();
+    }
   }
 
-  /// Glass's glints over the flake [body] paints, staying put on the screen
-  /// however it turns. Light on glass, not in it: laid over it as they are,
-  /// not as see-through as the glass (which would show what lies behind
-  /// through them), but kept to the glass.
-  void _paintGlints(Canvas canvas, double s, Rect bounds, void Function() body) {
-    canvas.saveLayer(bounds, Paint());
-    drawGlassGlints(canvas, Rect.fromCircle(center: Offset(s / 2, s / 2), radius: s * .5), glassTint(color));
-    canvas.saveLayer(bounds, Paint()
-      ..blendMode = BlendMode.dstIn
-      ..colorFilter = glassSolid(const Color(0xFF000000)));
-    body();
-    canvas.restore();
-    canvas.restore();
-  }
-
-  /// Glass's thickness under the flake [body] paints: the flake again, solid
-  /// in its colour darkened, a little down the screen (the way its shadow
-  /// falls, but close), showing only past the flake's own edges.
-  void _paintThickness(Canvas canvas, double s, Rect bounds, void Function() body) {
-    final shade = glassShade(color);
-    canvas.saveLayer(bounds, Paint()..color = Color.fromRGBO(0, 0, 0, shade.a));
+  /// Glass, as the flake [body] paints it: its thickness (the flake again,
+  /// solid in its colour darkened, a little down the screen, the way its
+  /// shadow falls but close) and over it the glass, solid, both then laid
+  /// down as see-through as the glass is: solid till then, the glass hides
+  /// the thickness under it, with no pass to wipe it away. Over that, its
+  /// glints (staying put on the screen however it turns): light on glass,
+  /// not in it, so not see-through with it, but kept to the glass by a mask
+  /// of the flake's shape.
+  void _paintGlass(Canvas canvas, double s, Rect bounds, void Function() body) {
+    canvas.saveLayer(bounds, Paint()..color = Color.fromRGBO(0, 0, 0, glassOpacity(color)));
     canvas.save();
     canvas.translate(0, s * glassDepth);
-    canvas.saveLayer(bounds, Paint()..colorFilter = glassSolid(shade));
+    canvas.saveLayer(bounds, Paint()..colorFilter = glassSolid(glassShade(color)));
     body();
     canvas.restore();
     canvas.restore();
-    // Wiped from under the flake, so none shows through the glass.
+    canvas.saveLayer(bounds, Paint()..colorFilter = glassOpaque);
+    body();
+    canvas.restore();
+    canvas.restore();
+    canvas.saveLayer(bounds, Paint());
+    drawGlassGlints(canvas, Rect.fromCircle(center: Offset(s / 2, s / 2), radius: s * .5));
     canvas.saveLayer(bounds, Paint()
-      ..blendMode = BlendMode.dstOut
+      ..blendMode = BlendMode.dstIn
       ..colorFilter = glassSolid(const Color(0xFF000000)));
     body();
     canvas.restore();
