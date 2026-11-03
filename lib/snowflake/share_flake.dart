@@ -1,9 +1,10 @@
+import 'dart:io';
 import 'dart:isolate';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -20,10 +21,14 @@ const _side = 1080;
 /// Side of the shared animation, in pixels: GIF grows fast with it.
 const _gifSide = 480;
 
-/// Hundredths of a second each frame of the animation shows for.
+/// Hundredths of a second each frame of the GIF shows for.
 const _gifDelay = 6;
 
-/// Asks whether to share a picture of the flake or its unfolding as a GIF,
+/// Side of the shared video, in pixels (a multiple of 16, as encoders like),
+/// its frames a second and bits a second.
+const _videoSide = 720, _videoFps = 30, _videoBitrate = 4000000;
+
+/// Asks whether to share a picture of the flake or its unfolding animated,
 /// and shares that. No [color] is white paper, as [SnowflakeView] has it.
 /// [context] is the button tapped, which the share sheet points from where
 /// that matters (tablets).
@@ -43,8 +48,9 @@ Future<void> shareFlake(BuildContext context, {required List<Cut> cuts, required
 typedef _Flake = ({List<Cut> cuts, int folds, Color color, String pattern});
 typedef _File = ({Uint8List bytes, String type, String name});
 
-/// Picture or animation. The picture closes it, once made, to be shared;
-/// the animation, once made, plays in it, to be shared from there.
+/// Picture or animation. The picture closes it, once made, to be shared.
+/// The animation first plays in it (drawn live, as the file will be), then
+/// closes it, once made, from its own button.
 class _ShareDialog extends StatefulWidget {
   const _ShareDialog(this.flake);
   final _Flake flake;
@@ -54,55 +60,129 @@ class _ShareDialog extends StatefulWidget {
 }
 
 class _ShareDialogState extends State<_ShareDialog> {
-  /// What is being made, if anything.
-  Future<_File> Function(_Flake)? _making;
-  _File? _gif;
+  bool _previewing = false;
+
+  /// Whether the file to share is being made.
+  bool _making = false;
 
   Future<void> _make(Future<_File> Function(_Flake) make) async {
-    setState(() => _making = make);
+    setState(() => _making = true);
     final file = await make(widget.flake);
-    if (!mounted) return;
-    if (make == _animation) {
-      setState(() {
-        _making = null;
-        _gif = file;
-      });
-    } else {
-      Navigator.pop(context, file);
-    }
+    if (mounted) Navigator.pop(context, file);
   }
 
   @override
   Widget build(BuildContext context) {
-    final gif = _gif;
-    if (gif != null) {
+    if (_previewing) {
       return DsDialog(
         title: tr('share'),
         onClose: () => Navigator.pop(context),
-        actions: [Btn(tr('share'), icon: LucideIcons.share2, block: true, onTap: () => Navigator.pop(context, gif))],
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(R.m),
-          child: Image.memory(gif.bytes, width: 240, height: 240, gaplessPlayback: true),
-        ),
+        actions: [Btn(_making ? tr('share_making') : tr('share'), icon: LucideIcons.share2, block: true, disabled: _making, onTap: () => _make(_animation))],
+        child: ClipRRect(borderRadius: BorderRadius.circular(R.m), child: _LoopPreview(widget.flake)),
       );
     }
-    final making = _making != null;
     return DsDialog(
       title: tr('share'),
       onClose: () => Navigator.pop(context),
       actions: [
-        Btn(_making == _picture ? tr('share_making') : tr('share_picture'), icon: LucideIcons.image, block: true, disabled: making, onTap: () => _make(_picture)),
-        Btn(
-          _making == _animation ? tr('share_making') : tr('share_animation'),
-          icon: LucideIcons.film,
-          variant: Variant.secondary,
-          block: true,
-          disabled: making,
-          onTap: () => _make(_animation),
-        ),
+        Btn(_making ? tr('share_making') : tr('share_picture'), icon: LucideIcons.image, block: true, disabled: _making, onTap: () => _make(_picture)),
+        Btn(tr('share_animation'), icon: LucideIcons.film, variant: Variant.secondary, block: true, disabled: _making, onTap: () => setState(() => _previewing = true)),
       ],
       child: Text(tr('share_hint')),
     );
+  }
+}
+
+/// The animation, 240 across, looping for as long as it shows.
+class _LoopPreview extends StatefulWidget {
+  const _LoopPreview(this.flake);
+  final _Flake flake;
+
+  @override
+  State<_LoopPreview> createState() => _LoopPreviewState();
+}
+
+class _LoopPreviewState extends State<_LoopPreview> with SingleTickerProviderStateMixin {
+  late final _loop = _Loop(widget.flake);
+  double _t = 0;
+  late final _ticker = createTicker((elapsed) => setState(() => _t = elapsed.inMicroseconds / 1e6 % _loop.total));
+
+  @override
+  void initState() {
+    super.initState();
+    _ticker.start();
+  }
+
+  @override
+  void dispose() {
+    _ticker.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      CustomPaint(size: const Size.square(240), painter: _LoopPainter(_loop, _t, MediaQuery.devicePixelRatioOf(context)));
+}
+
+class _LoopPainter extends CustomPainter {
+  _LoopPainter(this.loop, this.t, this.dpr);
+  final _Loop loop;
+  final double t, dpr;
+
+  @override
+  void paint(Canvas canvas, Size size) => loop.paint(canvas, size.width, t, dpr: dpr);
+
+  @override
+  bool shouldRepaint(_LoopPainter old) => old.t != t || old.dpr != dpr;
+}
+
+/// The animation: the flake folded, unfolding as on the reveal screen, lying
+/// open a while (its glints twinkling, if it has them), fading out and back
+/// in folded to loop. It starts folded and in full, not faded: the first
+/// frame is all a share sheet's preview or a chat's thumbnail shows.
+class _Loop {
+  _Loop(this.flake) : _unfolding = Motion.unfold.inMilliseconds / 1000 * unfoldSpan(flake.folds);
+
+  static const _fadeIn = .3, _rest = .3, _open = 1.6, _fadeOut = .3;
+  final _Flake flake;
+  final double _unfolding;
+
+  /// Seconds it takes, once round.
+  double get total => _fadeIn + _rest + _unfolding + _open + _fadeOut;
+
+  /// The scene [t] seconds in, [side] across (see [_paintScene]).
+  void paint(Canvas canvas, double side, double t, {double dpr = 1}) {
+    // From its fading in folded, which comes last, to loop back to the start.
+    final since = (t + _fadeIn) % total;
+    final unfold = ((since - _fadeIn - _rest) / _unfolding).clamp(0.0, 1.0);
+    final f = flake;
+    final painter = SnowflakePainter(
+      cuts: f.cuts,
+      folds: f.folds,
+      color: f.color,
+      pattern: f.pattern,
+      unfold: unfold,
+      // As on the reveal screen: a hologram's sheen drifts all along, glints
+      // twinkle once it lies open.
+      twinkle: shimmers(f.pattern) && (unfold == 1 || f.pattern == 'holo') ? t : null,
+      spin: unfold * 2 * math.pi / f.folds,
+      shading: true,
+      dpr: dpr,
+    );
+    _paintScene(canvas, side, painter, opacity: math.min(1.0, math.min(since / _fadeIn, (total - since) / _fadeOut)));
+  }
+
+  /// Its frames, [fps] a second, [side] pixels across, as raw RGBA, handed to
+  /// [take] one by one as drawn.
+  Future<void> frames(int side, double fps, Future<void> Function(ByteData rgba) take) async {
+    for (var n = 0; n < (total * fps).round(); n++) {
+      final rec = ui.PictureRecorder();
+      paint(Canvas(rec), side * 1.0, n / fps);
+      final img = await rec.endRecording().toImage(side, side);
+      final data = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
+      img.dispose();
+      await take(data!);
+    }
   }
 }
 
@@ -116,46 +196,40 @@ Future<_File> _picture(_Flake f) async {
   return (bytes: data!.buffer.asUint8List(), type: 'image/png', name: 'snowflake.png');
 }
 
-/// The flake folded, unfolding as on the reveal screen, lying open a while
-/// (its glints twinkling, if it has them), fading out and back in folded to
-/// loop. It starts folded and in full, not faded: the first frame is all a
-/// share sheet's preview or a chat's thumbnail shows.
+/// The animation as a file: on Android a video, which chat apps play as an
+/// animation (a GIF from the share sheet they often send as a still); a GIF
+/// elsewhere, or where the video can't be made.
 Future<_File> _animation(_Flake f) async {
-  const side = _gifSide * 1.0, step = _gifDelay / 100;
-  const fadeIn = .3, rest = .3, open = 1.6, fadeOut = .3;
-  final unfolding = Motion.unfold.inMilliseconds / 1000 * unfoldSpan(f.folds);
-  final total = fadeIn + rest + unfolding + open + fadeOut;
-  final twinkles = shimmers(f.pattern);
-  final frames = <TransferableTypedData>[];
-  for (var t = 0.0; t < total - step / 2; t += step) {
-    // From its fading in folded, which comes last, to loop back to the start.
-    final since = (t + fadeIn) % total;
-    final unfold = ((since - fadeIn - rest) / unfolding).clamp(0.0, 1.0);
-    final opacity = math.min(1.0, math.min(since / fadeIn, (total - since) / fadeOut));
-    final rec = ui.PictureRecorder();
-    _paintScene(
-      Canvas(rec),
-      side,
-      SnowflakePainter(
-        cuts: f.cuts,
-        folds: f.folds,
-        color: f.color,
-        pattern: f.pattern,
-        unfold: unfold,
-        // As on the reveal screen: a hologram's sheen drifts all along,
-        // glints twinkle once it lies open.
-        twinkle: twinkles && (unfold == 1 || f.pattern == 'holo') ? t : null,
-        spin: unfold * 2 * math.pi / f.folds,
-        shading: true,
-        dpr: 1,
-      ),
-      opacity: opacity,
-    );
-    final img = await rec.endRecording().toImage(_gifSide, _gifSide);
-    final data = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
-    img.dispose();
-    frames.add(TransferableTypedData.fromList([data!]));
+  if (Platform.isAndroid) {
+    try {
+      return await _video(f);
+    } on PlatformException catch (e) {
+      debugPrint('Video not made: $e');
+    }
   }
+  return _gif(f);
+}
+
+/// Served by MainActivity's VideoWriter.
+const _videoChannel = MethodChannel('snowflake/video');
+
+Future<_File> _video(_Flake f) async {
+  final path = '${Directory.systemTemp.path}/snowflake.mp4';
+  await _videoChannel.invokeMethod('start', {'path': path, 'width': _videoSide, 'height': _videoSide, 'fps': _videoFps, 'bitrate': _videoBitrate});
+  // Each frame drawn while the one before is encoded: one at a time sent on.
+  Future<void>? sending;
+  await _Loop(f).frames(_videoSide, _videoFps * 1.0, (rgba) async {
+    await sending;
+    sending = _videoChannel.invokeMethod('frame', rgba.buffer.asUint8List());
+  });
+  await sending;
+  await _videoChannel.invokeMethod('finish');
+  return (bytes: await File(path).readAsBytes(), type: 'video/mp4', name: 'snowflake.mp4');
+}
+
+Future<_File> _gif(_Flake f) async {
+  final frames = <TransferableTypedData>[];
+  await _Loop(f).frames(_gifSide, 100 / _gifDelay, (rgba) async => frames.add(TransferableTypedData.fromList([rgba])));
   final gif = await Isolate.run(() => encodeGif([for (final d in frames) d.materialize().asUint8List()], _gifSide, _gifSide, _gifDelay));
   return (bytes: gif, type: 'image/gif', name: 'snowflake.gif');
 }

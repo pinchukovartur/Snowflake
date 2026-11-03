@@ -400,7 +400,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
 
   void _addCut(Cut c) {
     if (widget.game.vibration) HapticFeedback.lightImpact();
-    if (widget.game.sfx) Sfx.cut();
+    if (widget.game.sfx) Sfx.cut(stencil: _tool != 'free');
     final cuts = [..._cuts, c];
     _step((cuts: cuts, drops: [..._drops, detachedPieces(cuts, _fallen, _folds)], folds: _folds));
   }

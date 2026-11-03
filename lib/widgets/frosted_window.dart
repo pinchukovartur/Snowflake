@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 /// glinting on the panes. What shows through it should be drawn soft, as if
 /// seen through frosted glass.
 class WindowFrame extends StatelessWidget {
-  const WindowFrame({super.key, this.rows = 4, this.onSill = false, this.snow = true});
+  const WindowFrame({super.key, this.rows = 4, this.onSill = false, this.snow = true, this.door = 0});
 
   /// Panes from top to bottom in each sash.
   final int rows;
@@ -17,6 +17,19 @@ class WindowFrame extends StatelessWidget {
 
   /// Snow lying on the bars and sills outside (winter).
   final bool snow;
+
+  /// Bottom rows given over to a door (none if 0): the sashes stop above it,
+  /// its opening (see [doorRect]) left for a [WindowDoor] to fill.
+  final int door;
+
+  /// The opening for a door taking the bottom [door] rows in a frame of
+  /// [size]: across the casing's inside, from just under the last pane above
+  /// it down to the frame's foot.
+  static Rect doorRect(Size size, int rows, int door) {
+    final inner = (Offset.zero & size).deflate(_casing);
+    final glass = paneRects(size, rows);
+    return Rect.fromLTRB(inner.left, glass[(rows - door) * 2 - 1].bottom + _stile, inner.right, size.height);
+  }
 
   /// The clear glass of every pane under the arch in a frame of [size], row by
   /// row from the top, left sash first: room for things clear of the bars.
@@ -53,7 +66,7 @@ class WindowFrame extends StatelessWidget {
     return IgnorePointer(
       child: Stack(fit: StackFit.expand, children: [
         const DecoratedBox(decoration: BoxDecoration(gradient: _sheen)),
-        RepaintBoundary(child: CustomPaint(painter: _FramePainter(rows, onSill: onSill, snow: snow))),
+        RepaintBoundary(child: CustomPaint(painter: _FramePainter(rows, onSill: onSill, snow: snow, door: door))),
       ]),
     );
   }
@@ -176,6 +189,14 @@ class _SillPainter extends CustomPainter {
   bool shouldRepaint(_SillPainter oldDelegate) => false;
 }
 
+/// The floor under a [WindowSill]: plain, darker than the wood.
+class WindowFloor extends StatelessWidget {
+  const WindowFloor({super.key});
+
+  @override
+  Widget build(BuildContext context) => const ColoredBox(color: _floor, child: SizedBox.expand());
+}
+
 /// Light on the glass: a faint haze with two diagonal glints.
 const _sheen = LinearGradient(
   begin: Alignment.topLeft,
@@ -186,6 +207,9 @@ const _sheen = LinearGradient(
 
 // Painted wood in the brand's ice blue, lit from the top left.
 const _wood = Color(0xFF7D98C6), _woodLight = Color(0xFFB4C8E8), _woodDark = Color(0xFF51689A);
+
+/// The floor, in the shade of the wood's dark edge.
+const _floor = Color(0xFF3F5384);
 
 /// Widths in dp: the casing round the screen, each sash's own frame (two of
 /// them meet in the middle), and the glazing bars.
@@ -226,8 +250,8 @@ const _archRise = .36;
 const _spokes = [-50 * math.pi / 180, 0.0, 50 * math.pi / 180];
 
 class _FramePainter extends CustomPainter {
-  _FramePainter(this._rows, {required this.onSill, required this.snow});
-  final int _rows;
+  _FramePainter(this._rows, {required this.onSill, required this.snow, required this.door});
+  final int _rows, door;
   final bool onSill, snow;
 
   @override
@@ -238,7 +262,11 @@ class _FramePainter extends CustomPainter {
     final base = inner.top + inner.width * _archRise;
     var seed = 0;
     _fanlight(canvas, Rect.fromLTRB(inner.left, inner.top, inner.right, base), seed++, snow: snow);
-    final body = Rect.fromLTRB(inner.left, base, inner.right, inner.bottom);
+    // Over a door, the sashes stop short, keeping their panes where they were.
+    final doorway = door > 0 ? WindowFrame.doorRect(size, _rows, door) : null;
+    final full = Rect.fromLTRB(inner.left, base, inner.right, inner.bottom);
+    final body = Rect.fromLTRB(inner.left, base, inner.right, doorway?.top ?? inner.bottom);
+    final rows = _rows - door;
     final sashes = [
       Rect.fromLTRB(body.left, body.top, body.center.dx, body.bottom),
       Rect.fromLTRB(body.center.dx, body.top, body.right, body.bottom),
@@ -246,11 +274,11 @@ class _FramePainter extends CustomPainter {
     for (final sash in sashes) {
       final glass = sash.deflate(_stile);
       final paneW = glass.width / _cols;
-      final spans = _rowSpans(glass.top, glass.bottom, _rows);
+      final spans = _rowSpans(glass.top, full.bottom - _stile, _rows).take(rows).toList();
       // Snow on the sill outside every bar and the bottom rail, a drift per
       // pane: behind the glass, so the wood hides its foot.
-      for (var r = 1; r <= _rows; r++) {
-        final last = r == _rows;
+      for (var r = 1; r <= rows; r++) {
+        final last = r == rows;
         final top = last ? glass.bottom : spans[r - 1].$2;
         for (var c = 0; c < _cols; c++) {
           final x0 = glass.left + c * paneW + (c > 0 ? _bar / 2 : 0);
@@ -267,7 +295,7 @@ class _FramePainter extends CustomPainter {
       for (var c = 1; c < _cols; c++) {
         _woodBar(canvas, Rect.fromCenter(center: Offset(glass.left + c * paneW, glass.center.dy), width: _bar, height: glass.height));
       }
-      for (var r = 1; r < _rows; r++) {
+      for (var r = 1; r < rows; r++) {
         _woodBar(canvas, Rect.fromLTRB(glass.left, spans[r - 1].$2, glass.right, spans[r].$1));
       }
       _woodRing(canvas, sash, glass);
@@ -413,5 +441,95 @@ class _FramePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_FramePainter oldDelegate) => oldDelegate._rows != _rows || oldDelegate.onSill != onSill || oldDelegate.snow != snow;
+  bool shouldRepaint(_FramePainter oldDelegate) =>
+      oldDelegate._rows != _rows || oldDelegate.onSill != onSill || oldDelegate.snow != snow || oldDelegate.door != door;
+}
+
+/// A glazed double door filling its box: its top [glassHeight] glazed, four
+/// panes by two in each leaf, its corners rounded up there; below that (down
+/// through the sill to the floor) a solid wooden panel. Handles on each leaf
+/// where they meet.
+class WindowDoor extends StatelessWidget {
+  const WindowDoor({super.key, required this.glassHeight});
+  final double glassHeight;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(child: CustomPaint(painter: _DoorPainter(glassHeight), size: Size.infinite));
+}
+
+class _DoorPainter extends CustomPainter {
+  _DoorPainter(this.glassHeight);
+  final double glassHeight;
+
+  /// The door's own frame round it, and its top corners' rounding as a share
+  /// of its width.
+  static const _jamb = 12.0, _round = .18;
+
+  /// Panes down and across in each leaf.
+  static const _rows = 4, _cols = 2;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final outer = Offset.zero & size;
+    final r = Radius.circular(size.width * _round);
+    final inner = Rect.fromLTRB(_jamb, _jamb, size.width - _jamb, size.height);
+    final opening = RRect.fromRectAndCorners(inner, topLeft: r - const Radius.circular(_jamb), topRight: r - const Radius.circular(_jamb));
+    // The wood round the opening: the jamb, and the corners its rounded top leaves.
+    canvas.drawPath(
+      Path()
+        ..fillType = PathFillType.evenOdd
+        ..addRect(outer)
+        ..addRRect(opening),
+      Paint()..color = _wood,
+    );
+    canvas.save();
+    canvas.clipRRect(opening);
+    final leaves = [
+      Rect.fromLTRB(inner.left, inner.top, inner.center.dx, inner.bottom),
+      Rect.fromLTRB(inner.center.dx, inner.top, inner.right, inner.bottom),
+    ];
+    for (final leaf in leaves) {
+      final glass = Rect.fromLTRB(leaf.left + _stile, leaf.top + _stile, leaf.right - _stile, glassHeight - _stile);
+      final paneW = (glass.width - (_cols - 1) * _bar) / _cols, paneH = (glass.height - (_rows - 1) * _bar) / _rows;
+      for (var row = 0; row < _rows; row++) {
+        for (var c = 0; c < _cols; c++) {
+          _FramePainter._shadeGlass(canvas, Rect.fromLTWH(glass.left + c * (paneW + _bar), glass.top + row * (paneH + _bar), paneW, paneH));
+        }
+      }
+      for (var c = 1; c < _cols; c++) {
+        _FramePainter._woodBar(canvas, Rect.fromLTWH(glass.left + c * (paneW + _bar) - _bar, glass.top, _bar, glass.height));
+      }
+      for (var row = 1; row < _rows; row++) {
+        _FramePainter._woodBar(canvas, Rect.fromLTWH(glass.left, glass.top + row * (paneH + _bar) - _bar, glass.width, _bar));
+      }
+      // The leaf's frame round its glass, and the solid panel below it.
+      canvas.drawPath(
+        Path()
+          ..fillType = PathFillType.evenOdd
+          ..addRect(leaf)
+          ..addRect(glass),
+        Paint()..color = _wood,
+      );
+      _FramePainter._edges(canvas, glass.inflate(1.5), _woodDark, _woodLight);
+      _FramePainter._edges(canvas, Rect.fromLTRB(leaf.left + _stile, glassHeight + _stile, leaf.right - _stile, leaf.bottom - _stile), _woodLight, _woodDark);
+      _FramePainter._edges(canvas, leaf, _woodLight, _woodDark, bottom: false);
+    }
+    canvas.restore();
+    // The opening steps down into the wood.
+    canvas.drawRRect(
+      opening.deflate(.75),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = _woodDark,
+    );
+    // Handles each side of where the leaves meet, a little over halfway down the glass.
+    final y = glassHeight * .55;
+    for (final dx in [-1.0, 1.0]) {
+      _FramePainter._handle(canvas, Offset(inner.center.dx + dx * (_stile + 6), y));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DoorPainter oldDelegate) => oldDelegate.glassHeight != glassHeight;
 }

@@ -166,7 +166,7 @@ class _FlakeKey {
 final _flakeCache = <_FlakeKey, ui.Image>{};
 
 /// Baked flakes kept at most: every pane of the home windows (72, less the
-/// three rows behind the tree) and room to spare, so a full window never
+/// six the door takes) and room to spare, so a full window never
 /// has them push one another out and bake again.
 const _flakeCacheSize = 100;
 
