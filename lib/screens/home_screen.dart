@@ -229,21 +229,27 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   static Rect _doorRect(Size frame) => WindowFrame.doorRect(frame, _rows, _doorRows).shift(Offset(_doorWindow * frame.width, 0));
 
   /// What stands in front of the door, against the door's glazed part: this
-  /// much bigger across and up, and its foot this share of its height below
-  /// the floor's edge, a little out into the room.
-  static const _decorGrow = (w: 1.35, h: 1.2), _decorDrop = .03;
+  /// much taller (as wide as its picture makes that), and its foot this share
+  /// of its height below the floor's edge, a little out into the room.
+  static const _decorGrow = 1.42, _decorDrop = .03;
 
   /// Where what stands in front of the door stands, in [frame] of all the
   /// windows: centred on the door, down on the floor.
   static Rect _decorRect(Size frame) {
     final door = _doorRect(frame);
-    final w = door.width * _decorGrow.w, h = door.height * _decorGrow.h;
+    final h = door.height * _decorGrow, w = h * (windowDecor?.aspect ?? 1);
     final foot = door.bottom + _sillFor(frame) + h * _decorDrop;
     return Rect.fromLTWH(door.center.dx - w / 2, foot - h, w, h);
   }
 
-  /// Pane [i]'s glass as panned about: under the dome over the windows.
-  static Rect _paneOnView(Size frame, int i) => _paneRect(frame, i).shift(Offset(0, WindowDome.heightFor(frame.width)));
+  /// Over the windows, as panned about: the sky over the dome, the
+  /// pinwheel standing on top of it, and the dome; how tall, over windows
+  /// [width] wide.
+  static double _roofHeight(double width) => DomeVane.heightFor(width) + width * .5;
+  static double _aboveWindows(double width) => _roofHeight(width) + WindowDome.heightFor(width);
+
+  /// Pane [i]'s glass as panned about: under the roof over the windows.
+  static Rect _paneOnView(Size frame, int i) => _paneRect(frame, i).shift(Offset(0, _aboveWindows(frame.width)));
 
   /// The windows have been panned to start just under the dome, the first
   /// one's top at the top of the screen, as before it (see
@@ -257,7 +263,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     // makes it: known before they are laid out.
     if (_placed) return;
     _placed = true;
-    _view.value = Matrix4.translationValues(0, -WindowDome.heightFor(MediaQuery.sizeOf(context).width), 0);
+    _view.value = Matrix4.translationValues(0, -_aboveWindows(MediaQuery.sizeOf(context).width), 0);
   }
 
   /// The sill under the windows, as tall as a row of panes with its bar: it
@@ -269,14 +275,25 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// up clear of them.
   double get _floorHeight => _buttonsHeight + 16 + MediaQuery.paddingOf(context).bottom;
 
-  /// The windows, the sill under them and the floor: how tall at full size.
-  double get _wallHeight => WindowDome.heightFor(_frame.width) + _frame.height + _sillFor(_frame) + _floorHeight;
+  /// The roof, the windows, the sill under them and the floor: how tall at
+  /// full size.
+  double get _wallHeight => _aboveWindows(_frame.width) + _frame.height + _sillFor(_frame) + _floorHeight;
 
-  /// How far the windows can be panned each way, from the top left.
-  Offset get _panReach => Offset(
-        math.max(0, _windows * _frame.width - _viewWidth),
-        math.max(0, _wallHeight + (_sheetRoom ? _sheetHeight : 0) - _viewHeight),
-      );
+  /// How far the windows can be panned each way, from the top left: the
+  /// wall's own reach ([_wallReach]), and the collection's room under it.
+  Offset get _panReach => _wallReach + Offset(0, _sheetRoom ? _sheetHeight : 0);
+
+  /// How far the wall, without the collection's room, reaches past the screen
+  /// each way at full size.
+  Offset get _wallReach => Offset(math.max(0, _windows * _frame.width - _viewWidth), math.max(0, _wallHeight - _viewHeight));
+
+  /// Takes the windows' size from the room they fill, [c]: done by each part
+  /// laid out in it, the first of them before any uses it.
+  void _layOut(BoxConstraints c) {
+    _frame = Size(c.maxWidth, _frameHeight(c.biggest));
+    _viewWidth = c.maxWidth;
+    _viewHeight = c.maxHeight;
+  }
 
   /// How far the windows are panned, from the top left; meant for them at
   /// full size, not in the overview (where they are shrunk too).
@@ -352,11 +369,21 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   /// Pans the windows so [pane] sits in the middle across, and in the upper
   /// half between the settings button and the collection.
+  ///
+  /// From the overview, the windows grow back to full size on the way, as
+  /// slowly as [_backTo] has them, the floor shrinking back once there.
   void _bringUp(int pane) {
     if (!mounted || _frame.isEmpty) return;
     final r = _paneOnView(_frame, pane);
     final top = MediaQuery.paddingOf(context).top + 64;
-    _panTo(Offset(r.center.dx - _viewWidth / 2, r.center.dy - (top + _viewHeight - _sheetHeight) / 2), const Duration(milliseconds: 350), Curves.easeOutCubic);
+    final growing = _view.value.entry(0, 0) < 1;
+    _panTo(
+      Offset(r.center.dx - _viewWidth / 2, r.center.dy - (top + _viewHeight - _sheetHeight) / 2),
+      growing ? _overviewTime : const Duration(milliseconds: 350),
+      growing ? Curves.easeInOutCubic : Curves.easeOutCubic,
+    ).whenComplete(() {
+      if (mounted && !_overview && _tallFloor) setState(() => _tallFloor = false);
+    });
   }
 
   /// Closes the collection, if open; the window stays where it was scrolled,
@@ -435,14 +462,58 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _goToDecor() {
     if (_frame.isEmpty) return;
     _closePicker();
-    final r = _decorRect(_frame).shift(Offset(0, WindowDome.heightFor(_frame.width)));
-    final top = MediaQuery.paddingOf(context).top + 64, bottom = _viewHeight - _floorHeight;
-    final to = Offset(r.center.dx - _viewWidth / 2, r.center.dy - (top + bottom) / 2);
     if (_overview) {
-      _backTo(to);
+      _backTo(_decorPan);
     } else {
-      _panTo(to, _overviewTime, Curves.easeInOutCubic);
+      _panTo(_decorPan, _overviewTime, Curves.easeInOutCubic);
     }
+  }
+
+  /// What stands in front of the door, as panned about: under the roof.
+  Rect get _decorOnView => _decorRect(_frame).shift(Offset(0, _aboveWindows(_frame.width)));
+
+  /// How far [_goToDecor] pans the windows at full size: what stands in
+  /// front of the door in the middle between the top bar and the buttons, as
+  /// near as they reach (the collection's room left out).
+  Offset get _decorPan {
+    final r = _decorOnView;
+    final top = MediaQuery.paddingOf(context).top + 64, bottom = _viewHeight - _floorHeight;
+    final reach = _wallReach;
+    return Offset((r.center.dx - _viewWidth / 2).clamp(0.0, reach.dx), (r.center.dy - (top + bottom) / 2).clamp(0.0, reach.dy));
+  }
+
+  /// Parallax: what stands in front of the door, nearer than the windows,
+  /// moves this share faster than them on the screen; the view outside,
+  /// further off, drifts this share of the screen each way as they pan from
+  /// end to end.
+  static const _decorDepth = .3, _outsideDrift = .1;
+
+  /// How far what stands in front of the door is drawn off its place, in the
+  /// windows' own measure: at rest where [_goToDecor] brings it, further off
+  /// the further it is from there on the screen. Less as the windows shrink,
+  /// and none in the overview.
+  Offset get _decorShift {
+    if (_frame.isEmpty) return Offset.zero;
+    final m = _view.value, s = m.entry(0, 0), t = m.getTranslation();
+    final full = _overviewScale;
+    final depth = full >= 1 ? _decorDepth : _decorDepth * ((s - full) / (1 - full)).clamp(0.0, 1.0);
+    if (depth == 0) return Offset.zero;
+    final r = _decorOnView;
+    final rest = r.center - _decorPan;
+    return (Offset(t.x, t.y) + r.center * s - rest) * depth / s;
+  }
+
+  /// How far the view outside is drawn off its place on the screen: drifting
+  /// the way the windows pan, but only [_outsideDrift] of the screen from the
+  /// middle to either end.
+  Offset get _outsideShift {
+    if (_frame.isEmpty) return Offset.zero;
+    // Over the wall's own reach, not the collection's room under it, so the
+    // view does not jump as that comes and goes.
+    final reach = _wallReach, t = _view.value.getTranslation();
+    double drift(double panned, double reach, double side) =>
+        reach <= 0 ? 0 : (.5 - (panned / reach).clamp(0.0, 1.0)) * 2 * _outsideDrift * side;
+    return Offset(drift(-t.x, reach.dx, _viewWidth), drift(-t.y, reach.dy, _viewHeight));
   }
 
   /// Back from the overview to where the windows were; whether it was up.
@@ -452,8 +523,16 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return true;
   }
 
-  /// Back from the overview to full size, with pane [i] in the middle.
-  void _zoomInTo(int i) => _backTo(_paneOnView(_frame, i).center - Offset(_viewWidth / 2, _viewHeight / 2));
+  /// Back from the overview to full size, with [point] of the windows (as
+  /// panned about) in the middle of the screen, as near as they reach.
+  void _zoomInAt(Offset point) => _backTo(point - Offset(_viewWidth / 2, _viewHeight / 2));
+
+  /// Back from the overview to full size, straight into picking a flake for
+  /// [pane]: the windows heading for where the collection wants it.
+  void _pickFromOverview(int pane) {
+    setState(() => _overview = false);
+    _pick(pane);
+  }
 
   /// Back from the overview to full size, panned to [to]; the sill shrinks
   /// back once there.
@@ -493,30 +572,37 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         // Outside the window: snow falling in the night in winter; in autumn a
         // still, sunny day, the picture centred and a fifth taller than the
         // screen, so the tree's edge and the sun's rays show through.
+        // It drifts a little as the windows pan, being further off.
         Positioned.fill(
           child: season == Season.winter
-              ? RepaintBoundary(child: _Snowfall(ticker: _ticker, hazeHeight: hazeHeight, hazeFade: _hazeFade))
+              ? RepaintBoundary(child: _Snowfall(ticker: _ticker, hazeHeight: hazeHeight, hazeFade: _hazeFade, drift: () => _outsideShift))
               : LayoutBuilder(
-                  builder: (_, c) => ClipRect(
-                    child: OverflowBox(
-                      maxWidth: c.maxHeight * 1.2,
-                      maxHeight: c.maxHeight * 1.2,
-                      child: Image.asset(_autumnView, fit: BoxFit.cover),
-                    ),
-                  ),
+                  builder: (_, c) {
+                    // Drifting by the windows' size, before they are built.
+                    _layOut(c);
+                    return ClipRect(
+                      child: OverflowBox(
+                        maxWidth: c.maxHeight * 1.2,
+                        maxHeight: c.maxHeight * 1.2,
+                        child: AnimatedBuilder(
+                          animation: _view,
+                          builder: (_, child) => Transform.translate(offset: _outsideShift, child: child),
+                          child: RepaintBoundary(child: Image.asset(_autumnView, fit: BoxFit.cover)),
+                        ),
+                      ),
+                    );
+                  },
                 ),
         ),
-        // The view outside stays put; the windows, wider and taller than the
-        // screen, pan past in any direction with the title on the first one's
-        // top half, and the sill under them. They stop dead at the edges.
+        // The windows, wider and taller than the screen, pan past in any
+        // direction, with the roof over them and the sill and floor under
+        // them. They stop dead at the edges.
         Positioned.fill(
           child: LayoutBuilder(
             builder: (_, c) {
-              final frame = Size(c.maxWidth, _frameHeight(c.biggest));
-              _frame = frame;
-              _viewWidth = c.maxWidth;
-              _viewHeight = c.maxHeight;
-              final door = _doorRect(frame).shift(Offset(0, WindowDome.heightFor(frame.width)));
+              _layOut(c);
+              final frame = _frame;
+              final door = _doorRect(frame).shift(Offset(0, _aboveWindows(frame.width)));
               return InteractiveViewer(
                 transformationController: _view,
                 constrained: false,
@@ -527,15 +613,22 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 // A finger on the glass takes over from a pan under way.
                 onInteractionStart: (_) => _pan.stop(),
                 // With the collection open, a tap on a frame or the sill closes it
-                // (a pane takes its own taps, moving the choice to it).
+                // (a pane takes its own taps, moving the choice to it). In the
+                // overview, a tap anywhere zooms back in there.
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: _picking == null ? null : _closePicker,
+                  onTap: _overview || _picking == null ? null : _closePicker,
+                  onTapUp: _overview ? (d) => _zoomInAt(d.localPosition) : null,
                   child: SizedBox(
                     width: _windows * frame.width,
                     child: Stack(children: [
                     Column(children: [
-                    // A dome roofing the windows, above the screen at first.
+                    // A dome roofing the windows, above the screen at first,
+                    // and a pinwheel on top of it, spinning in the sky.
+                    SizedBox(
+                      height: _roofHeight(frame.width),
+                      child: Align(alignment: Alignment.bottomCenter, child: DomeVane(windowWidth: frame.width, ticker: _ticker)),
+                    ),
                     SizedBox(height: WindowDome.heightFor(frame.width), child: const WindowDome(windows: _windows)),
                     SizedBox(
                       height: frame.height,
@@ -546,18 +639,17 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                             top: 0,
                             width: frame.width,
                             height: frame.height,
-                            child: WindowFrame(rows: _rows, onSill: true, snow: season == Season.winter, door: w == _doorWindow ? _doorRows : 0),
+                            child: WindowFrame(rows: _rows, snow: season == Season.winter, door: w == _doorWindow ? _doorRows : 0, index: w, windows: _windows),
                           ),
                         // Each pane holds a flake from the collection, or a plus to
-                        // hang one; the title, while up, shows over the first
-                        // window's top row.
+                        // hang one.
                         for (var i = 0; i < _panes; i++)
                           if (!_behindDoor(i))
                             Positioned.fromRect(
                               rect: _paneRect(frame, i),
                               child: _arriving(
                                 i,
-                                _Pane(flake: g.window[i], clear: g.window.containsKey(i) && g.window[i] == null, plusOpacity: _plusOpacity, onTap: () => _overview ? _zoomInTo(i) : _pick(i)),
+                                _Pane(flake: g.window[i], clear: g.window.containsKey(i) && g.window[i] == null, plusOpacity: _plusOpacity, onTap: () => _overview ? _pickFromOverview(i) : _pick(i)),
                               ),
                             ),
                         // The pane being picked for, outlined.
@@ -573,50 +665,10 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               ),
                             ),
                           ),
-                        if (_titleUp)
-                          Positioned(
-                            left: 0,
-                            width: frame.width,
-                            // Centred in the top pane under the arch, clear of the bars.
-                            top: WindowFrame.paneMiddle(frame, _rows, 0),
-                            child: FractionalTranslation(
-                              translation: const Offset(0, -.5),
-                              child: FadeTransition(
-                                opacity: _titleOpacity,
-                                // As wide as the words, not the screen, for the frost to fit them.
-                                child: Center(
-                                child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
-                                  // Frost on the glass behind the title, its soft edges well
-                                  // past the words, so the flakes in the panes show round it;
-                                  // set a little low, under the subtitle more than over the title.
-                                  Positioned(
-                                    left: -48,
-                                    right: -48,
-                                    top: -40,
-                                    bottom: -80,
-                                    child: Image.asset(_titleBg, fit: BoxFit.fill),
-                                  ),
-                                  Column(mainAxisSize: MainAxisSize.min, children: [
-                                  Text(
-                                    tr('app_title'),
-                                    style: display(56, weight: FontWeight.w900, height: 1, shadows: drop(5)).copyWith(letterSpacing: -.56),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    tr('home_subtitle'),
-                                    // The title's shadow colour, on the pale frost behind it in any season.
-                                    style: body(17, weight: FontWeight.w800, color: C.night900),
-                                  ),
-                                ]),
-                                ]),
-                                ),
-                              ),
-                            ),
-                          ),
                       ]),
                     ),
                     SizedBox(height: _sillFor(frame), child: const WindowSill()),
-                    SizedBox(height: _floorShown, child: const WindowFloor()),
+                    SizedBox(height: _floorShown, child: const WindowFloor(windows: _windows, door: _doorWindow)),
                     if (_sheetRoom) SizedBox(height: _sheetHeight),
                   ]),
                     // The door, down through the sill to the floor, and what
@@ -626,12 +678,22 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       rect: Rect.fromLTRB(door.left, door.top, door.right, door.bottom + _sillFor(frame)),
                       child: WindowDoor(glassHeight: door.height),
                     ),
+                    // Nearer than the windows, it moves faster than them (see
+                    // [_decorShift]).
                     if (windowDecor case final d?)
                       Positioned.fromRect(
-                        rect: _decorRect(frame).shift(Offset(0, WindowDome.heightFor(frame.width))),
-                        child: ClipPath(
-                          clipper: _OutlineClipper(d.outline),
-                          child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: _goToDecor, child: CustomPaint(painter: d.painter)),
+                        rect: _decorOnView,
+                        child: AnimatedBuilder(
+                          animation: _view,
+                          builder: (_, child) => Transform.translate(offset: _decorShift, child: child),
+                          child: ClipPath(
+                            clipper: _OutlineClipper(d.outline),
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: _goToDecor,
+                              child: RepaintBoundary(child: Image.asset(d.image, fit: BoxFit.fill, filterQuality: FilterQuality.medium)),
+                            ),
+                          ),
                         ),
                       ),
                   ]),
@@ -641,6 +703,60 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             },
           ),
         ),
+        // The title, while up, on the screen where the first window's top row
+        // starts out, staying there whatever the windows do.
+        if (_titleUp)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: LayoutBuilder(
+                builder: (_, c) {
+                  _layOut(c);
+                  final frame = _frame;
+                  return Stack(children: [
+                    Positioned(
+                      left: 0,
+                      width: frame.width,
+                      // Centred in the top pane under the arch, clear of the bars.
+                      top: WindowFrame.paneMiddle(frame, _rows, 0),
+                      child: FractionalTranslation(
+                        translation: const Offset(0, -.5),
+                        child: FadeTransition(
+                          opacity: _titleOpacity,
+                          // As wide as the words, not the screen, for the frost to fit them.
+                          child: Center(
+                            child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
+                              // Frost on the glass behind the title, its soft edges well
+                              // past the words, so the flakes in the panes show round it;
+                              // set a little low, under the subtitle more than over the title.
+                              Positioned(
+                                left: -48,
+                                right: -48,
+                                top: -40,
+                                bottom: -80,
+                                child: Image.asset(_titleBg, fit: BoxFit.fill),
+                              ),
+                              Column(mainAxisSize: MainAxisSize.min, children: [
+                                Text(
+                                  tr('app_title'),
+                                  style: display(56, weight: FontWeight.w900, height: 1, shadows: drop(5)).copyWith(letterSpacing: -.56),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  tr('home_subtitle'),
+                                  // The title's shadow colour, on the pale frost behind it in any season.
+                                  style: body(17, weight: FontWeight.w800, color: C.night900),
+                                ),
+                              ]),
+                            ]),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ]);
+                },
+              ),
+            ),
+          ),
         // Shade behind the buttons, fading out above them; the snow there is
         // drawn softer too.
         Positioned(
@@ -752,9 +868,13 @@ class _Fleck {
 /// soft through the glass and softer still in the bottom [hazeHeight] behind
 /// the buttons, setting in over its top [hazeFade].
 class _Snowfall extends StatefulWidget {
-  const _Snowfall({required this.ticker, required this.hazeHeight, required this.hazeFade});
+  const _Snowfall({required this.ticker, required this.hazeHeight, required this.hazeFade, required this.drift});
   final AnimationController ticker;
   final double hazeHeight, hazeFade;
+
+  /// How far the snow has drifted with the windows' pan, now: the nearest
+  /// flecks twice as far as the furthest.
+  final Offset Function() drift;
 
   @override
   State<_Snowfall> createState() => _SnowfallState();
@@ -775,6 +895,7 @@ class _SnowfallState extends State<_Snowfall> {
           dpr: MediaQuery.devicePixelRatioOf(context),
           hazeHeight: widget.hazeHeight,
           hazeFade: widget.hazeFade,
+          drift: widget.drift,
         ),
       ),
     );
@@ -784,10 +905,11 @@ class _SnowfallState extends State<_Snowfall> {
 /// Draws every fleck from one sprite sheet of ready-blurred dots, so the snow
 /// looks as if seen through frosted glass without blurring the screen.
 class _SnowfallPainter extends CustomPainter {
-  _SnowfallPainter(this.flecks, this.ticker, {required this.dpr, required this.hazeHeight, required this.hazeFade}) : super(repaint: ticker);
+  _SnowfallPainter(this.flecks, this.ticker, {required this.dpr, required this.hazeHeight, required this.hazeFade, required this.drift}) : super(repaint: ticker);
   final List<_Fleck> flecks;
   final AnimationController ticker;
   final double dpr, hazeHeight, hazeFade;
+  final Offset Function() drift;
 
   /// Fleck radii in dp, far to near.
   static const _radii = [1.55, 2.25, 2.6, 2.9];
@@ -827,10 +949,14 @@ class _SnowfallPainter extends CustomPainter {
     final px = _cell * dpr, margin = _cell / 2;
     final hazeTop = size.height - hazeHeight;
     final transforms = <RSTransform>[], rects = <Rect>[], colors = <Color>[];
+    final shift = drift();
+    final tall = size.height + 2 * margin, wide = size.width + 2 * margin;
     for (final f in flecks) {
-      final ph = (t / f.fall + f.phase) % 1;
-      final y = -margin + (size.height + 2 * margin) * ph;
-      final x = f.x * size.width + (5 + 7 * f.depth) * math.sin(t / f.sway * 2 * math.pi + f.swayPhase);
+      // Wrapping round as it drifts, so the screen stays full.
+      final near = 1 + f.depth;
+      final ph = (t / f.fall + f.phase + shift.dy * near / tall) % 1;
+      final y = -margin + tall * ph;
+      final x = -margin + (margin + f.x * size.width + shift.dx * near) % wide + (5 + 7 * f.depth) * math.sin(t / f.sway * 2 * math.pi + f.swayPhase);
       final k = math.min(_sizes - 1, (f.depth * _sizes).floor());
       // Behind the buttons the softer sprite fades in over the plain one.
       final w = ((y - hazeTop) / hazeFade).clamp(0.0, 1.0);
