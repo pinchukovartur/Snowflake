@@ -298,7 +298,11 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
 
   /// The stencil's size across and up: its unit shape scaled by these.
   double _sx = _stencilR0, _sy = _stencilR0;
-  static const _minScale = 0.03, _maxScale = 0.4;
+  static const _maxScale = 0.4;
+
+  /// The smallest the stencil goes, either way: the circle half as small
+  /// again as the rest.
+  double get _minScale => widget.tool == 'circle' ? 0.013 : 0.03;
 
   /// Stencil rotation, radians clockwise.
   double _stencilTurn = 0;
