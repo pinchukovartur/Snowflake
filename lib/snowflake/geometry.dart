@@ -611,6 +611,10 @@ Cut stencilShape(String tool, double cx, double cy, double r) {
       for (final q in _halloweenStencils[tool]!) {
         pts.add(Offset(cx + q.dx * r, cy + q.dy * r));
       }
+    case 'tree' || 'xstar' || 'gift' || 'bell':
+      for (final q in _newYearStencils[tool]!) {
+        pts.add(Offset(cx + q.dx * r, cy + q.dy * r));
+      }
   }
   return pts;
 }
@@ -620,6 +624,66 @@ Cut stencilShape(String tool, double cx, double cy, double r) {
 List<Offset> _arcPts(Offset c, double k, double from, double to, [int steps = 10]) => [
       for (var i = 0; i <= steps; i++) c + Offset(math.cos((from + (to - from) * i / steps) * math.pi / 180), math.sin((from + (to - from) * i / steps) * math.pi / 180)) * k,
     ];
+
+/// A shape symmetric left to right, from its right [half] (top to bottom, on
+/// the middle line at both ends): that, then its mirror back up.
+List<Offset> _mirrored(List<Offset> half) => [...half, for (final q in half.reversed.skip(1).take(half.length - 2)) Offset(-q.dx, q.dy)];
+
+/// New Year stencil outlines at radius 1 about the origin (y down).
+final Map<String, List<Offset>> _newYearStencils = {
+  // A fir tree: three tiers, each wider than the one above, on a trunk.
+  'tree': _mirrored(const [
+    Offset(0, -1),
+    Offset(.36, -.5),
+    Offset(.18, -.5),
+    Offset(.56, -.04),
+    Offset(.32, -.04),
+    Offset(.76, .5),
+    Offset(.15, .5),
+    Offset(.15, .86),
+    Offset(0, .86),
+  ]),
+  // A Christmas star: four long rays, the lowest longest, and four short
+  // ones between.
+  'xstar': [
+    for (var i = 0; i < 16; i++)
+      () {
+        final a = -math.pi / 2 + i * math.pi / 8;
+        final k = switch (i) { 0 => .86, 4 || 12 => .72, 8 => 1.0, _ when i.isEven => .44, _ => .22 };
+        return Offset(math.cos(a), math.sin(a)) * k;
+      }(),
+  ],
+  // A gift box: the box, its lid a little wider, and a bow of two loops on top.
+  'gift': _mirrored(const [
+    Offset(0, -.5),
+    Offset(.35, -.95),
+    Offset(.52, -.9),
+    Offset(.48, -.72),
+    Offset(.12, -.45),
+    Offset(.85, -.45),
+    Offset(.85, -.2),
+    Offset(.75, -.2),
+    Offset(.75, .85),
+    Offset(0, .85),
+  ]),
+  // A bell: a loop on top, the dome flaring out to a rim, the clapper below.
+  'bell': _mirrored(const [
+    Offset(0, -.94),
+    Offset(.1, -.94),
+    Offset(.12, -.8),
+    Offset(.32, -.74),
+    Offset(.46, -.56),
+    Offset(.52, -.3),
+    Offset(.56, 0),
+    Offset(.64, .24),
+    Offset(.8, .42),
+    Offset(.88, .58),
+    Offset(.2, .58),
+    Offset(.17, .72),
+    Offset(.08, .82),
+    Offset(0, .84),
+  ]),
+};
 
 /// Halloween stencil outlines at radius 1 about the origin (y down).
 final Map<String, List<Offset>> _halloweenStencils = {
@@ -841,8 +905,13 @@ Paint makePaperFill(Color color, String pattern, double unitPx) {
 const gradientHues = {'gradient': (0.0, 180.0), 'analogous': (-30.0, 30.0)};
 
 /// Side of the glitter pattern's tile, for paper [unitPx] in radius: four
-/// times the other patterns', so its dots don't visibly repeat.
-double sparkleTile(double unitPx) => (math.max(8, (unitPx * 0.075).round()) * 4).toDouble();
+/// times the other patterns', so its dots don't visibly repeat. In step with
+/// the paper, not rounded: zooming, the pattern grows with it, never slides.
+double sparkleTile(double unitPx) => math.max(32.0, unitPx * .3);
+
+/// Glitter's dots to a tile, however many px it is: zoomed in, the same
+/// dots grow, as on real paper, rather than more coming.
+const _sparkleDots = 1600;
 
 /// The twinkling glints of glitter paper, in one tile [t] across: where each
 /// sits, how big it is, and when in its own cycle it flashes.
@@ -986,8 +1055,7 @@ ui.Image _tile(Color color, String pattern, double t) {
       final dots = light ? [color, shade(-.1), shade(-.18), shade(-.26), shade(-.34)] : [color, shade(-.14), shade(-.07), shade(.12), shade(.22)];
       var seed = 7;
       double rnd() => (seed = (seed * 16807) % 2147483647) / 2147483647;
-      final n = (t * t / 9).round();
-      for (var i = 0; i < n; i++) {
+      for (var i = 0; i < _sparkleDots; i++) {
         // White glints are rare: one dot in twenty-five.
         final pick = rnd();
         final p = Paint()..color = pick < .04 ? const Color(0xEEFFFFFF) : dots[(pick * dots.length).floor() % dots.length];

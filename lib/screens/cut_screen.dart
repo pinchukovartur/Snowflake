@@ -70,10 +70,21 @@ const _stencils = [
   ('hat', LucideIcons.wandSparkles, 'stencil_hat'),
   ('bat', LucideIcons.moon, 'stencil_bat'),
   ('jack', LucideIcons.smile, 'stencil_jack'),
+  // New Year.
+  ('tree', LucideIcons.treePine, 'stencil_tree'),
+  ('xstar', LucideIcons.sparkle, 'stencil_xstar'),
+  ('gift', LucideIcons.gift, 'stencil_gift'),
+  ('bell', LucideIcons.bell, 'stencil_bell'),
 ];
 
 /// The Halloween stencils, set apart in the list.
 const _halloween = {'bone', 'hat', 'bat', 'jack'};
+
+/// The New Year stencils, set apart in the list too.
+const _newYear = {'tree', 'xstar', 'gift', 'bell'};
+
+/// The seasonal stencil groups after the everyday ones, each on its own ground.
+const _stencilGroups = [(_halloween, Color(0xFFFF7A1A)), (_newYear, Color(0xFF2FB37E))];
 
 /// Cuts on the board and the pieces each one dropped, in step, on paper
 /// folded [folds] times.
@@ -118,7 +129,7 @@ const _helpCooldown = Duration(seconds: 6);
 
 /// An event under way: its [flake], and the paper as it was before (cuts,
 /// folds, look and undo history), which leaving the event brings back.
-typedef _EventRun = ({_EventFlake flake, CutState before, Paper paper, List<CutState> past, List<CutState> future});
+typedef _EventRun = ({String event, _EventFlake flake, CutState before, Paper paper, List<CutState> past, List<CutState> future});
 
 class CutScreen extends StatefulWidget {
   const CutScreen({super.key, required this.game, required this.session, required this.onHome, required this.onUnfold});
@@ -127,9 +138,9 @@ class CutScreen extends StatefulWidget {
   final VoidCallback onHome;
 
   /// [shape] is the player's cuts plus the pieces that fell off; [duelFlake]
-  /// the preset of the duel's flake being cut, if it is one (its blow lands
-  /// only once the flake is done, see [GameState.duelHit]).
-  final void Function(List<Cut> shape, int folds, Paper paper, String? duelFlake) onUnfold;
+  /// the duel's flake being cut, if it is one (its blow lands only once the
+  /// flake is done, see [GameState.duelHit]).
+  final void Function(List<Cut> shape, int folds, Paper paper, DuelHit? duelFlake) onUnfold;
 
   @override
   State<CutScreen> createState() => _CutScreenState();
@@ -197,7 +208,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     // On to a fresh flake after a duel's flake was done for the first time:
     // its window opens, to show the blow land.
     if (widget.game.duelFresh != null) {
-      final duel = _events.indexWhere((e) => e.boss != null);
+      final duel = _events.indexWhere((e) => e.id == widget.game.duelFresh!.duel);
       if (duel >= 0) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
@@ -215,17 +226,17 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     final f = await Navigator.of(context).push<_EventFlake>(
       PageRouteBuilder(
         // On a Material of its own, for the text styles a route of its own lacks.
-        pageBuilder: (_, _, _) => Material(type: MaterialType.transparency, child: e.window(e.flakes, e.boss, widget.game)),
+        pageBuilder: (_, _, _) => Material(type: MaterialType.transparency, child: _eventWindow(e, widget.game)),
         transitionsBuilder: (_, anim, _, child) => FadeTransition(opacity: anim, child: child),
       ),
     );
     if (f == null || !mounted) return;
     if (_eventOn) _endEvent();
-    _startEvent(f);
+    _startEvent(e.id, f);
   }
 
-  void _startEvent(_EventFlake f) {
-    _s._event = (flake: f, before: _state, paper: _paper, past: [..._s.past], future: [..._s.future]);
+  void _startEvent(String event, _EventFlake f) {
+    _s._event = (event: event, flake: f, before: _state, paper: _paper, past: [..._s.past], future: [..._s.future]);
     _s.past.clear();
     _s.future.clear();
     _stencilsOpen = false;
@@ -394,8 +405,8 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
 
   /// Unfolds the flake as cut, saying whether it is a duel's.
   void _unfold() {
-    final f = _s._event?.flake;
-    widget.onUnfold([..._cuts, ..._fallen], _folds, _paper, f != null && _duelFlakes.contains(f) ? f.preset : null);
+    final run = _s._event;
+    widget.onUnfold([..._cuts, ..._fallen], _folds, _paper, run != null && _duels.contains(run.event) ? (duel: run.event, preset: run.flake.preset) : null);
   }
 
   void _addCut(Cut c) {
@@ -579,18 +590,18 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                         boxShadow: const [BoxShadow(color: C.snow300, offset: Offset(0, 4))],
                                       ),
                                       clipBehavior: Clip.antiAlias,
-                                      // Two to a row; the Halloween ones together on an orange ground.
+                                      // Two to a row; each seasonal group together on its own ground (see [_stencilGroups]).
                                       child: SingleChildScrollView(
                                         padding: const EdgeInsets.all(_stencilsPad),
                                         child: Column(children: [
                                           for (final (i, group) in [
-                                            [for (final t in _stencils) if (!_halloween.contains(t.$1)) t],
-                                            [for (final t in _stencils) if (_halloween.contains(t.$1)) t],
+                                            [for (final t in _stencils) if (!_stencilGroups.any((g) => g.$1.contains(t.$1))) t],
+                                            for (final (ids, _) in _stencilGroups) [for (final t in _stencils) if (ids.contains(t.$1)) t],
                                           ].indexed)
                                             if (group.isNotEmpty)
                                               Container(
                                                 margin: EdgeInsets.only(top: i > 0 ? 2 : 0),
-                                                decoration: i > 0 ? BoxDecoration(color: const Color(0xFFFF7A1A), borderRadius: BorderRadius.circular(22)) : null,
+                                                decoration: i > 0 ? BoxDecoration(color: _stencilGroups[i - 1].$2, borderRadius: BorderRadius.circular(22)) : null,
                                                 child: Column(children: [
                                                   for (var r = 0; r * 2 < group.length; r++)
                                                     Padding(
@@ -848,7 +859,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
 const _cutDemo = 'cut_demo';
 
 /// The seasonal event's [id] in [_events]: the panel opens on it.
-const _seasonalEvent = 'halloween';
+const _seasonalEvent = 'newyear';
 
 /// A flake an event shows, and sets out to be made again.
 typedef _EventFlake = ({String preset, int folds, Color color, String pattern});
@@ -856,17 +867,17 @@ typedef _EventFlake = ({String preset, int folds, Color color, String pattern});
 /// Events on offer, one at a time in the event panel, each showing its
 /// [flakes] in turn over its [title]: on the panel's night blue, or on its
 /// [image] across the whole panel. A [loud] title is heavier, purple outlined
-/// in white. Tapping the panel opens the event's [window] to pick a flake in.
+/// in white. Tapping the panel opens the event's window to pick a flake in
 /// An event with a [boss] is a duel (see [_DuelWindow]): each of its flakes
 /// cut takes a cone off the boss's flake.
-const _events = [
+const List<_Event> _allEvents = [
   (
     id: 'repeat',
     title: 'event_repeat',
     image: null,
     loud: false,
     boss: null,
-    window: _repeatWindow,
+    art: null,
     flakes: [
       (preset: 'default_6_1', folds: 6, color: Color(0xFFC4ECFF), pattern: 'plain'),
       (preset: 'default_6_2', folds: 6, color: Color(0xFFF3C9FF), pattern: 'plain'),
@@ -884,7 +895,7 @@ const _events = [
     image: 'assets/Halloween_Event_Ico.png',
     loud: true,
     boss: (preset: 'halloween_boss', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
-    window: _duelWindow,
+    art: (title: 'duel_title', player: 'assets/Halloween_Event_Fight_Player.png', hand: 'assets/Halloween_Event_Fight_Player_Hand.png', boss: 'assets/Halloween_Event_Fight_Boss.png'),
     // One for each of the boss flake's twelve cones.
     flakes: [
       (preset: 'halloween_1', folds: 6, color: Color(0xFFFF9A3C), pattern: 'plain'),
@@ -902,16 +913,59 @@ const _events = [
       (preset: 'rhombi', folds: 6, color: Color(0xFF9AA3B5), pattern: 'plain'),
     ],
   ),
+  // New Year's duel: stand-ins all through (pictures, flakes, words), till
+  // its own are made.
+  (
+    id: 'newyear',
+    title: 'event_newyear',
+    image: 'assets/Christmas_Event_Ico.png',
+    loud: true,
+    boss: (preset: 'classic', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
+    art: (title: 'duel_newyear_title', player: 'assets/NewYear_Event_Fight_Player.png', hand: 'assets/NewYear_Event_Fight_Player_Hand.png', boss: 'assets/NewYear_Event_Fight_Boss.png'),
+    // One for each of the boss flake's twelve cones.
+    flakes: [
+      (preset: 'default_6_1', folds: 6, color: Color(0xFFE0405E), pattern: 'plain'),
+      (preset: 'default_6_2', folds: 6, color: Color(0xFF2FB37E), pattern: 'plain'),
+      (preset: 'snowmen', folds: 4, color: Color(0xFFFFFFFF), pattern: 'plain'),
+      (preset: 'fern', folds: 6, color: Color(0xFFFFD34D), pattern: 'plain'),
+      (preset: 'starburst', folds: 6, color: Color(0xFFC4ECFF), pattern: 'plain'),
+      (preset: 'leafy', folds: 6, color: Color(0xFF1E6B4F), pattern: 'plain'),
+      (preset: 'spiky', folds: 6, color: Color(0xFFB0283F), pattern: 'plain'),
+      (preset: 'forked', folds: 6, color: Color(0xFF6FA8FF), pattern: 'plain'),
+      (preset: 'chevrons', folds: 6, color: Color(0xFFFF9A3C), pattern: 'plain'),
+      (preset: 'rhombi', folds: 6, color: Color(0xFF9DFFAA), pattern: 'plain'),
+      (preset: 'ghosts', folds: 6, color: Color(0xFFF3C9FF), pattern: 'plain'),
+      (preset: 'cats', folds: 6, color: Color(0xFF1E2F6B), pattern: 'plain'),
+    ],
+  ),
 ];
 
-/// The events' windows, built from what each needs of its event and the game.
-Widget _repeatWindow(List<_EventFlake> flakes, _EventFlake? boss, GameState game) => _RepeatWindow(title: tr('pick_flake'), flakes: flakes);
-Widget _duelWindow(List<_EventFlake> flakes, _EventFlake? boss, GameState game) => _DuelWindow(flakes: flakes, boss: boss!, game: game);
+/// Events switched off for now: kept in [_allEvents], but not on offer.
+const _eventsOff = {'halloween'};
 
-/// Every duel's flakes: cutting one is a blow to its boss.
-final _duelFlakes = {
+/// The events on offer: [_allEvents] less those [_eventsOff].
+final _events = [
+  for (final e in _allEvents)
+    if (!_eventsOff.contains(e.id)) e,
+];
+
+/// A duel's pictures and words: the [title] over it (a string id), the
+/// player's figure and hand at the foot, the [boss] above.
+typedef _DuelArt = ({String title, String player, String hand, String boss});
+
+/// Event [e]'s window to pick a flake in: a duel's, if it has a boss.
+Widget _eventWindow(_Event e, GameState game) => switch ((e.boss, e.art)) {
+      (final boss?, final art?) => _DuelWindow(id: e.id, flakes: e.flakes, boss: boss, art: art, game: game),
+      _ => _RepeatWindow(title: tr('pick_flake'), flakes: e.flakes),
+    };
+
+/// One of [_allEvents].
+typedef _Event = ({String id, String title, String? image, bool loud, _EventFlake? boss, _DuelArt? art, List<_EventFlake> flakes});
+
+/// The duels (by id): cutting one of their flakes is a blow to its boss.
+final _duels = {
   for (final e in _events)
-    if (e.boss != null) ...e.flakes,
+    if (e.boss != null) e.id,
 };
 
 /// Mark for the number of folds, wherever it is shown.
@@ -1086,8 +1140,10 @@ class _EventPanelState extends State<_EventPanel> {
                 ),
                 ),
               ),
-              Positioned(left: 0, child: arrow(-1)),
-              Positioned(right: 0, child: arrow(1)),
+              if (_events.length > 1) ...[
+                Positioned(left: 0, child: arrow(-1)),
+                Positioned(right: 0, child: arrow(1)),
+              ],
             ],
           ),
         ),
@@ -1277,8 +1333,12 @@ class _RepeatWindow extends _EventWindow {
 /// purple glow that goes with the last of them; then the duel is won (see
 /// [_DuelWindowState._showVictory]).
 class _DuelWindow extends StatefulWidget {
-  const _DuelWindow({required this.flakes, required this.boss, required this.game});
+  const _DuelWindow({required this.id, required this.flakes, required this.boss, required this.art, required this.game});
+
+  /// Its event's id, which its progress is kept under.
+  final String id;
   final List<_EventFlake> flakes;
+  final _DuelArt art;
 
   /// The boss's flake, a cone of it for each of [flakes].
   final _EventFlake boss;
@@ -1298,7 +1358,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
   /// first, every one cut).
   late final _carousel = PageController(
     viewportFraction: .5,
-    initialPage: _fresh >= 0 ? _fresh : math.max(0, widget.flakes.indexWhere((f) => !widget.game.duelHits.contains(f.preset))),
+    initialPage: _fresh >= 0 ? _fresh : math.max(0, widget.flakes.indexWhere((f) => !widget.game.duelHits(widget.id).contains(f.preset))),
   );
 
   /// The fresh flake's flight: out to the boss's flake, a moment there, back,
@@ -1333,11 +1393,12 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
   void initState() {
     super.initState();
     final g = widget.game;
-    _hits = widget.flakes.where((f) => g.duelHits.contains(f.preset)).length;
-    _before = math.min(g.duelSeen, _hits);
-    g.duelSeen = _hits;
-    _fresh = widget.flakes.indexWhere((f) => f.preset == g.duelFresh);
-    g.duelFresh = null;
+    _hits = widget.flakes.where((f) => g.duelHits(widget.id).contains(f.preset)).length;
+    _before = math.min(g.duelSeen(widget.id), _hits);
+    g.setDuelSeen(widget.id, _hits);
+    final fresh = g.duelFresh;
+    _fresh = fresh?.duel == widget.id ? widget.flakes.indexWhere((f) => f.preset == fresh!.preset) : -1;
+    if (fresh?.duel == widget.id) g.duelFresh = null;
     // The cones fall as the flake gets there.
     _fly.addListener(() {
       if (_fly.value >= _arrive && _blow.isDismissed) {
@@ -1469,9 +1530,9 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
   void _cheatHit() {
     if (_cheating) return;
     final g = widget.game;
-    final next = widget.flakes.indexWhere((f) => !g.duelHits.contains(f.preset));
+    final next = widget.flakes.indexWhere((f) => !g.duelHits(widget.id).contains(f.preset));
     if (next < 0) return;
-    g.duelHit(widget.flakes[next].preset);
+    g.duelHit((duel: widget.id, preset: widget.flakes[next].preset));
     g.duelFresh = null;
     // Its glow waits for it to come back.
     _fly.value = 0;
@@ -1480,7 +1541,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
       _fresh = next;
       _before = _hits;
       _hits++;
-      g.duelSeen = _hits;
+      g.setDuelSeen(widget.id, _hits);
       _cheating = true;
     });
     _carousel.animateToPage(next, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic).then((_) async {
@@ -1557,8 +1618,8 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
           child: Column(children: [
             TopBar(
               left: BarBtn(LucideIcons.arrowLeft, label: tr('back'), onTap: () => Navigator.pop(context)),
-              title: tr('duel_title'),
-              heading: _EventTitle(tr('duel_title'), loud: true, size: 24, maxLines: 1),
+              title: tr(widget.art.title),
+              heading: _EventTitle(tr(widget.art.title), loud: true, size: 24, maxLines: 1),
               right: const SizedBox(width: 44),
             ),
             // The boss and its flake, its cones its life.
@@ -1575,7 +1636,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                     right: 0,
                     top: 0,
                     height: 240,
-                    child: Image.asset(_bossPicture, fit: BoxFit.contain),
+                    child: Image.asset(widget.art.boss, fit: BoxFit.contain),
                   ),
                   Positioned(
                     left: (c.maxWidth - size) / 2 + c.maxWidth * .16,
@@ -1689,7 +1750,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                 itemCount: widget.flakes.length,
                 itemBuilder: (_, i) {
                   final f = widget.flakes[i];
-                  final cut = widget.game.duelHits.contains(f.preset);
+                  final cut = widget.game.duelHits(widget.id).contains(f.preset);
                   // The fresh flake: away while in flight, its glow coming up
                   // once back.
                   final fresh = i == _fresh;
@@ -1780,10 +1841,10 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                       alignment: _shoulder,
                       child: child,
                     ),
-                    child: Image.asset(_hand, fit: BoxFit.fitWidth),
+                    child: Image.asset(widget.art.hand, fit: BoxFit.fitWidth),
                   ),
                 ),
-              Image.asset(_witch, fit: BoxFit.fitWidth),
+              Image.asset(widget.art.player, fit: BoxFit.fitWidth),
               ]),
             ),
           ),
@@ -1803,15 +1864,12 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
 
   /// The glow round the boss's flake in the duel.
   static const _bossGlow = Color(0xFF5A1FA8);
-  static const _witch = 'assets/Halloween_Event_Fight_Player.png';
-  static const _hand = 'assets/Halloween_Event_Fight_Player_Hand.png';
 
   /// Where the hand's picture meets the witch's shoulder, which it turns about.
   static const _shoulder = Alignment(.75, 1);
 
   /// How far the hands sway either way: 3°.
   static const _swayAngle = 3 * math.pi / 180;
-  static const _bossPicture = 'assets/Halloween_Event_Fight_Boss.png';
 }
 
 /// A chevron pointing left (`step` −1) or right (+1), red on a white halo

@@ -73,15 +73,22 @@ class _GameShellState extends State<GameShell> {
 
   /// The collection flake open on its own.
   SavedFlake? _shownFlake;
+
+  /// Where the window was left for [_shownFlake], when opened from the
+  /// collection over it rather than the collection screen: back goes there.
+  WindowBack? _shownFrom;
+
+  /// The window to come back to on reaching the home screen (see [HomeScreen.back]).
+  WindowBack? _backTo;
   int _runKey = 0;
   var _session = CutSession();
   List<Cut> _cuts = const [];
   int _folds = 6;
   Paper _paper = const Paper();
 
-  /// The duel's flake (its preset) on show unfolded, if it is one: its blow
+  /// The duel's flake on show unfolded, if it is one: its blow
   /// lands with "Done", not on going back to it.
-  String? _duelFlake;
+  DuelHit? _duelFlake;
 
 
   void _go(Screen s) => setState(() {
@@ -110,10 +117,21 @@ class _GameShellState extends State<GameShell> {
       case Screen.reveal:
         _go(Screen.cut);
       case Screen.flake:
-        _go(Screen.gallery);
+        _flakeBack();
       case Screen.cut:
       case Screen.gallery:
         _go(Screen.home);
+    }
+  }
+
+  /// Back from the flake on its own: to the window it was opened from, as it
+  /// was left, or else to the collection.
+  void _flakeBack() {
+    if (_shownFrom case final from?) {
+      _backTo = from;
+      _go(Screen.home);
+    } else {
+      _go(Screen.gallery);
     }
   }
 
@@ -133,7 +151,13 @@ class _GameShellState extends State<GameShell> {
           onPlay: () => _go(Screen.cut),
           onGallery: () => _go(Screen.gallery),
           arriving: _toHang,
-          onArrived: () => _toHang = null,
+          back: _backTo,
+          onArrived: () => _toHang = _backTo = null,
+          onView: (f, from) {
+            _shownFlake = f;
+            _shownFrom = from;
+            _go(Screen.flake);
+          },
         );
       case Screen.cut:
         return CutScreen(
@@ -169,6 +193,7 @@ class _GameShellState extends State<GameShell> {
           onPlay: () => _go(Screen.cut),
           onOpen: (f) {
             _shownFlake = f;
+            _shownFrom = null;
             _go(Screen.flake);
           },
         );
@@ -176,11 +201,16 @@ class _GameShellState extends State<GameShell> {
         return FlakeScreen(
           game: _game,
           flake: _shownFlake!,
-          freePane: HomeScreen.freePane(_game),
-          onBack: () => _go(Screen.gallery),
+          // From the window, it goes up in the pane the collection was open for.
+          freePane: _shownFrom?.pane ?? HomeScreen.freePane(_game),
+          onBack: _flakeBack,
           onRecolor: (f) => _shownFlake = f,
           onHang: () {
-            _toHang = _shownFlake;
+            if (_shownFrom case final from?) {
+              _backTo = (pane: from.pane, view: from.view, hang: _shownFlake);
+            } else {
+              _toHang = _shownFlake;
+            }
             _go(Screen.home);
           },
         );

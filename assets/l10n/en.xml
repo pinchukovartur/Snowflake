@@ -15,6 +15,7 @@
   <string name="my_collection">My collection</string>
   <string name="whole_window">Whole window</string>
   <string name="zoom_in">Zoom in</string>
+  <string name="view_flake">View snowflake</string>
   <string name="settings">Settings</string>
   <string name="sounds">Sounds</string>
   <string name="vibration">Vibration</string>
@@ -42,6 +43,8 @@
   <string name="pick_flake">Pick a snowflake</string>
   <string name="event_repeat">Repeat the snowflake</string>
   <string name="event_halloween">Halloween duel</string>
+  <string name="event_newyear">Help Santa</string>
+  <string name="duel_newyear_title">Help Santa</string>
 
   <!-- Stencils -->
   <string name="stencil_star">Star</string>
@@ -56,6 +59,10 @@
   <string name="stencil_hat">Witch hat</string>
   <string name="stencil_bat">Bat</string>
   <string name="stencil_jack">Jack-o'-lantern</string>
+  <string name="stencil_tree">Christmas tree</string>
+  <string name="stencil_xstar">Christmas star</string>
+  <string name="stencil_gift">Gift</string>
+  <string name="stencil_bell">Bell</string>
 
   <!-- Paper colours -->
   <string name="color_white">White</string>

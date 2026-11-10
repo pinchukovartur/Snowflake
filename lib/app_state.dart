@@ -23,6 +23,10 @@ const duelCheat = true && kDebugMode;
 /// and the one that stayed in green. Debug builds only, as [duelCheat].
 const detachReadout = true && kDebugMode;
 
+/// A duel's flake done: which duel (its event's id) and which of its flakes
+/// (by preset).
+typedef DuelHit = ({String duel, String preset});
+
 /// A flake the player cut and kept.
 class SavedFlake {
   const SavedFlake({required this.cuts, this.folds = 6, this.color, this.pattern = 'plain', this.fav = false});
@@ -75,9 +79,11 @@ class GameState extends ChangeNotifier {
     if (forceFirstLaunch /* && kDebugMode */) _prefs.remove(_kTutorials);
     _tutorialsSeen.addAll(_prefs.getStringList(_kTutorials) ?? const []);
     // Started afresh along with the tutorials, for trying it out again.
-    if (forceFirstLaunch) _prefs.remove(_kDuel);
-    duelHits.addAll(_prefs.getStringList(_kDuel) ?? const []);
-    duelSeen = duelHits.length;
+    if (forceFirstLaunch) {
+      for (final k in _prefs.getKeys().where((k) => k.startsWith('duel.')).toList()) {
+        _prefs.remove(k);
+      }
+    }
     // As stored, built-in presets (from older versions) still in it, as null.
     var stored = <SavedFlake?>[];
     final raw = _prefs.getString(_kCollection);
@@ -158,7 +164,8 @@ class GameState extends ChangeNotifier {
   static const panesPerWindow = 24;
   static const _kLast = 'last.v1';
   static const _kTutorials = 'tutorials.seen.v1';
-  static const _kDuel = 'duel.halloween.v1';
+  /// Each duel's flakes done, by its event's id ('duel.halloween.v1', …).
+  static String _kDuel(String duel) => 'duel.$duel.v1';
 
   int coins = 128;
 
@@ -174,22 +181,30 @@ class GameState extends ChangeNotifier {
 
   bool tutorialSeen(String id) => _tutorialsSeen.contains(id);
 
-  /// The Halloween duel: the event flakes (by preset) the player has done,
-  /// each one taking a cone off the boss's flake; cutting one again doesn't.
-  final duelHits = <String>{};
+  /// Each duel (by its event's id): the event flakes (by preset) the player
+  /// has done, each one taking a cone off the boss's flake; cutting one again
+  /// doesn't. Read from storage the first time asked for.
+  final _duelHits = <String, Set<String>>{};
+  final _duelSeen = <String, int>{};
 
-  /// How many of [duelHits] the duel's window has shown landing: the rest
-  /// still to knock their cones off as it opens. Not stored.
-  int duelSeen = 0;
+  Set<String> duelHits(String duel) => _duelHits.putIfAbsent(duel, () => {...?_prefs.getStringList(_kDuel(duel))});
 
-  /// The flake (by preset) just done for the first time, whose blow the duel's
-  /// window is to show landing; cleared once it has. Not stored.
-  String? duelFresh;
+  /// How many of [duel]'s hits its window has shown landing: the rest still
+  /// to knock their cones off as it opens. Not stored: at launch, all of them.
+  int duelSeen(String duel) => _duelSeen[duel] ?? duelHits(duel).length;
+  void setDuelSeen(String duel, int n) => _duelSeen[duel] = n;
 
-  void duelHit(String preset) {
-    if (!duelHits.add(preset)) return;
-    duelFresh = preset;
-    _prefs.setStringList(_kDuel, [...duelHits]);
+  /// The flake just done for the first time, whose blow its duel's window is
+  /// to show landing; cleared once it has. Not stored.
+  DuelHit? duelFresh;
+
+  void duelHit(DuelHit hit) {
+    final hits = duelHits(hit.duel);
+    // Those before it already seen, as they were.
+    _duelSeen.putIfAbsent(hit.duel, () => hits.length);
+    if (!hits.add(hit.preset)) return;
+    duelFresh = hit;
+    _prefs.setStringList(_kDuel(hit.duel), [...hits]);
     notifyListeners();
   }
 
