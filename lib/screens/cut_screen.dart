@@ -70,7 +70,7 @@ const _stencils = [
   ('hat', LucideIcons.wandSparkles, 'stencil_hat'),
   ('bat', LucideIcons.moon, 'stencil_bat'),
   ('jack', LucideIcons.smile, 'stencil_jack'),
-  // New Year.
+  // Christmas.
   ('tree', LucideIcons.treePine, 'stencil_tree'),
   ('xstar', LucideIcons.sparkle, 'stencil_xstar'),
   ('gift', LucideIcons.gift, 'stencil_gift'),
@@ -80,11 +80,11 @@ const _stencils = [
 /// The Halloween stencils, set apart in the list.
 const _halloween = {'bone', 'hat', 'bat', 'jack'};
 
-/// The New Year stencils, set apart in the list too.
-const _newYear = {'tree', 'xstar', 'gift', 'bell'};
+/// The Christmas stencils, set apart in the list too.
+const _christmas = {'tree', 'xstar', 'gift', 'bell'};
 
 /// The seasonal stencil groups after the everyday ones, each on its own ground.
-const _stencilGroups = [(_halloween, Color(0xFFFF7A1A)), (_newYear, Color(0xFF2FB37E))];
+const _stencilGroups = [(_halloween, Color(0xFFFF7A1A)), (_christmas, Color(0xFF2FB37E))];
 
 /// Cuts on the board and the pieces each one dropped, in step, on paper
 /// folded [folds] times.
@@ -859,7 +859,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
 const _cutDemo = 'cut_demo';
 
 /// The seasonal event's [id] in [_events]: the panel opens on it.
-const _seasonalEvent = 'newyear';
+const _seasonalEvent = 'christmas';
 
 /// A flake an event shows, and sets out to be made again.
 typedef _EventFlake = ({String preset, int folds, Color color, String pattern});
@@ -892,10 +892,10 @@ const List<_Event> _allEvents = [
   (
     id: 'halloween',
     title: 'event_halloween',
-    image: 'assets/Halloween_Event_Ico.png',
+    image: 'assets/Halloween/Halloween_Event_Ico.png',
     loud: true,
     boss: (preset: 'halloween_boss', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
-    art: (title: 'duel_title', player: 'assets/Halloween_Event_Fight_Player.png', hand: 'assets/Halloween_Event_Fight_Player_Hand.png', boss: 'assets/Halloween_Event_Fight_Boss.png'),
+    art: (title: 'duel_title', player: 'assets/Halloween/Halloween_Event_Fight_Player.png', hand: 'assets/Halloween/Halloween_Event_Fight_Player_Hand.png', boss: 'assets/Halloween/Halloween_Event_Fight_Boss.png'),
     // One for each of the boss flake's twelve cones.
     flakes: [
       (preset: 'halloween_1', folds: 6, color: Color(0xFFFF9A3C), pattern: 'plain'),
@@ -913,15 +913,15 @@ const List<_Event> _allEvents = [
       (preset: 'rhombi', folds: 6, color: Color(0xFF9AA3B5), pattern: 'plain'),
     ],
   ),
-  // New Year's duel: stand-ins all through (pictures, flakes, words), till
+  // The Christmas duel: stand-ins all through (pictures, flakes, words), till
   // its own are made.
   (
-    id: 'newyear',
-    title: 'event_newyear',
-    image: 'assets/Christmas_Event_Ico.png',
+    id: 'christmas',
+    title: 'event_christmas',
+    image: 'assets/Christmas/Christmas_Event_Ico.png',
     loud: true,
     boss: (preset: 'classic', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
-    art: (title: 'duel_newyear_title', player: 'assets/NewYear_Event_Fight_Player.png', hand: 'assets/NewYear_Event_Fight_Player_Hand.png', boss: 'assets/NewYear_Event_Fight_Boss.png'),
+    art: (title: 'duel_christmas_title', player: 'assets/Christmas/Christmas_Event_Fight_Player.png', hand: 'assets/Christmas/Christmas_Event_Fight_Player_Hand.png', boss: 'assets/Christmas/Christmas_Event_Fight_Boss.png'),
     // One for each of the boss flake's twelve cones.
     flakes: [
       (preset: 'default_6_1', folds: 6, color: Color(0xFFE0405E), pattern: 'plain'),

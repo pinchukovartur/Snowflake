@@ -199,6 +199,7 @@ class _PaperSwatchPainter extends CustomPainter {
       canvas.restore();
     }
     canvas.restore();
+    if (pattern == 'gingerbread') _gingerbread(canvas, size, r);
     canvas.drawRRect(
       r.deflate(1),
       Paint()
@@ -206,6 +207,45 @@ class _PaperSwatchPainter extends CustomPainter {
         ..strokeWidth = 2
         ..color = const Color(0x1A101A3F),
     );
+  }
+
+  /// Gingerbread's swatch dressed as a biscuit: its baked edge (the inner
+  /// shadow its flakes have, see [gingerbreadShadow]) and a little fir tree
+  /// piped on it in icing of the paper's colour, as its cuts get.
+  void _gingerbread(Canvas canvas, Size size, RRect r) {
+    // As on a flake as big round as the swatch is across.
+    final s = size.shortestSide;
+    canvas.save();
+    canvas.clipRRect(r);
+    canvas.drawRRect(
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * gingerbreadEdgeWidth
+        ..color = gingerbreadShadow
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, s * gingerbreadEdgeBlur),
+    );
+    canvas.restore();
+    // The tree's outline: tiers zigzagging out down its right side, across
+    // its foot, and back up its left.
+    final w = size.width, h = size.height, cx = w / 2;
+    const right = [Offset(.18, .4), Offset(.08, .4), Offset(.26, .6), Offset(.12, .6), Offset(.3, .8)];
+    final tree = Path()..moveTo(cx, h * .18);
+    for (final q in right) {
+      tree.lineTo(cx + q.dx * w, q.dy * h);
+    }
+    for (final q in right.reversed) {
+      tree.lineTo(cx - q.dx * w, q.dy * h);
+    }
+    tree.close();
+    final icing = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeJoin = StrokeJoin.round
+      ..strokeCap = StrokeCap.round;
+    // Its shadow first, a touch down, then the icing over it.
+    canvas.drawPath(tree.shift(const Offset(0, 1)), icing..color = icingShade(color));
+    canvas.drawPath(tree, icing..color = color);
   }
 
   @override

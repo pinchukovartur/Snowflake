@@ -17,13 +17,8 @@ import '../widgets/window_decor.dart';
 /// the coins themselves are still kept (see GameState.coins).
 const _showCoins = false;
 
-/// The night, darker under the window: the glass's white haze (about 11% where
-/// it is clear of glints) lifts it back to the other screens' sky. Each is
-/// `(c − 255·a) / (1 − a)` of [SkyBackground.night], for a = .11.
-const _skyUnderHaze = [Color(0xFF001047), Color(0xFF153487), Color(0xFF264EAF)];
-
-/// What the window looks out on. Set by hand for each release: autumn now,
-/// winter in the next update.
+/// What the window looks out on. Set by hand for each release: winter for the
+/// Christmas one.
 enum Season { autumn, winter }
 
 const season = Season.winter;
@@ -31,12 +26,12 @@ const season = Season.winter;
 /// The autumn view: a sunny sky with a maple in leaf, seen through the glass.
 const _autumnView = 'assets/Autumn_Window_Bg.png';
 
-/// A winter view, on trial in the autumn one's place.
+/// The winter view: a snowy plain under the northern lights, snow falling
+/// over it (see [_Snowfall]).
 const _winterView = 'assets/Winter_Window_Bg.png';
 
-/// Trying the winter view through the glass instead of the autumn one.
-const _winterTrial = true;
-const _outsideView = _winterTrial ? _winterView : _autumnView;
+/// The view through the glass this season.
+const _outsideView = season == Season.winter ? _winterView : _autumnView;
 
 /// A patch of frost behind the game's title on the window.
 const _titleBg = 'assets/Window_Title_Bg.png';
@@ -262,6 +257,15 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   bool get _titleUp => _showTitle && !_title.isCompleted;
+
+  /// Skips the title, if up and not yet fading, on to fading away.
+  void _skipTitle() {
+    const fade = (_titleIn + _titleHold) / (_titleIn + _titleHold + _titleOut);
+    if (!_titleUp || _title.value >= fade) return;
+    // Fading out from there (full, if it was still fading in).
+    _title.value = fade;
+    _title.forward();
+  }
 
   /// Windows side by side, each as wide as the screen, with an arch of its own
   /// over its two sashes; pane rows in each sash, in bands of three.
@@ -629,33 +633,30 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final hazeHeight = _playMiddle + _hazeFade + bottomInset;
     final view = Stack(
       children: [
-        // Outside the window: snow falling in the night in winter; in autumn a
-        // still, sunny day, the picture centred and a fifth taller than the
-        // screen, so the tree's edge and the sun's rays show through.
-        // It drifts a little as the windows pan, being further off.
+        // Outside the window: the season's view (see [_outsideView]), centred
+        // and a fifth taller than the screen, so its edges show through. It
+        // drifts a little as the windows pan, being further off.
         Positioned.fill(
-          child: season == Season.winter && !_winterTrial
-              ? RepaintBoundary(child: _Snowfall(ticker: _ticker, hazeHeight: hazeHeight, hazeFade: _hazeFade, drift: () => _outsideShift))
-              : LayoutBuilder(
-                  builder: (_, c) {
-                    // Drifting by the windows' size, before they are built.
-                    _layOut(c);
-                    return ClipRect(
-                      child: OverflowBox(
-                        maxWidth: c.maxHeight * 1.2,
-                        maxHeight: c.maxHeight * 1.2,
-                        child: AnimatedBuilder(
-                          animation: _view,
-                          builder: (_, child) => Transform.translate(offset: _outsideShift, child: child),
-                          child: RepaintBoundary(child: Image.asset(_outsideView, fit: BoxFit.cover)),
-                        ),
-                      ),
-                    );
-                  },
+          child: LayoutBuilder(
+            builder: (_, c) {
+              // Drifting by the windows' size, before they are built.
+              _layOut(c);
+              return ClipRect(
+                child: OverflowBox(
+                  maxWidth: c.maxHeight * 1.2,
+                  maxHeight: c.maxHeight * 1.2,
+                  child: AnimatedBuilder(
+                    animation: _view,
+                    builder: (_, child) => Transform.translate(offset: _outsideShift, child: child),
+                    child: RepaintBoundary(child: Image.asset(_outsideView, fit: BoxFit.cover)),
+                  ),
                 ),
+              );
+            },
+          ),
         ),
-        // Trying the winter picture: snow falling over it too.
-        if (season == Season.winter && _winterTrial)
+        // In winter, snow falling over it.
+        if (season == Season.winter)
           Positioned.fill(child: RepaintBoundary(child: _Snowfall(ticker: _ticker, hazeHeight: hazeHeight, hazeFade: _hazeFade, drift: () => _outsideShift))),
         // The windows, wider and taller than the screen, pan past in any
         // direction, with the roof over them and the sill and floor under
@@ -928,7 +929,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
       ],
     );
-    return season == Season.winter ? SkyBackground(softDots: true, colors: _skyUnderHaze, child: view) : view;
+    // Any touch anywhere skips the title on to fading out, the touch still
+    // doing what it does.
+    return Listener(behavior: HitTestBehavior.translucent, onPointerDown: (_) => _skipTitle(), child: view);
   }
 }
 

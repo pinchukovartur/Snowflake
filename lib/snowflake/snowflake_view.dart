@@ -133,7 +133,7 @@ ui.Image _wedgeImage(_WedgeKey k) {
   final px = k.px.toDouble();
   final u = px / 2 * 0.96;
   c.translate(px / 2, px / 2);
-  drawWedge(c, u, k.cuts, wedgeHalfAngle(k.folds), makePaperFill(k.color, k.pattern, u), pad: 0.006, pattern: k.pattern, pos: k.pos, folds: k.folds, sheen: false);
+  drawWedge(c, u, k.cuts, wedgeHalfAngle(k.folds), makePaperFill(k.color, k.pattern, u), pad: 0.006, pattern: k.pattern, pos: k.pos, folds: k.folds, sheen: false, icing: k.color);
   final img = rec.endRecording().toImageSync(k.px, k.px);
   _wedgeCache[k] = img;
   _wedgeBytes += _bytesOf(img);

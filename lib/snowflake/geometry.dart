@@ -37,7 +37,7 @@ final Map<String, List<Cut>> snowflakePresets = {
   'chevrons': _chevrons(),
   // Six-fold too, from a paper pattern: a ring of rhombus and square outlines.
   'rhombi': _rhombi(),
-  // New Year pack (not offered yet), four-fold.
+  // Christmas pack, four-fold.
   'snowmen': _snowmen(),
 };
 
@@ -542,6 +542,7 @@ const paperPatterns = [
   'knit',
   'gradient',
   'analogous',
+  'gingerbread',
 ];
 
 /// Patterns drawn from a seamless texture (dark lines on white) rather than
@@ -612,7 +613,7 @@ Cut stencilShape(String tool, double cx, double cy, double r) {
         pts.add(Offset(cx + q.dx * r, cy + q.dy * r));
       }
     case 'tree' || 'xstar' || 'gift' || 'bell':
-      for (final q in _newYearStencils[tool]!) {
+      for (final q in _christmasStencils[tool]!) {
         pts.add(Offset(cx + q.dx * r, cy + q.dy * r));
       }
   }
@@ -629,8 +630,8 @@ List<Offset> _arcPts(Offset c, double k, double from, double to, [int steps = 10
 /// the middle line at both ends): that, then its mirror back up.
 List<Offset> _mirrored(List<Offset> half) => [...half, for (final q in half.reversed.skip(1).take(half.length - 2)) Offset(-q.dx, q.dy)];
 
-/// New Year stencil outlines at radius 1 about the origin (y down).
-final Map<String, List<Offset>> _newYearStencils = {
+/// Christmas stencil outlines at radius 1 about the origin (y down).
+final Map<String, List<Offset>> _christmasStencils = {
   // A fir tree: three tiers, each wider than the one above, on a trunk.
   'tree': _mirrored(const [
     Offset(0, -1),
@@ -853,6 +854,8 @@ final _tileCache = <(Color, String, int), ui.Image>{};
 
 /// Paint for the paper: plain colour or a repeating pattern tile. unitPx = paper radius in px.
 Paint makePaperFill(Color color, String pattern, double unitPx) {
+  // Gingerbread is its own brown: one tile for it, whatever colour is picked.
+  if (pattern == 'gingerbread') color = gingerbreadColor;
   final paint = Paint()..color = color;
   if (pattern == 'plain') return paint;
   // Tinted glass, as see-through as its colour is light: white glass all but
@@ -872,6 +875,7 @@ Paint makePaperFill(Color color, String pattern, double unitPx) {
   final t = switch (pattern) {
     'sparkle' => sparkleTile(unitPx),
     'bubbles' => sparkleTile(unitPx) * 2.5 * 1.3,
+    'gingerbread' => sparkleTile(unitPx),
     // One hologram cell: a big burst with small ones at its corners.
     'holo' => math.max(16.0, unitPx * .3),
     // A texture's tile: a few across the paper, so its motifs read; the
@@ -898,6 +902,13 @@ Paint makePaperFill(Color color, String pattern, double unitPx) {
       // Smooth, as the tile is scaled a little.
       filterQuality: FilterQuality.medium);
 }
+
+/// Gingerbread paper's own brown, whatever colour is picked (that one goes
+/// to its icing, see [drawWedge]).
+const gingerbreadColor = Color(0xFFC46A30);
+
+/// Gingerbread's darker crumbs, in these browns.
+const gingerbreadCrumbs = [ui.Color.fromARGB(255, 165, 91, 41), ui.Color.fromARGB(255, 126, 58, 14)];
 
 /// The gradient patterns, by the hues they run between, in degrees from the
 /// paper's own: to its complement (half round), or its analogous neighbours
@@ -1105,6 +1116,51 @@ ui.Image _tile(Color color, String pattern, double t) {
         x.drawPath(diamond, burst(c, 16, math.pi / 16));
         x.drawCircle(c, t * .035, Paint()..color = hi);
       }
+    case 'gingerbread':
+      // Baked dough: a scatter of darker brown crumbs, and fewer white ones
+      // (sugar), the same few on every tile whatever its size in px. Each an
+      // uneven blob of its own: a few bumps round, squashed, turned any way.
+      var seed = 3;
+      double rnd() => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      void speck(Color c, double r) {
+        final p = Paint()..color = c;
+        final cx = rnd() * t, cy = rnd() * t;
+        // The blob about its middle: [n] points at uneven distances round it,
+        // joined by curves through the midpoints between them.
+        final n = 4 + (rnd() * 3).floor();
+        final squash = .5 + rnd() * .5, turn = rnd() * math.pi;
+        final pts = [
+          for (var k = 0; k < n; k++)
+            () {
+              final a = (k + rnd() * .6) / n * 2 * math.pi, d = r * (.6 + rnd() * .7);
+              return Offset(math.cos(a) * d, math.sin(a) * d * squash);
+            }(),
+        ];
+        Offset mid(int k) => (pts[k % n] + pts[(k + 1) % n]) / 2;
+        final blob = Path()..moveTo(mid(0).dx, mid(0).dy);
+        for (var k = 1; k <= n; k++) {
+          blob.quadraticBezierTo(pts[k % n].dx, pts[k % n].dy, mid(k).dx, mid(k).dy);
+        }
+        blob.close();
+        // Over an edge, in again on the far side, so tiles meet seamlessly.
+        for (final dx in [-t, 0.0, t]) {
+          for (final dy in [-t, 0.0, t]) {
+            x
+              ..save()
+              ..translate(cx + dx, cy + dy)
+              ..rotate(turn)
+              ..drawPath(blob, p)
+              ..restore();
+          }
+        }
+      }
+
+      for (var i = 0; i < 140; i++) {
+        speck(gingerbreadCrumbs[(rnd() * gingerbreadCrumbs.length).floor() % gingerbreadCrumbs.length].withValues(alpha: .55 + rnd() * .4), math.max(.6, t * (.006 + rnd() * .0144)));
+      }
+      for (var i = 0; i < 36; i++) {
+        speck(const Color(0xFFFFF4E6).withValues(alpha: .7 + rnd() * .3), math.max(.6, t * (.0048 + rnd() * .0096)));
+      }
     case 'bubbles':
       // Laid out on a square, wrapping round at its edges.
       final circles = _tileBubbles(t);
@@ -1235,7 +1291,7 @@ void _paintBubbles(Canvas canvas, List<_Bubble> circles, Color color, double s, 
 /// [toSheet]); a hologram ([pattern]) gets its sheen on top, drifted to
 /// [sheenTime] seconds, unless [sheen] is false (a flake that turns lays its
 /// own, fixed to the screen).
-void drawWedge(Canvas canvas, double s, List<Cut> cuts, double half, Paint fill, {double pad = 0, String? pattern, int pos = 0, int folds = 1, bool sheen = true, double sheenTime = 0}) {
+void drawWedge(Canvas canvas, double s, List<Cut> cuts, double half, Paint fill, {double pad = 0, String? pattern, int pos = 0, int folds = 1, bool sheen = true, double sheenTime = 0, Color? icing}) {
   final bounds = Rect.fromCircle(center: Offset.zero, radius: s * 1.3);
   canvas.saveLayer(bounds, Paint());
   final wedge = Path()
@@ -1261,7 +1317,91 @@ void drawWedge(Canvas canvas, double s, List<Cut> cuts, double half, Paint fill,
     if (c.length < 3) continue;
     canvas.drawPath(cutPath(c, s)..fillType = PathFillType.nonZero, clear);
   }
+  if (pattern == 'gingerbread') {
+    final lines = [
+      for (final c in cuts)
+        if (c.length >= 3) cutPath(c, s),
+    ];
+    _bakedEdge(canvas, s, lines, half, pad);
+    if (icing != null) _icing(canvas, s, lines, icing);
+  }
   canvas.restore();
+}
+
+/// Icing piped along gingerbread's cuts: how far in from the edge, and how
+/// thick, as shares of the wedge's radius.
+const _icingGap = .022, _icingWidth = .0144;
+
+/// A smooth line of icing in [color] along every cut ([lines]) in gingerbread paper,
+/// [_icingGap] in from its edge, on the paper only: a ring round each cut
+/// (a broad stroke along it less a narrower one), laid over what is there.
+void _icing(Canvas canvas, double s, List<Path> lines, Color color) {
+  final bounds = Rect.fromCircle(center: Offset.zero, radius: s * 1.3);
+  canvas.saveLayer(bounds, Paint()..blendMode = BlendMode.srcATop);
+  Paint line(double width) => Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = width
+    ..strokeJoin = StrokeJoin.round
+    ..strokeCap = StrokeCap.round;
+  final outer = line(2 * s * (_icingGap + _icingWidth))..color = color;
+  final inner = line(2 * s * _icingGap)..blendMode = BlendMode.clear;
+  for (final l in lines) {
+    canvas.drawPath(l, outer);
+  }
+  for (final l in lines) {
+    canvas.drawPath(l, inner);
+  }
+  // Its inner shadow: what lies either side of the line, in the icing's
+  // colour darkened, blurred in over its edges and kept to the line, so it
+  // looks piped, rounded.
+  final edge = s * _icingShadow;
+  canvas.saveLayer(bounds, Paint()
+    ..blendMode = BlendMode.srcATop
+    ..imageFilter = ui.ImageFilter.blur(sigmaX: edge * .6, sigmaY: edge * .6));
+  final shade = icingShade(color);
+  final beyond = line(2 * (s * (_icingGap + _icingWidth) + edge))..color = shade;
+  final within = line(2 * s * _icingGap)..color = shade;
+  final past = line(2 * s * (_icingGap + _icingWidth))..blendMode = BlendMode.clear;
+  for (final l in lines) {
+    canvas.drawPath(l, beyond);
+  }
+  for (final l in lines) {
+    canvas.drawPath(l, past);
+  }
+  for (final l in lines) {
+    canvas.drawPath(l, within);
+  }
+  canvas.restore();
+  canvas.restore();
+}
+
+/// How far the icing's inner shadow reaches in from its edges, as a share of
+/// the wedge's radius.
+const _icingShadow = .004;
+
+/// The colour of the shadow along icing of [color]: it, darkened.
+Color icingShade(Color color) => Color.lerp(color, const Color(0xFF000000), .4)!.withValues(alpha: .85);
+
+/// Gingerbread's baked edge: the colour of its inner shadow.
+const gingerbreadShadow = ui.Color.fromARGB(198, 141, 50, 14);
+
+/// How wide the baked edge is, and how soft, as shares of the paper's radius.
+const gingerbreadEdgeWidth = .05, gingerbreadEdgeBlur = .04;
+
+/// A soft dark rim inside gingerbread paper (see [gingerbreadShadow]), round
+/// the wedge's outside and every cut in it ([lines]), drawn over the paper only. Not
+/// along its folds, where the flake runs on unbroken.
+void _bakedEdge(Canvas canvas, double s, List<Path> lines, double half, double pad) {
+  final p = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = s * gingerbreadEdgeWidth
+    ..color = gingerbreadShadow
+    ..maskFilter = MaskFilter.blur(BlurStyle.normal, s * gingerbreadEdgeBlur)
+    ..blendMode = BlendMode.srcATop;
+  canvas.drawArc(Rect.fromCircle(center: Offset.zero, radius: s), -math.pi / 2 - half - pad, 2 * (half + pad), false, p);
+  for (final l in lines) {
+    canvas.drawPath(l, p);
+  }
 }
 
 /// Glass's thickness, showing below its edges in [glassShade] the way its

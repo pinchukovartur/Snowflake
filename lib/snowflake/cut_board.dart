@@ -666,7 +666,7 @@ class _BoardPainter extends CustomPainter {
       }
       // The folded paper shows its top layer (see [foldedTop]), so the flake
       // opens from just what the board showed.
-      drawWedge(canvas, s, [...cuts, ...fallen], half, glass ? (Paint()..color = glassTint(color)) : fill, pattern: pattern, sheen: !glass, sheenTime: twinkle ?? 0, pos: foldedTop(folds), folds: folds);
+      drawWedge(canvas, s, [...cuts, ...fallen], half, glass ? (Paint()..color = glassTint(color)) : fill, pattern: pattern, sheen: !glass, sheenTime: twinkle ?? 0, pos: foldedTop(folds), folds: folds, icing: color);
       if (glass) {
         canvas.restore();
         // Nothing but the glints, kept to the wedge and out of its holes.
@@ -774,7 +774,7 @@ class _BoardPainter extends CustomPainter {
         canvas.clipPath(path);
         canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, 1 - t * t));
         // As the board draws its paper (the top layer, see there).
-        drawWedge(canvas, s, dropCuts, half, fill, pattern: pattern, sheenTime: twinkle ?? 0, pos: foldedTop(folds), folds: folds);
+        drawWedge(canvas, s, dropCuts, half, fill, pattern: pattern, sheenTime: twinkle ?? 0, pos: foldedTop(folds), folds: folds, icing: color);
         canvas.restore();
         canvas.restore();
       }

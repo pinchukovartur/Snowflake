@@ -72,10 +72,10 @@ class GalleryScreen extends StatelessWidget {
                                 size: size,
                                 child: SnowflakeView(cuts: s.cuts, folds: s.folds, color: s.color, pattern: s.pattern, size: size),
                               ),
-                              // Hanging in the window: said so in the corner, as when picking one for it.
+                              // Hanging in the window: said so in the bottom left corner, as when picking one for it.
                               if (game.isHung(s))
                                 Positioned(
-                                  right: 8,
+                                  left: 8,
                                   bottom: 8,
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),

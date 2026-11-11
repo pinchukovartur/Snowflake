@@ -43,8 +43,8 @@
   <string name="pick_flake">Выберите снежинку</string>
   <string name="event_repeat">Повторить снежинку</string>
   <string name="event_halloween">Хэллоуинская дуэль</string>
-  <string name="event_newyear">Помощь Санте</string>
-  <string name="duel_newyear_title">Помощь Санте</string>
+  <string name="event_christmas">Помощь Санте</string>
+  <string name="duel_christmas_title">Помощь Санте</string>
 
   <!-- Трафареты -->
   <string name="stencil_star">Звезда</string>
@@ -97,6 +97,7 @@
   <string name="pattern_knit">Вязка</string>
   <string name="pattern_gradient">Градиент</string>
   <string name="pattern_analogous">Оттенки</string>
+  <string name="pattern_gingerbread">Пряник</string>
 
   <!-- Раскрытие -->
   <string name="unfolding">Раскрываем…</string>

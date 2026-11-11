@@ -22,7 +22,7 @@
   <string name="unhang">Take down</string>
   <string name="empty_glass">Empty glass</string>
   <string name="hang">Hang</string>
-  <string name="on_window">On the window</string>
+  <string name="on_window">Hanging</string>
   <string name="hang_flake">Hang a snowflake</string>
 
   <!-- Cutting -->
@@ -43,8 +43,8 @@
   <string name="pick_flake">Pick a snowflake</string>
   <string name="event_repeat">Repeat the snowflake</string>
   <string name="event_halloween">Halloween duel</string>
-  <string name="event_newyear">Help Santa</string>
-  <string name="duel_newyear_title">Help Santa</string>
+  <string name="event_christmas">Help Santa</string>
+  <string name="duel_christmas_title">Help Santa</string>
 
   <!-- Stencils -->
   <string name="stencil_star">Star</string>
@@ -97,6 +97,7 @@
   <string name="pattern_knit">Knit</string>
   <string name="pattern_gradient">Gradient</string>
   <string name="pattern_analogous">Hues</string>
+  <string name="pattern_gingerbread">Gingerbread</string>
 
   <!-- Reveal -->
   <string name="unfolding">Unfolding…</string>
