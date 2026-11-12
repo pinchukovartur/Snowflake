@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Android 8+: the icon in two layers, for the launcher to shape and move.
-     Older versions take the flat ic_launcher.png. Layers from store/dynamic-icon. -->
+     Older versions take the flat ic_launcher.png. Layers from store/dynamic-icon;
+     the monochrome one (Android 13+ themed icons, tinted by the system) from
+     store/icon-monochrome.png. -->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@mipmap/ic_launcher_background" />
     <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <monochrome android:drawable="@mipmap/ic_launcher_monochrome" />
 </adaptive-icon>
