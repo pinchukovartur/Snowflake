@@ -868,7 +868,14 @@ Paint makePaperFill(Color color, String pattern, double unitPx) {
   if (gradientHues[pattern] case (final from, final to)) {
     final hsl = HSLColor.fromColor(color);
     const steps = 6;
-    final colors = [for (var i = 0; i <= steps; i++) hsl.withHue((hsl.hue + from + (to - from) * i / steps) % 360).toColor()];
+    // Colours with no hue to turn round run to another colour instead (see
+    // [_gradientTo]): out to either end (theirs in the middle) for the
+    // gradient, the whole way for hues.
+    final target = _gradientTo[color.toARGB32()];
+    Color at(double t) => target != null
+        ? Color.lerp(color, target, pattern == 'gradient' ? (2 * t - 1).abs() : t)!
+        : hsl.withHue((hsl.hue + from + (to - from) * t) % 360).toColor();
+    final colors = [for (var i = 0; i <= steps; i++) at(i / steps)];
     return paint..shader = ui.Gradient.linear(Offset(0, -unitPx), Offset(0, unitPx), colors, [for (var i = 0; i <= steps; i++) i / steps]);
   }
   // Scattered patterns get big tiles, so they don't visibly repeat.
@@ -914,6 +921,13 @@ const gingerbreadCrumbs = [ui.Color.fromARGB(255, 165, 91, 41), ui.Color.fromARG
 /// paper's own: to its complement (half round), or its analogous neighbours
 /// (30° either side, through the paper's colour in the middle).
 const gradientHues = {'gradient': (0.0, 180.0), 'analogous': (-30.0, 30.0)};
+
+/// What paper with no hue to turn round runs to in its gradients, by its
+/// colour: white to the palette's light blue (ice), black to its red.
+const _gradientTo = {
+  0xFFFFFFFF: Color(0xFFC4ECFF),
+  0xFF1E1F26: Color(0xFFE0405E),
+};
 
 /// Side of the glitter pattern's tile, for paper [unitPx] in radius: four
 /// times the other patterns', so its dots don't visibly repeat. In step with

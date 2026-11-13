@@ -895,7 +895,7 @@ const List<_Event> _allEvents = [
     image: 'assets/Halloween/Halloween_Event_Ico.png',
     loud: true,
     boss: (preset: 'halloween_boss', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
-    art: (title: 'duel_title', player: 'assets/Halloween/Halloween_Event_Fight_Player.png', hand: 'assets/Halloween/Halloween_Event_Fight_Player_Hand.png', boss: 'assets/Halloween/Halloween_Event_Fight_Boss.png'),
+    art: (title: 'duel_title', player: 'assets/Halloween/Halloween_Event_Fight_Player.png', hand: 'assets/Halloween/Halloween_Event_Fight_Player_Hand.png', boss: 'assets/Halloween/Halloween_Event_Fight_Boss.png', bg: Color(0xFFEECDFF), ink: Color(0xFF7B3FD1), glow: Color(0xFF3DFF6E), bossGlow: Color(0xFF5A1FA8)),
     // One for each of the boss flake's twelve cones.
     flakes: [
       (preset: 'halloween_1', folds: 6, color: Color(0xFFFF9A3C), pattern: 'plain'),
@@ -921,12 +921,12 @@ const List<_Event> _allEvents = [
     image: 'assets/Christmas/Christmas_Event_Ico.png',
     loud: true,
     boss: (preset: 'classic', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
-    art: (title: 'duel_christmas_title', player: 'assets/Christmas/Christmas_Event_Fight_Player.png', hand: 'assets/Christmas/Christmas_Event_Fight_Player_Hand.png', boss: 'assets/Christmas/Christmas_Event_Fight_Boss.png'),
+    art: (title: 'duel_christmas_title', player: 'assets/Christmas/Christmas_Event_Fight_Player.png', hand: 'assets/Christmas/Christmas_Event_Fight_Player_Hand.png', boss: 'assets/Christmas/Christmas_Event_Fight_Boss.png', bg: Color(0xFF1E5A3A), ink: Color(0xFF1E8A4C), glow: Color(0xFFFFD34D), bossGlow: Color(0xFF8FE3A8)),
     // One for each of the boss flake's twelve cones.
     flakes: [
-      (preset: 'default_6_1', folds: 6, color: Color(0xFFE0405E), pattern: 'plain'),
-      (preset: 'default_6_2', folds: 6, color: Color(0xFF2FB37E), pattern: 'plain'),
-      (preset: 'snowmen', folds: 4, color: Color(0xFFFFFFFF), pattern: 'plain'),
+      (preset: 'christmass_2', folds: 4, color: Color(0xFFE0405E), pattern: 'plain'),
+      (preset: 'christmass_3', folds: 6, color: Color(0xFF2FB37E), pattern: 'plain'),
+      (preset: 'christmass_1', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
       (preset: 'fern', folds: 6, color: Color(0xFFFFD34D), pattern: 'plain'),
       (preset: 'starburst', folds: 6, color: Color(0xFFC4ECFF), pattern: 'plain'),
       (preset: 'leafy', folds: 6, color: Color(0xFF1E6B4F), pattern: 'plain'),
@@ -949,9 +949,11 @@ final _events = [
     if (!_eventsOff.contains(e.id)) e,
 ];
 
-/// A duel's pictures and words: the [title] over it (a string id), the
-/// player's figure and hand at the foot, the [boss] above.
-typedef _DuelArt = ({String title, String player, String hand, String boss});
+/// A duel's pictures, words and colours: the [title] over it (a string id),
+/// the player's figure and hand at the foot, the [boss] above; the window's
+/// [bg], the [ink] of its titles and progress bar, the [glow] round flakes
+/// already cut and the [bossGlow] round the boss's flake.
+typedef _DuelArt = ({String title, String player, String hand, String boss, Color bg, Color ink, Color glow, Color bossGlow});
 
 /// Event [e]'s window to pick a flake in: a duel's, if it has a boss.
 Widget _eventWindow(_Event e, GameState game) => switch ((e.boss, e.art)) {
@@ -1130,7 +1132,7 @@ class _EventPanelState extends State<_EventPanel> {
                               // or if two lines would not fit in the room under the flake.
                               final style = _titleStyle(e.loud), scaler = MediaQuery.textScalerOf(ctx);
                               final size = math.min(_wordsFit(tr(e.title), style, c.maxWidth, scaler), _twoLinesFit(style, titleRoom, scaler));
-                              return _EventTitle(tr(e.title), loud: e.loud, size: size);
+                              return _EventTitle(tr(e.title), loud: e.loud, size: size, ink: e.art?.ink ?? _EventTitle._defaultInk);
                             },
                           ),
                         ),
@@ -1169,11 +1171,13 @@ double _twoLinesFit(TextStyle style, double height, TextScaler scaler) {
   return size;
 }
 
-/// An event's title, centred, [size] px: white, or purple on a white outline
-/// when [loud].
+/// An event's title, centred, [size] px: white, or its [ink] (purple unless
+/// given) on a white outline when [loud].
 class _EventTitle extends StatelessWidget {
-  const _EventTitle(this.text, {required this.loud, required this.size, this.maxLines});
+  const _EventTitle(this.text, {required this.loud, required this.size, this.maxLines, this.ink = _defaultInk});
   final String text;
+  final Color ink;
+  static const _defaultInk = Color(0xFF7B3FD1);
   final bool loud;
   final double size;
   final int? maxLines;
@@ -1198,7 +1202,7 @@ class _EventTitle extends StatelessWidget {
           ..strokeJoin = StrokeJoin.round
           ..color = Colors.white,
       )),
-      line(style.copyWith(color: const Color(0xFF7B3FD1))),
+      line(style.copyWith(color: ink)),
     ]);
   }
 }
@@ -1450,7 +1454,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: RadialGradient(
-              colors: [_bossGlow, _bossGlow, _bossGlow.withValues(alpha: 0)],
+              colors: [widget.art.bossGlow, widget.art.bossGlow, widget.art.bossGlow.withValues(alpha: 0)],
               stops: const [0, .5, 1],
             ),
           ),
@@ -1493,7 +1497,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  _EventTitle(tr('duel_won_title'), loud: true, size: 36, maxLines: 1),
+                  _EventTitle(tr('duel_won_title'), loud: true, size: 36, maxLines: 1, ink: widget.art.ink),
                   const SizedBox(height: 8),
                   Text(tr('duel_won_subtitle'), textAlign: TextAlign.center, style: display(20, color: Colors.white, shadows: drop(3))),
                   const SizedBox(height: 28),
@@ -1611,7 +1615,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
           segments: cones,
         );
     return ColoredBox(
-      color: _bg,
+      color: widget.art.bg,
       child: Stack(key: _rootKey, children: [
         SafeArea(
           bottom: false,
@@ -1619,7 +1623,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
             TopBar(
               left: BarBtn(LucideIcons.arrowLeft, label: tr('back'), onTap: () => Navigator.pop(context)),
               title: tr(widget.art.title),
-              heading: _EventTitle(tr(widget.art.title), loud: true, size: 24, maxLines: 1),
+              heading: _EventTitle(tr(widget.art.title), loud: true, size: 24, maxLines: 1, ink: widget.art.ink),
               right: const SizedBox(width: 44),
             ),
             // The boss and its flake, its cones its life.
@@ -1715,7 +1719,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                           alignment: Alignment.centerLeft,
                           child: FractionallySizedBox(
                             widthFactor: n == 0 ? 0 : done / n,
-                            child: Container(decoration: BoxDecoration(color: _ink, borderRadius: BorderRadius.circular(6))),
+                            child: Container(decoration: BoxDecoration(color: widget.art.ink, borderRadius: BorderRadius.circular(6))),
                           ),
                         ),
                       ),
@@ -1726,14 +1730,14 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                     IndexedStack(
                       index: _hits,
                       alignment: Alignment.center,
-                      children: [for (var k = 0; k <= n; k++) _EventTitle('$k/$n', loud: true, size: 20, maxLines: 1)],
+                      children: [for (var k = 0; k <= n; k++) _EventTitle('$k/$n', loud: true, size: 20, maxLines: 1, ink: widget.art.ink)],
                     ),
                   ]);
                 },
               ),
             ),
             const Spacer(),
-            _EventTitle(tr('pick_flake'), loud: true, size: 24, maxLines: 2),
+            _EventTitle(tr('pick_flake'), loud: true, size: 24, maxLines: 2, ink: widget.art.ink),
             const SizedBox(height: 8),
             // The flakes, the one in the middle picked with a tap, the others
             // brought there by a swipe or a tap.
@@ -1797,7 +1801,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     gradient: RadialGradient(
-                                      colors: [_glow, _glow, _glow.withValues(alpha: 0)],
+                                      colors: [widget.art.glow, widget.art.glow, widget.art.glow.withValues(alpha: 0)],
                                       stops: const [0, .5, 1],
                                     ),
                                   ),
@@ -1853,17 +1857,6 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
       ]),
     );
   }
-
-  static const _bg = Color(0xFFEECDFF);
-
-  /// The event's purple, as in its titles.
-  static const _ink = Color(0xFF7B3FD1);
-
-  /// The glow round a flake already cut.
-  static const _glow = Color(0xFF3DFF6E);
-
-  /// The glow round the boss's flake in the duel.
-  static const _bossGlow = Color(0xFF5A1FA8);
 
   /// Where the hand's picture meets the witch's shoulder, which it turns about.
   static const _shoulder = Alignment(.75, 1);
