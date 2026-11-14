@@ -861,7 +861,8 @@ const _cutDemo = 'cut_demo';
 /// The seasonal event's [id] in [_events]: the panel opens on it.
 const _seasonalEvent = 'christmas';
 
-/// A flake an event shows, and sets out to be made again.
+/// A flake an event shows, and sets out to be made again: its [color] one
+/// of [paperColors], so the player can make it (test/flake_colors_test.dart).
 typedef _EventFlake = ({String preset, int folds, Color color, String pattern});
 
 /// Events on offer, one at a time in the event panel, each showing its
@@ -880,13 +881,13 @@ const List<_Event> _allEvents = [
     art: null,
     flakes: [
       (preset: 'default_6_1', folds: 6, color: Color(0xFFC4ECFF), pattern: 'plain'),
-      (preset: 'default_6_2', folds: 6, color: Color(0xFFF3C9FF), pattern: 'plain'),
+      (preset: 'default_6_2', folds: 6, color: Color(0xFFDCD2FF), pattern: 'plain'),
       (preset: 'fern', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
       (preset: 'leafy', folds: 6, color: Color(0xFFFFE08A), pattern: 'plain'),
       (preset: 'spiky', folds: 6, color: Color(0xFFDCD2FF), pattern: 'plain'),
       (preset: 'forked', folds: 6, color: Color(0xFF9DFFAA), pattern: 'plain'),
       (preset: 'chevrons', folds: 6, color: Color(0xFFFFC7D0), pattern: 'plain'),
-      (preset: 'rhombi', folds: 6, color: Color(0xFFB8F0C8), pattern: 'plain'),
+      (preset: 'rhombi', folds: 6, color: Color(0xFF9DFFAA), pattern: 'plain'),
     ],
   ),
   (
@@ -927,14 +928,14 @@ const List<_Event> _allEvents = [
       (preset: 'christmass_2', folds: 4, color: Color(0xFFE0405E), pattern: 'plain'),
       (preset: 'christmass_3', folds: 6, color: Color(0xFF2FB37E), pattern: 'plain'),
       (preset: 'christmass_1', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
-      (preset: 'fern', folds: 6, color: Color(0xFFFFD34D), pattern: 'plain'),
-      (preset: 'starburst', folds: 6, color: Color(0xFFC4ECFF), pattern: 'plain'),
-      (preset: 'leafy', folds: 6, color: Color(0xFF1E6B4F), pattern: 'plain'),
-      (preset: 'spiky', folds: 6, color: Color(0xFFB0283F), pattern: 'plain'),
-      (preset: 'forked', folds: 6, color: Color(0xFF6FA8FF), pattern: 'plain'),
+      (preset: 'christmass_4', folds: 6, color: Color(0xFFFFE08A), pattern: 'plain'),
+      (preset: 'christmass_5', folds: 6, color: Color(0xFFC4ECFF), pattern: 'plain'),
+      (preset: 'christmass_6', folds: 4, color: Color(0xFF1E6B4F), pattern: 'plain'),
+      (preset: 'christmass_7', folds: 6, color: Color(0xFF8E1F3A), pattern: 'plain'),
+      (preset: 'forked', folds: 6, color: Color(0xFF3E61B8), pattern: 'plain'),
       (preset: 'chevrons', folds: 6, color: Color(0xFFFF9A3C), pattern: 'plain'),
       (preset: 'rhombi', folds: 6, color: Color(0xFF9DFFAA), pattern: 'plain'),
-      (preset: 'ghosts', folds: 6, color: Color(0xFFF3C9FF), pattern: 'plain'),
+      (preset: 'ghosts', folds: 6, color: Color(0xFFDCD2FF), pattern: 'plain'),
       (preset: 'cats', folds: 6, color: Color(0xFF1E2F6B), pattern: 'plain'),
     ],
   ),
