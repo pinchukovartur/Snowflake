@@ -33,6 +33,15 @@
   <string name="reset_stencil">Сбросить трафарет</string>
   <string name="home">Домой</string>
   <string name="hint">Подсказка</string>
+  <string name="tutorial_first_cut">Сделайте любой разрез</string>
+  <string name="tutorial_stencil_arrow">Вы можете вырезать готовые трафареты</string>
+  <string name="tutorial_paper_arrow">Вы можете выбрать цвет бумаги</string>
+  <string name="tutorial_first_stencil">Перемести, покрути и примени трафарет</string>
+  <string name="tutorial_unfold">Теперь вы умеете всё, снежинку можно раскрыть</string>
+  <string name="tutorial_collection">Здесь будут появляться снежинки, добавленные в коллекцию</string>
+  <string name="tutorial_window">Давайте повесим снежинку на окно</string>
+  <string name="tutorial_collection_button">Всю коллекцию можно найти в «Моя коллекция»</string>
+  <string name="make_more">Сделать ещё</string>
   <string name="restart">Начать заново</string>
   <string name="undo">Отменить</string>
   <string name="redo">Вернуть</string>

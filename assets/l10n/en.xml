@@ -33,6 +33,15 @@
   <string name="reset_stencil">Reset stencil</string>
   <string name="home">Home</string>
   <string name="hint">Hint</string>
+  <string name="tutorial_first_cut">Make any cut</string>
+  <string name="tutorial_stencil_arrow">You can cut out ready-made stencils</string>
+  <string name="tutorial_paper_arrow">You can pick the paper's colour</string>
+  <string name="tutorial_first_stencil">Move, turn and apply the stencil</string>
+  <string name="tutorial_unfold">Now you know it all: the flake is ready to unfold</string>
+  <string name="tutorial_collection">Snowflakes you add to the collection will show up here</string>
+  <string name="tutorial_window">Let's hang a snowflake in the window</string>
+  <string name="tutorial_collection_button">Your whole collection is in “My collection”</string>
+  <string name="make_more">Make more</string>
   <string name="restart">Start over</string>
   <string name="undo">Undo</string>
   <string name="redo">Redo</string>

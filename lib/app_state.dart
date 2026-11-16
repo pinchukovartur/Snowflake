@@ -8,10 +8,35 @@ import 'snowflake/geometry.dart';
 
 /// For testing tutorials: set to true to make every launch the first one, the
 /// tutorials all showing again (the stored "seen" marks are cleared at start).
-/// Not limited to debug builds for now (see the check in [GameState]): a
-/// release build with this on clears them too, so turn it off before one goes
-/// to players.
-const forceFirstLaunch = true;
+/// Debug builds only: a release never has it, whatever this says.
+const forceFirstLaunch = true && kDebugMode;
+
+/// The first launch's tutorial, step 1: the game opens on the cut board, the
+/// scissors all there is till the player's first cut.
+const firstCutTutorial = 'first_cut';
+
+/// The tutorial's step 2: an arrow to the stencils, then a stencil to move,
+/// turn and cut out.
+const firstStencilTutorial = 'first_stencil';
+
+/// The tutorial's step 3: an arrow to the paper, whose dialog is to be opened
+/// and closed.
+const firstPaperTutorial = 'first_paper';
+
+/// The tutorial's end: all there is to know told, the unfold button beckons
+/// till the flake is unfolded. Till then the game opens on the cut board.
+const firstUnfoldTutorial = 'first_unfold';
+
+/// The second tutorial, on the first flake unfolded: an arrow to "to the
+/// collection", saving it opening the home screen, where a bubble asks for a
+/// flake hung in the window, the window held still and its pluses bouncing;
+/// done once one is hung.
+const firstWindowTutorial = 'first_window';
+
+/// The second tutorial's end, after [firstWindowTutorial]: an arrow to the
+/// home screen's collection button, then the collection, told what it is
+/// for, and back to cutting.
+const firstCollectionTutorial = 'first_collection';
 
 /// For testing the Halloween duel: a tap on the boss's flake knocks a cone
 /// off it, as if the next flake had been cut. Debug builds only: a release
@@ -75,8 +100,7 @@ class GameState extends ChangeNotifier {
     coins = _prefs.getInt(_kCoins) ?? coins;
     sfx = _prefs.getBool(_kSfx) ?? sfx;
     vibration = _prefs.getBool(_kVibration) ?? vibration;
-    // Debug builds only, if the check is put back: `kDebugMode && forceFirstLaunch`.
-    if (forceFirstLaunch /* && kDebugMode */) _prefs.remove(_kTutorials);
+    if (forceFirstLaunch) _prefs.remove(_kTutorials);
     _tutorialsSeen.addAll(_prefs.getStringList(_kTutorials) ?? const []);
     // Started afresh along with the tutorials, for trying it out again.
     if (forceFirstLaunch) {
@@ -180,6 +204,10 @@ class GameState extends ChangeNotifier {
   final _tutorialsSeen = <String>{};
 
   bool tutorialSeen(String id) => _tutorialsSeen.contains(id);
+
+  /// The cut board's demo (a hand showing how to cut) has been touched away
+  /// this launch. Not stored: each launch shows it again till touched.
+  bool cutDemoTouched = false;
 
   /// Each duel (by its event's id): the event flakes (by preset) the player
   /// has done, each one taking a cone off the boss's flake; cutting one again

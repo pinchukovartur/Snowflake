@@ -11,6 +11,7 @@ import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
 import '../widgets/ds.dart';
 import '../widgets/flake_turn_zoom.dart';
+import '../widgets/tutorial.dart';
 
 /// Unfolds the cut wedge fold by fold and then pops the result card.
 class RevealScreen extends StatefulWidget {
@@ -23,6 +24,7 @@ class RevealScreen extends StatefulWidget {
     required this.onDone,
     required this.onSave,
     required this.onBack,
+    this.tutorial = false,
   });
 
   final List<Cut> cuts;
@@ -34,6 +36,10 @@ class RevealScreen extends StatefulWidget {
 
   /// [onDone] moves on to a new flake; [onBack] returns to the cut board with the flake as it was before unfolding.
   final VoidCallback onDone, onSave, onBack;
+
+  /// The second tutorial's first step (see [firstWindowTutorial]): an arrow
+  /// points at "to the collection", which beckons; nothing else can be tapped.
+  final bool tutorial;
 
   @override
   State<RevealScreen> createState() => _RevealScreenState();
@@ -127,9 +133,9 @@ class _RevealScreenState extends State<RevealScreen> with TickerProviderStateMix
             left: 0,
             right: 0,
             child: IgnorePointer(
-              ignoring: !_done,
+              ignoring: !_done || widget.tutorial,
               child: AnimatedOpacity(
-                opacity: _done ? 1 : 0,
+                opacity: _done && !widget.tutorial ? 1 : 0,
                 duration: Motion.pop,
                 child: TopBar(
                   left: const SizedBox(width: 44),
@@ -164,19 +170,26 @@ class _RevealScreenState extends State<RevealScreen> with TickerProviderStateMix
                   child: DsDialog(
                     title: tr('great'),
                     actions: [
-                      Btn(tr('done'), block: true, onTap: widget.onDone),
+                      Btn(tr('done'), block: true, disabled: widget.tutorial, onTap: widget.onDone),
                       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Btn(tr('back'), variant: Variant.light, onTap: widget.onBack),
+                        Btn(tr('back'), variant: Variant.light, disabled: widget.tutorial, onTap: widget.onBack),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: Btn(
-                            widget.saved ? tr('in_collection') : tr('to_collection'),
-                            variant: Variant.secondary,
-                            icon: widget.saved ? Icons.favorite : LucideIcons.heart,
-                            iconColor: widget.saved ? C.berry600 : null,
-                            block: true,
-                            onTap: widget.onSave,
-                          ),
+                          child: Stack(clipBehavior: Clip.none, alignment: Alignment.bottomCenter, children: [
+                            Beckon(
+                              on: widget.tutorial,
+                              child: Btn(
+                                widget.saved ? tr('in_collection') : tr('to_collection'),
+                                variant: Variant.secondary,
+                                icon: widget.saved ? Icons.favorite : LucideIcons.heart,
+                                iconColor: widget.saved ? C.berry600 : null,
+                                block: true,
+                                onTap: widget.onSave,
+                              ),
+                            ),
+                            // Pointing down at it from above, over "done".
+                            if (widget.tutorial) const Positioned(bottom: 60, child: IgnorePointer(child: TutorialArrow())),
+                          ]),
                         ),
                       ]),
                     ],

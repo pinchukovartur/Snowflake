@@ -6,9 +6,10 @@ import '../app_state.dart';
 import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
 import '../widgets/ds.dart';
+import '../widgets/tutorial.dart';
 
 class GalleryScreen extends StatelessWidget {
-  const GalleryScreen({super.key, required this.game, required this.onBack, required this.onOpen, required this.onPlay});
+  const GalleryScreen({super.key, required this.game, required this.onBack, required this.onOpen, required this.onPlay, this.onTutorialDone});
   final GameState game;
   final VoidCallback onBack;
 
@@ -18,6 +19,11 @@ class GalleryScreen extends StatelessWidget {
   /// Shows a flake on its own, to turn and zoom (and take out of the
   /// collection, or hang in the window).
   final ValueChanged<SavedFlake> onOpen;
+
+  /// Given, the collection tutorial (see [firstCollectionTutorial]): a bubble
+  /// in place of the top bar says what the collection is for, and "make
+  /// more" at the foot, as big as the home screen's "play", calls this.
+  final VoidCallback? onTutorialDone;
 
   @override
   Widget build(BuildContext context) {
@@ -31,12 +37,18 @@ class GalleryScreen extends StatelessWidget {
         bottom: false,
         child: Stack(children: [
           Column(children: [
-            TopBar(
-              left: BarBtn(LucideIcons.arrowLeft, label: tr('back'), onTap: onBack),
-              title: tr('my_collection'),
-              // As wide as the back button, so the title centres on the screen.
-              right: const SizedBox(width: 44),
-            ),
+            if (onTutorialDone != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(screenPad, 12, screenPad, 0),
+                child: TutorialBubble(tr('tutorial_collection')),
+              )
+            else
+              TopBar(
+                left: BarBtn(LucideIcons.arrowLeft, label: tr('back'), onTap: onBack),
+                title: tr('my_collection'),
+                // As wide as the back button, so the title centres on the screen.
+                right: const SizedBox(width: 44),
+              ),
             const SizedBox(height: 16),
             Expanded(
               child: list.isEmpty
@@ -50,8 +62,9 @@ class GalleryScreen extends StatelessWidget {
                       ]),
                     )
                   : GridView.builder(
-                    // With buttons below, room to scroll the last row up clear of them.
-                    padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.paddingOf(context).bottom + 20 + buttons * 56),
+                    // With buttons below, room to scroll the last row up clear of
+                    // them; in the tutorial, of "make more" (64 + 6 lip, 28 under it, a gap).
+                    padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.paddingOf(context).bottom + 20 + buttons * 56 + (onTutorialDone != null ? 110 : 0)),
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 14 + 6, crossAxisSpacing: 14),
                     itemCount: list.length,
                     itemBuilder: (_, i) {
@@ -93,7 +106,7 @@ class GalleryScreen extends StatelessWidget {
           ]),
           // A flake just deleted, to put back; and the last flake unfolded,
           // while it is not in the collection yet.
-          if (buttons > 0)
+          if (buttons > 0 && onTutorialDone == null)
             Positioned(
               right: 20,
               bottom: MediaQuery.paddingOf(context).bottom + 20,
@@ -106,6 +119,14 @@ class GalleryScreen extends StatelessWidget {
                     child: Btn(tr('add_last'), icon: LucideIcons.heart, size: BtnSize.s, onTap: game.saveLast),
                   ),
               ]),
+            ),
+          // The tutorial's way on: as big as the home screen's "play", where it stands.
+          if (onTutorialDone case final done?)
+            Positioned(
+              left: 32,
+              right: 32,
+              bottom: MediaQuery.paddingOf(context).bottom + 28,
+              child: Btn(tr('make_more'), size: BtnSize.l, icon: LucideIcons.play, block: true, onTap: done),
             ),
         ]),
       ),

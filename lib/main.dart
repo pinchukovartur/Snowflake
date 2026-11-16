@@ -63,7 +63,9 @@ class GameShell extends StatefulWidget {
 
 class _GameShellState extends State<GameShell> {
   late final _game = widget.game;
-  Screen _screen = Screen.home;
+  /// The first launch opens straight on the cut board, and so does each till
+  /// the tutorial is through (see [firstCutTutorial] and the steps after it).
+  late Screen _screen = _game.tutorialSeen(firstUnfoldTutorial) ? Screen.home : Screen.cut;
 
   /// A flake to hang on reaching the home screen (see [HomeScreen.arriving]).
   SavedFlake? _toHang;
@@ -86,6 +88,32 @@ class _GameShellState extends State<GameShell> {
   int _folds = 6;
   Paper _paper = const Paper();
 
+  /// The second tutorial, after the cutting one: an arrow on the first
+  /// unfolded flake's card to "to the collection", saving it opening the
+  /// window, where it is to be hung (see [firstWindowTutorial]); then an arrow
+  /// to the collection, which says what it is for, and on to cutting (see
+  /// [firstCollectionTutorial]).
+  bool get _saveArrow => _game.tutorialSeen(firstUnfoldTutorial) && !_game.tutorialSeen(firstWindowTutorial) && !_game.lastSaved;
+
+  /// The flake just saved in the tutorial, a moment's wait ([_toWindowWait])
+  /// on its card before the window: the card still held as in the tutorial
+  /// meanwhile.
+  bool _toWindow = false;
+  static const _toWindowWait = Duration(milliseconds: 200);
+
+  /// The window tutorial, once there is a flake in the collection to hang.
+  bool get _windowTutorial =>
+      _game.tutorialSeen(firstUnfoldTutorial) && !_game.tutorialSeen(firstWindowTutorial) && _game.saved.isNotEmpty;
+
+  /// The collection's part of it: the arrow at the home screen's
+  /// collection button, and the collection's bubble.
+  bool get _collectionTutorial => _game.tutorialSeen(firstWindowTutorial) && !_game.tutorialSeen(firstCollectionTutorial);
+
+  void _finishCollectionTutorial() {
+    _game.markTutorialSeen(firstCollectionTutorial);
+    _newFlake();
+  }
+
   /// The duel's flake on show unfolded, if it is one: its blow
   /// lands with "Done", not on going back to it.
   DuelHit? _duelFlake;
@@ -98,14 +126,15 @@ class _GameShellState extends State<GameShell> {
         _screen = s;
       });
 
-  /// Opens the cut board with a fresh flake, folded like the last one; the
-  /// flake just done, if a duel's, strikes its boss.
-  void _newFlake() => setState(() {
+  /// Opens the cut board with a fresh flake, folded like the last one (or
+  /// readies one, going to [to] instead); the flake just done, if a duel's,
+  /// strikes its boss.
+  void _newFlake([Screen to = Screen.cut]) => setState(() {
         if (_duelFlake case final f?) _game.duelHit(f);
         _duelFlake = null;
         _runKey++;
         _session = CutSession()..folds = _session.folds;
-        _screen = Screen.cut;
+        _screen = to;
       });
 
   void _back() {
@@ -113,14 +142,18 @@ class _GameShellState extends State<GameShell> {
       case Screen.home:
         // The collection open over the window closes first.
         if (_homeKey.currentState?.handleBack() ?? false) return;
+        // Back out of the window tutorial skips it, rather than leaving the game.
+        if (_windowTutorial) return _game.markTutorialSeen(firstWindowTutorial);
         SystemNavigator.pop();
       case Screen.reveal:
         _go(Screen.cut);
       case Screen.flake:
         _flakeBack();
       case Screen.cut:
+        // Home locked till the first cut: back leaves the game, as from home.
+        _game.tutorialSeen(firstUnfoldTutorial) ? _go(Screen.home) : SystemNavigator.pop();
       case Screen.gallery:
-        _go(Screen.home);
+        _collectionTutorial ? _finishCollectionTutorial() : _go(Screen.home);
     }
   }
 
@@ -153,6 +186,8 @@ class _GameShellState extends State<GameShell> {
           arriving: _toHang,
           back: _backTo,
           onArrived: () => _toHang = _backTo = null,
+          onTutorialDone: _windowTutorial ? () => _game.markTutorialSeen(firstWindowTutorial) : null,
+          collectionArrow: _collectionTutorial,
           onView: (f, from) {
             _shownFlake = f;
             _shownFrom = from;
@@ -184,13 +219,28 @@ class _GameShellState extends State<GameShell> {
           // Stays on the card: the player may still go back and change the flake.
           // Checked against the collection, so unfolding the same flake again
           // finds it already saved instead of saving a copy.
-          onSave: () => _game.lastSaved ? _game.unsaveLast() : _game.saveLast(),
+          // In the tutorial, saving it opens the window, to hang it there.
+          onSave: () {
+            if (_saveArrow) {
+              _game.saveLast();
+              setState(() => _toWindow = true);
+              Future.delayed(_toWindowWait, () {
+                if (!mounted) return;
+                _toWindow = false;
+                if (_screen == Screen.reveal) _newFlake(Screen.home);
+              });
+              return;
+            }
+            _game.lastSaved ? _game.unsaveLast() : _game.saveLast();
+          },
+          tutorial: _saveArrow || _toWindow,
         );
       case Screen.gallery:
         return GalleryScreen(
           game: _game,
           onBack: () => _go(Screen.home),
           onPlay: () => _go(Screen.cut),
+          onTutorialDone: _collectionTutorial ? _finishCollectionTutorial : null,
           onOpen: (f) {
             _shownFlake = f;
             _shownFrom = null;

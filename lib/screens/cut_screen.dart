@@ -16,6 +16,7 @@ import '../sound.dart';
 import '../theme/tokens.dart';
 import '../widgets/ds.dart';
 import '../widgets/paper_dialog.dart';
+import '../widgets/tutorial.dart';
 
 /// Height of the tool row laid over the foot of the board (a small round
 /// button, as in the stencil list, and its lip, plus the gap below): all the
@@ -304,6 +305,12 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     _help?.dispose();
     _cooldown.dispose();
     _frame.dispose();
+    _tutorialTimer?.cancel();
+    // A step left in its pause still counts as done (marked after this frame).
+    if (_pendingStep case final id?) {
+      final g = widget.game;
+      Future.microtask(() => g.markTutorialSeen(id));
+    }
     super.dispose();
   }
 
@@ -405,11 +412,99 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
 
   /// Unfolds the flake as cut, saying whether it is a duel's.
   void _unfold() {
+    if (_tutorialUnfold) widget.game.markTutorialSeen(firstUnfoldTutorial);
     final run = _s._event;
     widget.onUnfold([..._cuts, ..._fallen], _folds, _paper, run != null && _duels.contains(run.event) ? (duel: run.event, preset: run.flake.preset) : null);
   }
 
+  /// The first launch's tutorial under way: home and the events give way to
+  /// what to do, and of the tools only those it asks for are on.
+  bool get _tutorial => !widget.game.tutorialSeen(firstUnfoldTutorial);
+
+  /// Its step 1 (see [firstCutTutorial]): any cut with the scissors.
+  bool get _tutorialCut => !_seen(firstCutTutorial);
+
+  /// Its step 2 (see [firstStencilTutorial]).
+  bool get _tutorialStencilStep => !_tutorialCut && !_seen(firstStencilTutorial);
+
+  /// Step 2 before the stencils are out: an arrow to their button, the only
+  /// thing to be tapped.
+  bool get _tutorialStencilArrow => _tutorialStencilStep && _tool == 'free';
+
+  /// Step 2 with a stencil out: to move, turn and cut it out.
+  bool get _tutorialStencil => _tutorialStencilStep && _tool != 'free';
+
+  /// Its step 3 (see [firstPaperTutorial]): an arrow to the paper button, the
+  /// only thing to be tapped, till its dialog closes.
+  bool get _tutorialPaper => _seen(firstStencilTutorial) && !_seen(firstPaperTutorial);
+
+  /// Its end (see [firstUnfoldTutorial]): all on again, and the unfold button
+  /// beckons.
+  bool get _tutorialUnfold => _seen(firstPaperTutorial) && _tutorial;
+
+  /// The tutorial keeps the tools it is not about off: all of its steps but
+  /// the end.
+  bool get _tutorialLocks => _tutorial && !_tutorialUnfold;
+
+  /// An arrow points at a button: the cut demo keeps away meanwhile.
+  bool get _tutorialPointing => _tutorialStencilArrow || _tutorialPaper;
+
+  /// The step done, its pause (see [_tutorialDelays]) still running: it
+  /// counts as done already, the next step's tools free, but its arrows wait,
+  /// and the done step's bubble ([_pauseBubble]) stays meanwhile.
+  String? _pendingStep;
+  String? _pauseBubble;
+  Timer? _tutorialTimer;
+
+  /// A step's pause is running (see [_pendingStep]).
+  bool get _tutorialPause => _pendingStep != null;
+
+  /// Whether the tutorial's step [id] is done, if only just (see [_pendingStep]).
+  bool _seen(String id) => id == _pendingStep || widget.game.tutorialSeen(id);
+
+  /// Ends the tutorial's step [id]: marked done at once, or, with a pause in
+  /// [_tutorialDelays], at its end, the next step's arrows and bubble waiting
+  /// till then. A step done during another's pause ends that pause.
+  void _finishTutorialStep(String id) {
+    _flushTutorialStep();
+    final wait = _tutorialDelays[id] ?? Duration.zero;
+    if (wait == Duration.zero) return widget.game.markTutorialSeen(id);
+    _pauseBubble = _tutorialBubble;
+    _pendingStep = id;
+    _tutorialTimer = Timer(wait, () {
+      if (mounted) setState(_flushTutorialStep);
+    });
+  }
+
+  /// Marks the step in its pause, if any, done now.
+  void _flushTutorialStep() {
+    _tutorialTimer?.cancel();
+    final id = _pendingStep;
+    if (id == null) return;
+    _pendingStep = null;
+    widget.game.markTutorialSeen(id);
+  }
+
+  /// What the tutorial's bubble says now, by its key; null for none.
+  String? get _tutorialBubble => _tutorialCut
+      ? 'tutorial_first_cut'
+      : _tutorialStencil
+      ? 'tutorial_first_stencil'
+      : _tutorialStencilArrow
+      ? 'tutorial_stencil_arrow'
+      : _tutorialPaper
+      ? 'tutorial_paper_arrow'
+      : _tutorialUnfold
+      ? 'tutorial_unfold'
+      : null;
+
   void _addCut(Cut c) {
+    if (_tutorialCut) {
+      _finishTutorialStep(firstCutTutorial);
+    } else if (_tutorialStencil) {
+      // The stencil left in hand: the paper's arrow comes up over it.
+      _finishTutorialStep(firstStencilTutorial);
+    }
     if (widget.game.vibration) HapticFeedback.lightImpact();
     if (widget.game.sfx) Sfx.cut(stencil: _tool != 'free');
     final cuts = [..._cuts, c];
@@ -464,13 +559,18 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
         );
       },
     ).then((_) {
-      if (mounted) setState(() => _paperOpen = false);
+      if (!mounted) return;
+      setState(() {
+        _paperOpen = false;
+        if (_tutorialPaper) _finishTutorialStep(firstPaperTutorial);
+      });
     });
   }
 
   @override
   Widget build(BuildContext context) {
     final pad = MediaQuery.paddingOf(context);
+    final bubble = _tutorialPause ? _pauseBubble : _tutorialBubble;
     return ColoredBox(
       color: C.surfaceTable,
       child: Column(
@@ -543,10 +643,12 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                       onCut: _addCut,
                                       // Until the first touch on the board since launch, a phantom
                                       // stroke shows how to cut.
-                                      demo: !widget.game.tutorialSeen(_cutDemo) && _tool == 'free' && !_eventOn && !_paperOpen,
+                                      demo: !widget.game.cutDemoTouched && _tool == 'free' && !_eventOn && !_paperOpen && !_tutorialPointing,
                                     // Still under the paper dialog: no shimmer ticking unseen.
                                     shimmer: !_paperOpen,
-                                      onTouch: () => widget.game.markTutorialSeen(_cutDemo),
+                                      onTouch: () {
+                                        if (!widget.game.cutDemoTouched) setState(() => widget.game.cutDemoTouched = true);
+                                      },
                                     ),
                                   ),
                                 ),
@@ -657,24 +759,34 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                       return Row(
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
-                                          // Shows the last stencil; opens the list of all of them.
-                                          RoundBtn(
-                                            stencilIcon,
-                                            label: tr('stencils'),
-                                            size: BtnSize.s,
-                                            variant: stencilOn || _stencilsOpen ? Variant.secondary : Variant.light,
-                                            active: stencilOn,
-                                            // From the scissors it takes out the last stencil (a star at
-                                            // first) along with the list; after that it only opens and
-                                            // closes the list.
-                                            onTap: () => setState(() {
-                                              if (_tool != 'free') {
-                                                _stencilsOpen = !_stencilsOpen;
-                                              } else {
-                                                _tool = _s.stencil;
-                                                _stencilsOpen = true;
-                                              }
-                                            }),
+                                          // Shows the last stencil; opens the list of all of them. The
+                                          // tutorial's arrow, when it points here, hangs above it.
+                                          Stack(
+                                            clipBehavior: Clip.none,
+                                            alignment: Alignment.center,
+                                            children: [
+                                              RoundBtn(
+                                                stencilIcon,
+                                                label: tr('stencils'),
+                                                size: BtnSize.s,
+                                                variant: stencilOn || _stencilsOpen ? Variant.secondary : Variant.light,
+                                                active: stencilOn,
+                                                disabled: _tutorialCut,
+                                                fadeTime: _toolFade,
+                                                // From the scissors it takes out the last stencil (a star at
+                                                // first) along with the list; after that it only opens and
+                                                // closes the list.
+                                                onTap: () => setState(() {
+                                                  if (_tool != 'free') {
+                                                    _stencilsOpen = !_stencilsOpen;
+                                                  } else {
+                                                    _tool = _s.stencil;
+                                                    _stencilsOpen = true;
+                                                  }
+                                                }),
+                                              ),
+                                              if (_tutorialStencilArrow && !_tutorialPause) const Positioned(bottom: 64, child: IgnorePointer(child: TutorialArrow())),
+                                            ],
                                           ),
                                           SizedBox(width: _toolsGap(c.maxWidth)),
                                           RoundBtn(
@@ -683,19 +795,34 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                             size: BtnSize.s,
                                             variant: scissorsOn ? Variant.secondary : Variant.light,
                                             active: scissorsOn,
+                                            // Not to be gone back to with a stencil out in the tutorial's
+                                            // step 2. Under its arrows they are the tool in hand, so stay
+                                            // as they are: a tap on them then changes nothing.
+                                            disabled: _tutorialStencil,
+                                            fadeTime: _toolFade,
                                             onTap: () => setState(() {
                                               _tool = 'free';
                                               _stencilsOpen = false;
                                             }),
                                           ),
                                           SizedBox(width: _toolsGap(c.maxWidth)),
-                                          RoundBtn(
-                                            LucideIcons.palette,
-                                            label: tr('paper'),
-                                            size: BtnSize.s,
-                                            variant: _paperOpen ? Variant.secondary : Variant.light,
-                                            active: _paperOpen,
-                                            onTap: _openPaper,
+                                          // The tutorial's arrow, when it points here, hangs above it.
+                                          Stack(
+                                            clipBehavior: Clip.none,
+                                            alignment: Alignment.center,
+                                            children: [
+                                              RoundBtn(
+                                                LucideIcons.palette,
+                                                label: tr('paper'),
+                                                size: BtnSize.s,
+                                                variant: _paperOpen ? Variant.secondary : Variant.light,
+                                                active: _paperOpen,
+                                                disabled: _tutorialCut || _tutorialStencilStep,
+                                                fadeTime: _toolFade,
+                                                onTap: _openPaper,
+                                              ),
+                                              if (_tutorialPaper && !_paperOpen && !_tutorialPause) const Positioned(bottom: 64, child: IgnorePointer(child: TutorialArrow())),
+                                            ],
                                           ),
                                         ],
                                       );
@@ -714,7 +841,16 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                 if (_introArriving) Positioned.fill(child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: _skipIntro)),
                 Padding(
                   padding: EdgeInsets.fromLTRB(screenPad, 12, _eventRight(MediaQuery.sizeOf(context).width), 0),
-                  child: Row(
+                  // The first launch: in place of home and the events, what to do.
+                  // Lets touches through to the board beneath.
+                  child: _tutorial
+                      ? IgnorePointer(
+                          child: bubble != null
+                              ? TutorialBubble(tr(bubble))
+                              // Still the row's full width: the board's own width is taken from it.
+                              : const SizedBox(width: double.infinity),
+                        )
+                      : Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Home, and below it this flake's folds and cut count.
@@ -741,7 +877,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                         // Lets touches through to the board beneath.
                                         const IgnorePointer(child: Icon(_foldsIcon, size: 18, color: C.snow700)),
                                         const SizedBox(height: 4),
-                                        Segmented<int>(options: const [SegOption(4, '4'), SegOption(6, '6')], value: _folds, onChanged: _refold, fontSize: 14),
+                                        Segmented<int>(options: const [SegOption(4, '4'), SegOption(6, '6')], value: _folds, onChanged: _tutorialLocks ? null : _refold, fontSize: 14),
                                       ],
                                     ),
                                     const SizedBox(width: 14),
@@ -828,21 +964,32 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
               padding: EdgeInsets.fromLTRB(24, 0, 24, pad.bottom + 14),
               child: Row(
                 children: [
-                  RoundBtn(LucideIcons.rotateCcw, label: tr('restart'), size: BtnSize.s, disabled: _cuts.isEmpty, onTap: _reset),
+                  // All off through the tutorial, cuts made or not, till its end.
+                  RoundBtn(LucideIcons.rotateCcw, label: tr('restart'), size: BtnSize.s, disabled: _cuts.isEmpty || _tutorialLocks, onTap: _reset),
                   const SizedBox(width: 10),
-                  RoundBtn(LucideIcons.undo2, label: tr('undo'), size: BtnSize.s, disabled: _s.past.isEmpty, onTap: _undo),
+                  RoundBtn(LucideIcons.undo2, label: tr('undo'), size: BtnSize.s, disabled: _s.past.isEmpty || _tutorialLocks, onTap: _undo),
                   const SizedBox(width: 10),
-                  RoundBtn(LucideIcons.redo2, label: tr('redo'), size: BtnSize.s, disabled: _s.future.isEmpty, onTap: _redo),
+                  RoundBtn(LucideIcons.redo2, label: tr('redo'), size: BtnSize.s, disabled: _s.future.isEmpty || _tutorialLocks, onTap: _redo),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Btn(
-                      tr('unfold'),
-                      // No icon: with three round buttons beside it, the word needs the room.
-                      size: BtnSize.l,
-                      block: true,
-                      disabled: _cuts.isEmpty,
-                      onTap: _unfold,
-                    ),
+                    // At the tutorial's end it beckons, bouncing gently, an arrow
+                    // over it, till tapped.
+                    child: Stack(clipBehavior: Clip.none, alignment: Alignment.bottomCenter, children: [
+                      Beckon(
+                        on: _tutorialUnfold && _cuts.isNotEmpty,
+                        child: Btn(
+                          tr('unfold'),
+                          // No icon: with three round buttons beside it, the word needs the room.
+                          size: BtnSize.l,
+                          block: true,
+                          disabled: _cuts.isEmpty || _tutorialLocks,
+                          onTap: _unfold,
+                        ),
+                      ),
+                      // Right of centre, clear of the paper button above.
+                      if (_tutorialUnfold && _cuts.isNotEmpty && !_tutorialPause)
+                        const Positioned(left: 0, right: 0, bottom: 72, child: Align(alignment: Alignment(.5, 1), child: IgnorePointer(child: TutorialArrow()))),
+                    ]),
                   ),
                 ],
               ),
@@ -854,9 +1001,17 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
   }
 }
 
-/// The tutorial of the phantom cut shown on the board: shown until the player
-/// first touches it, then never again.
-const _cutDemo = 'cut_demo';
+/// How long the tools take to come on (or go off) in the tutorial.
+const _toolFade = Duration(milliseconds: 400);
+
+/// How long the tutorial waits after each step (by its id) before the next
+/// one's arrows and bubble show, so what the step did plays out: after the
+/// stencil, its cut and the pieces falling. The player may go on meanwhile.
+const _tutorialDelays = {
+  firstCutTutorial: Duration(milliseconds: 200),
+  firstStencilTutorial: Duration(milliseconds: 200),
+  firstPaperTutorial: Duration.zero,
+};
 
 /// The seasonal event's [id] in [_events]: the panel opens on it.
 const _seasonalEvent = 'christmas';
@@ -896,7 +1051,7 @@ const List<_Event> _allEvents = [
     image: 'assets/Halloween/Halloween_Event_Ico.png',
     loud: true,
     boss: (preset: 'halloween_boss', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
-    art: (title: 'duel_title', player: 'assets/Halloween/Halloween_Event_Fight_Player.png', hand: 'assets/Halloween/Halloween_Event_Fight_Player_Hand.png', boss: 'assets/Halloween/Halloween_Event_Fight_Boss.png', bg: Color(0xFFEECDFF), ink: Color(0xFF7B3FD1), glow: Color(0xFF3DFF6E), bossGlow: Color(0xFF5A1FA8)),
+    art: (title: 'duel_title', player: 'assets/Halloween/Halloween_Event_Fight_Player.png', hand: 'assets/Halloween/Halloween_Event_Fight_Player_Hand.png', boss: 'assets/Halloween/Halloween_Event_Fight_Boss.png', bg: Color(0xFFEECDFF), ink: Color(0xFF7B3FD1), glow: Color(0xFF3DFF6E), bossGlow: Color(0xFF5A1FA8), table: null, still: false, santa: false),
     // One for each of the boss flake's twelve cones.
     flakes: [
       (preset: 'halloween_1', folds: 6, color: Color(0xFFFF9A3C), pattern: 'plain'),
@@ -922,7 +1077,7 @@ const List<_Event> _allEvents = [
     image: 'assets/Christmas/Christmas_Event_Ico.png',
     loud: true,
     boss: (preset: 'classic', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
-    art: (title: 'duel_christmas_title', player: 'assets/Christmas/Christmas_Event_Fight_Player.png', hand: 'assets/Christmas/Christmas_Event_Fight_Player_Hand.png', boss: 'assets/Christmas/Christmas_Event_Fight_Boss.png', bg: Color(0xFF1E5A3A), ink: Color(0xFF1E8A4C), glow: Color(0xFFFFD34D), bossGlow: Color(0xFF8FE3A8)),
+    art: (title: 'duel_christmas_title', player: 'assets/Christmas/Christmas_Event_Fight_Player.png', hand: 'assets/Christmas/Christmas_Event_Fight_Player_Hand.png', boss: null, bg: Color(0xFF1E5A3A), ink: Color(0xFF1E8A4C), glow: Color(0xFFFFD34D), bossGlow: Color(0xFF8FE3A8), table: Color(0xFF8B5A2B), still: true, santa: true),
     // One for each of the boss flake's twelve cones.
     flakes: [
       (preset: 'christmass_2', folds: 4, color: Color(0xFFE0405E), pattern: 'plain'),
@@ -932,8 +1087,8 @@ const List<_Event> _allEvents = [
       (preset: 'christmass_5', folds: 6, color: Color(0xFFC4ECFF), pattern: 'plain'),
       (preset: 'christmass_6', folds: 4, color: Color(0xFF1E6B4F), pattern: 'plain'),
       (preset: 'christmass_7', folds: 6, color: Color(0xFF8E1F3A), pattern: 'plain'),
-      (preset: 'forked', folds: 6, color: Color(0xFF3E61B8), pattern: 'plain'),
-      (preset: 'chevrons', folds: 6, color: Color(0xFFFF9A3C), pattern: 'plain'),
+      (preset: 'christmass_8', folds: 6, color: Color(0xFF3E61B8), pattern: 'plain'),
+      (preset: 'christmass_9', folds: 6, color: Color(0xFFFFFFFF), pattern: 'gingerbread'),
       (preset: 'rhombi', folds: 6, color: Color(0xFF9DFFAA), pattern: 'plain'),
       (preset: 'ghosts', folds: 6, color: Color(0xFFDCD2FF), pattern: 'plain'),
       (preset: 'cats', folds: 6, color: Color(0xFF1E2F6B), pattern: 'plain'),
@@ -953,8 +1108,13 @@ final _events = [
 /// A duel's pictures, words and colours: the [title] over it (a string id),
 /// the player's figure and hand at the foot, the [boss] above; the window's
 /// [bg], the [ink] of its titles and progress bar, the [glow] round flakes
-/// already cut and the [bossGlow] round the boss's flake.
-typedef _DuelArt = ({String title, String player, String hand, String boss, Color bg, Color ink, Color glow, Color bossGlow});
+/// already cut and the [bossGlow] round the boss's flake (no [boss]
+/// picture, none drawn). With [santa], Santa drawn in blocks (see
+/// [_BlockSanta]) holds the flake before him; with a [table], a table of that colour across the window,
+/// the boss's flake and the player's to pick on it. [still]: the boss's flake
+/// doesn't bob, nor its glow swell, and the flake just cut doesn't fly at it,
+/// its blow landing all the same, the flake staying in its place.
+typedef _DuelArt = ({String title, String player, String hand, String? boss, Color bg, Color ink, Color glow, Color bossGlow, Color? table, bool still, bool santa});
 
 /// Event [e]'s window to pick a flake in: a duel's, if it has a boss.
 Widget _eventWindow(_Event e, GameState game) => switch ((e.boss, e.art)) {
@@ -1175,6 +1335,9 @@ double _twoLinesFit(TextStyle style, double height, TextScaler scaler) {
 /// An event's title, centred, [size] px: white, or its [ink] (purple unless
 /// given) on a white outline when [loud].
 class _EventTitle extends StatelessWidget {
+  /// Extra room between words, as a share of the font size.
+  static const _wordGap = .25;
+
   const _EventTitle(this.text, {required this.loud, required this.size, this.maxLines, this.ink = _defaultInk});
   final String text;
   final Color ink;
@@ -1185,7 +1348,8 @@ class _EventTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = _titleStyle(loud).copyWith(fontSize: size);
+    // Words set further apart than the face's own spacing, which runs them together.
+    final style = _titleStyle(loud).copyWith(fontSize: size, wordSpacing: size * _wordGap);
     Text line(TextStyle s) => Text(text, textAlign: TextAlign.center, maxLines: maxLines, overflow: maxLines == null ? null : TextOverflow.ellipsis, style: s);
     if (!loud) return line(style.copyWith(color: Colors.white));
     // The outline drawn first underneath; both centred in the room given.
@@ -1197,6 +1361,7 @@ class _EventTitle extends StatelessWidget {
         fontSize: size,
         fontWeight: FontWeight.w900,
         height: 1.1,
+        wordSpacing: style.wordSpacing,
         foreground: Paint()
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3.5 * size / 17
@@ -1382,9 +1547,17 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
   late final _sway = AnimationController(vsync: this, duration: const Duration(milliseconds: 3000))..repeat();
 
   /// The boss's flake bobbing up and down, round and round, [_bobHeight]
-  /// either way.
-  late final _bob = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400))..repeat();
+  /// either way; kept at rest, still at its middle, for a still duel (see
+  /// [_DuelArt]).
+  late final _bob = AnimationController(vsync: this, duration: const Duration(milliseconds: 2400));
   static const _bobHeight = 6.0;
+
+  /// How far above the screen's foot (less its inset) a duel's table ends:
+  /// just under the player's figure's top.
+  static const _tableFoot = 150.0;
+
+  /// How far below the safe area's top the table starts.
+  static const _tableTop = 180.0;
 
   /// The glow behind the flakes cut growing and shrinking, round and round,
   /// by [_pulseScale] of its size either way.
@@ -1397,6 +1570,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
   @override
   void initState() {
     super.initState();
+    if (!widget.art.still) _bob.repeat();
     final g = widget.game;
     _hits = widget.flakes.where((f) => g.duelHits(widget.id).contains(f.preset)).length;
     _before = math.min(g.duelSeen(widget.id), _hits);
@@ -1577,7 +1751,8 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
           animation: _fly,
           builder: (_, _) {
             final v = _fly.value;
-            if (_fresh < 0 || v <= 0 || v >= _home) return const SizedBox.shrink();
+            // A still duel's flake stays put: its flight only times the blow.
+            if (widget.art.still || _fresh < 0 || v <= 0 || v >= _home) return const SizedBox.shrink();
             final from = _centreOf(_carouselKey), to = _centreOf(_bossKey);
             if (from == null || to == null) return const SizedBox.shrink();
             // Out, setting off gently and quickening to the strike, spinning;
@@ -1615,9 +1790,17 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
           size: size,
           segments: cones,
         );
+    final santa = widget.art.santa;
+    // The table's top, down the screen, and Santa's above it, his mittens on its edge.
+    final tableTop = pad.top + _tableTop, santaTop = tableTop - _BlockSanta.tableAt;
     return ColoredBox(
       color: widget.art.bg,
       child: Stack(key: _rootKey, children: [
+        // Behind it all: Santa, the table over his body, his mittens on it.
+        if (santa) Positioned(left: 0, right: 0, top: santaTop, height: _BlockSanta.height, child: const IgnorePointer(child: _BlockSanta())),
+        if (widget.art.table case final table?)
+          Positioned(left: 0, right: 0, top: tableTop, bottom: pad.bottom + _tableFoot, child: IgnorePointer(child: _Table(table))),
+        if (santa) Positioned(left: 0, right: 0, top: santaTop, height: _BlockSanta.height, child: const IgnorePointer(child: _BlockSanta(hands: true))),
         SafeArea(
           bottom: false,
           child: Column(children: [
@@ -1636,15 +1819,17 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                 return Stack(clipBehavior: Clip.none, children: [
                   // The boss in the middle; its flake held before it, low and a
                   // little to the right, like a shield.
+                  if (widget.art.boss case final boss?)
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      height: 240,
+                      child: Image.asset(boss, fit: BoxFit.contain),
+                    ),
                   Positioned(
-                    left: 0,
-                    right: 0,
-                    top: 0,
-                    height: 240,
-                    child: Image.asset(widget.art.boss, fit: BoxFit.contain),
-                  ),
-                  Positioned(
-                    left: (c.maxWidth - size) / 2 + c.maxWidth * .16,
+                    // Santa (drawn behind) holds it right before him, in the middle.
+                    left: (c.maxWidth - size) / 2 + (santa ? 0 : c.maxWidth * .16),
                     // Room below for it to bob down into.
                     bottom: _bobHeight,
                     // Bobbing gently up and down, round and round; the flight
@@ -1765,7 +1950,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                       // Smaller away from the middle.
                       final page = _carousel.hasClients && _carousel.position.haveDimensions ? _carousel.page ?? 0.0 : _carousel.initialPage.toDouble();
                       final d = (page - i).abs().clamp(0.0, 1.0);
-                      final away = fresh && _fly.value > 0 && _fly.value < _home;
+                      final away = fresh && !widget.art.still && _fly.value > 0 && _fly.value < _home;
                       return Opacity(opacity: away ? 0 : 1, child: Transform.scale(scale: 1 - .3 * d, child: child));
                     },
                     child: Semantics(
@@ -1823,14 +2008,15 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
           ]),
         ),
         // The player's witch, at the foot of the screen, over the carousel
-        // (taking no touches): 90% of the screen's width, in the middle.
+        // (taking no touches): 90% of the screen's width, in the middle (72%
+        // at Christmas, with Santa across the table).
         Positioned(
           left: 0,
           right: 0,
           bottom: 0,
           child: IgnorePointer(
             child: FractionallySizedBox(
-              widthFactor: .9,
+              widthFactor: santa ? .72 : .9,
               child: Stack(children: [
               // The hands, the one picture (the right hand) and its mirror for the
               // left, each turning a little about its shoulder (at the picture's
@@ -1946,4 +2132,137 @@ class _WeighingReadout extends StatelessWidget {
       if (weighing.kept case final k?) line(k, const Color(0xFF1E9E4F)),
     ]);
   }
+}
+
+/// Santa, drawn in blocks on a grid of [_cell] squares, 40 across and
+/// [height] / [_cell] down, centred: his hat at the top, his face under it,
+/// his arms reaching out and down to the table (its top at [tableAt]), where
+/// his mittens rest. Drawn in two goes: all of him but his
+/// mittens behind the table, and with [hands] the mittens alone, over it.
+class _BlockSanta extends StatelessWidget {
+  const _BlockSanta({this.hands = false});
+  final bool hands;
+
+  static const _cell = 8.0;
+  static const height = 22 * _cell;
+
+  /// How far down from his top the table starts: under his arms, his mittens
+  /// on its edge.
+  static const tableAt = 18 * _cell;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(painter: _BlockSantaPainter(hands), size: Size.infinite);
+}
+
+class _BlockSantaPainter extends CustomPainter {
+  const _BlockSantaPainter(this.hands);
+  final bool hands;
+
+  static const _red = Color(0xFFD42F3A), _redDark = Color(0xFFA81F2B);
+  static const _white = Color(0xFFF6F8FC), _whiteShade = Color(0xFFD5DCEA);
+  static const _skin = Color(0xFFF5C9A6), _cheek = Color(0xFFF0948A), _nose = Color(0xFFE5776A);
+  static const _eye = Color(0xFF1B2A5B), _mitten = Color(0xFF1E6B4F), _mittenDark = Color(0xFF14503A);
+
+  /// Blocks as (colour, left column, top row, right column, bottom row), the
+  /// right and bottom ones not included; on the left side only for those
+  /// mirrored to the right (see [_both]).
+  static const _body = <(Color, int, int, int, int)>[
+    // Body, behind the beard (its lower part behind the flake and the table).
+    (_red, 11, 13, 29, 22),
+    (_redDark, 11, 13, 12, 22),
+    (_redDark, 28, 13, 29, 22),
+    // The hat, its tip drooping to the right, with its bobble.
+    (_red, 15, 2, 25, 6),
+    (_red, 16, 1, 24, 2),
+    (_red, 19, 0, 26, 1),
+    (_red, 25, 1, 28, 2),
+    (_redDark, 15, 5, 25, 6),
+    (_white, 27, 1, 30, 4),
+    (_whiteShade, 27, 3, 30, 4),
+    (_white, 13, 6, 27, 8),
+    (_whiteShade, 13, 7, 27, 8),
+    // The face.
+    (_skin, 15, 8, 25, 12),
+    (_eye, 17, 9, 18, 10),
+    (_eye, 22, 9, 23, 10),
+    (_cheek, 16, 10, 17, 11),
+    (_cheek, 23, 10, 24, 11),
+    (_nose, 19, 10, 21, 11),
+    // Beard and moustache.
+    (_white, 14, 12, 26, 14),
+    (_white, 15, 14, 25, 15),
+    (_whiteShade, 16, 15, 24, 16),
+    (_whiteShade, 18, 16, 22, 17),
+    (_white, 16, 11, 24, 12),
+    (_white, 15, 12, 17, 13),
+    (_white, 23, 12, 25, 13),
+  ];
+
+  /// The sleeves, out and down from his shoulders: the left, and mirrored.
+  static const _sleeves = <(Color, int, int, int, int)>[
+    (_red, 7, 14, 12, 17),
+    (_red, 4, 16, 9, 18),
+    (_redDark, 4, 17, 9, 18),
+  ];
+
+  /// The fur cuffs and the mittens, thumbs in, on the table's edge.
+  static const _mittens = <(Color, int, int, int, int)>[
+    (_white, 3, 17, 10, 18),
+    (_mitten, 3, 18, 9, 21),
+    (_mitten, 9, 18, 10, 20),
+    (_mittenDark, 3, 20, 9, 21),
+  ];
+
+  /// [blocks] and their mirror images across the middle.
+  static Iterable<(Color, int, int, int, int)> _both(List<(Color, int, int, int, int)> blocks) => [
+        ...blocks,
+        for (final (c, l, t, r, b) in blocks) (c, 40 - r, t, 40 - l, b),
+      ];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const u = _BlockSanta._cell;
+    final left = size.width / 2 - 20 * u;
+    final paint = Paint();
+    // A hair's overlap, so no seams show between blocks.
+    for (final (c, l, t, r, b) in hands ? _both(_mittens) : [..._body, ..._both(_sleeves)]) {
+      canvas.drawRect(Rect.fromLTRB(left + l * u - .3, t * u - .3, left + r * u + .3, b * u + .3), paint..color = c);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BlockSantaPainter old) => old.hands != hands;
+}
+
+/// A duel's table, of [color], across the window: a lighter top edge, a dark
+/// line under it, and a few faint lines of grain.
+class _Table extends StatelessWidget {
+  const _Table(this.color);
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(painter: _TablePainter(color), size: Size.infinite);
+}
+
+class _TablePainter extends CustomPainter {
+  const _TablePainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height;
+    canvas.drawRect(Offset.zero & size, Paint()..color = color);
+    final lip = Color.lerp(color, Colors.white, .18)!, edge = Color.lerp(color, Colors.black, .35)!;
+    canvas.drawRect(Rect.fromLTWH(0, 0, w, 12), Paint()..color = lip);
+    canvas.drawRect(Rect.fromLTWH(0, 12, w, 4), Paint()..color = edge);
+    final grain = Paint()
+      ..color = edge.withValues(alpha: .25)
+      ..strokeWidth = 2;
+    for (var y = 48.0; y < h; y += 56) {
+      canvas.drawLine(Offset(0, y), Offset(w, y), grain);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_TablePainter old) => old.color != color;
 }
