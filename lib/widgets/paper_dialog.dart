@@ -9,11 +9,14 @@ import '../theme/tokens.dart';
 import 'ds.dart';
 
 /// The paper dialog: a flake in [paper] up top ([preview], 170 across), then
-/// the paper colours and patterns to pick from, each pick passed to
+/// the paper colours and [patterns] to pick from, each pick passed to
 /// [onChanged] at once; "Done" and the cross both call [onClose].
 class PaperDialog extends StatelessWidget {
-  const PaperDialog({super.key, required this.paper, required this.onChanged, required this.preview, required this.onClose});
+  const PaperDialog({super.key, required this.paper, required this.onChanged, required this.preview, required this.onClose, this.patterns = paperPatterns});
   final Paper paper;
+
+  /// Those of [paperPatterns] the player has (see [GameState.unlocked]).
+  final List<String> patterns;
   final ValueChanged<Paper> onChanged;
   final Widget Function(Paper paper) preview;
   final VoidCallback onClose;
@@ -68,7 +71,7 @@ class PaperDialog extends StatelessWidget {
           ],
           const SizedBox(height: 20),
           // Patterns four to a row, the last row left-aligned with blanks.
-          for (var row = 0; row * 4 < paperPatterns.length; row++) ...[
+          for (var row = 0; row * 4 < patterns.length; row++) ...[
             if (row > 0) const SizedBox(height: 14),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -76,10 +79,10 @@ class PaperDialog extends StatelessWidget {
                 for (var col = 0; col < 4; col++) ...[
                   if (col > 0) const SizedBox(width: 12),
                   Expanded(
-                    child: row * 4 + col >= paperPatterns.length
+                    child: row * 4 + col >= patterns.length
                         ? const SizedBox()
                         : Builder(builder: (_) {
-                            final id = paperPatterns[row * 4 + col];
+                            final id = patterns[row * 4 + col];
                             return Semantics(
                               button: true,
                               label: tr('pattern_$id'),
@@ -88,7 +91,7 @@ class PaperDialog extends StatelessWidget {
                                 onTap: () => onChanged(paper.copyWith(pattern: id)),
                                 child: Column(
                                   children: [
-                                    _PaperSwatch(color: paper.color, pattern: id, selected: id == paper.pattern),
+                                    PaperSwatch(color: paper.color, pattern: id, selected: id == paper.pattern),
                                     const SizedBox(height: 8),
                                     FittedBox(child: Text(tr('pattern_$id'), style: display(13, color: C.night800))),
                                   ],
@@ -109,17 +112,17 @@ class PaperDialog extends StatelessWidget {
 
 /// A square of paper in [color] and [pattern] filling its width, for the
 /// pattern picker; styled like the colour swatches.
-class _PaperSwatch extends StatefulWidget {
-  const _PaperSwatch({required this.color, required this.pattern, required this.selected});
+class PaperSwatch extends StatefulWidget {
+  const PaperSwatch({super.key, required this.color, required this.pattern, this.selected = false});
   final Color color;
   final String pattern;
   final bool selected;
 
   @override
-  State<_PaperSwatch> createState() => _PaperSwatchState();
+  State<PaperSwatch> createState() => _PaperSwatchState();
 }
 
-class _PaperSwatchState extends State<_PaperSwatch> with SingleTickerProviderStateMixin {
+class _PaperSwatchState extends State<PaperSwatch> with SingleTickerProviderStateMixin {
   /// Seconds the paper has shimmered for, on a swatch that [shimmers].
   double _twinkleAt = 0;
   late final _twinkle = createTicker((elapsed) => setState(() => _twinkleAt = elapsed.inMicroseconds / 1e6));

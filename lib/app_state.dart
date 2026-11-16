@@ -38,6 +38,28 @@ const firstWindowTutorial = 'first_window';
 /// for, and back to cutting.
 const firstCollectionTutorial = 'first_collection';
 
+/// The advent calendar's doors, 25 December to 1 January: behind each a new
+/// paper pattern or stencil, papers and stencils by turns. Each, till its
+/// door is opened, is not to be had (see [GameState.unlocked]).
+const adventRewards = <({bool paper, String id})>[
+  (paper: true, id: 'snowfall'),
+  (paper: false, id: 'snowman'),
+  (paper: true, id: 'candy'),
+  (paper: false, id: 'mitten'),
+  (paper: true, id: 'garland'),
+  (paper: false, id: 'cane'),
+  (paper: true, id: 'tartan'),
+  (paper: false, id: 'ornament'),
+];
+
+/// For testing the advent calendar: a tap opens any door, its day come or
+/// not (shown as ever: locked till then). Debug builds only.
+const adventAnyDay = true && kDebugMode;
+
+/// Door [i]'s day in the season [now] is in: 25 December on, the last on
+/// 1 January (January counting with the December before it).
+DateTime adventDay(int i, DateTime now) => DateTime(now.month == 1 ? now.year - 1 : now.year, 12, 25 + i);
+
 /// For testing the Halloween duel: a tap on the boss's flake knocks a cone
 /// off it, as if the next flake had been cut. Debug builds only: a release
 /// never has it, whatever this says.
@@ -107,6 +129,7 @@ class GameState extends ChangeNotifier {
       for (final k in _prefs.getKeys().where((k) => k.startsWith('duel.')).toList()) {
         _prefs.remove(k);
       }
+      _prefs.remove(_kAdvent);
     }
     // As stored, built-in presets (from older versions) still in it, as null.
     var stored = <SavedFlake?>[];
@@ -188,6 +211,7 @@ class GameState extends ChangeNotifier {
   static const panesPerWindow = 24;
   static const _kLast = 'last.v1';
   static const _kTutorials = 'tutorials.seen.v1';
+  static const _kAdvent = 'advent.opened.v1';
   /// Each duel's flakes done, by its event's id ('duel.halloween.v1', …).
   static String _kDuel(String duel) => 'duel.$duel.v1';
 
@@ -234,6 +258,51 @@ class GameState extends ChangeNotifier {
     duelFresh = hit;
     _prefs.setStringList(_kDuel(hit.duel), [...hits]);
     notifyListeners();
+  }
+
+  /// The advent calendar's doors opened, by their place in [adventRewards];
+  /// kept for good.
+  late final _adventOpened = <int>{...?_prefs.getStringList(_kAdvent)?.map(int.tryParse).whereType<int>()};
+
+  bool adventOpened(int i) => _adventOpened.contains(i);
+
+  /// For testing (debug builds' cheat over the calendar's button): the
+  /// calendar's day taken as today, by its door's place, or null for today
+  /// as it is. Not stored.
+  int? adventCheatDay;
+
+  void setAdventCheatDay(int? i) {
+    adventCheatDay = i;
+    notifyListeners();
+  }
+
+  /// Today, as far as the calendar goes (see [adventCheatDay]).
+  DateTime get adventToday => switch (adventCheatDay) {
+        final i? => adventDay(i, DateTime.now()),
+        null => DateTime.now(),
+      };
+
+  /// Whether door [i] may be opened now: shut, and its day come.
+  bool adventReady(int i) {
+    final now = adventToday;
+    return !adventOpened(i) && !now.isBefore(adventDay(i, now));
+  }
+
+  /// How many doors may be opened now.
+  int get adventWaiting => [for (var i = 0; i < adventRewards.length; i++) if (adventReady(i)) i].length;
+
+  void openAdvent(int i) {
+    if (adventOpened(i) || !(adventReady(i) || adventAnyDay)) return;
+    _adventOpened.add(i);
+    _prefs.setStringList(_kAdvent, [for (final k in _adventOpened) '$k']);
+    notifyListeners();
+  }
+
+  /// Whether paper pattern or stencil [id] is the player's: all are but the
+  /// advent calendar's, each once its door is open.
+  bool unlocked(String id) {
+    final i = adventRewards.indexWhere((r) => r.id == id);
+    return i < 0 || adventOpened(i);
   }
 
   void markTutorialSeen(String id) {

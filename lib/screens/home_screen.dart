@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -8,6 +9,7 @@ import '../l10n.dart';
 import '../app_state.dart';
 import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
+import '../widgets/advent.dart';
 import '../widgets/ds.dart';
 import '../widgets/frosted_window.dart';
 import '../widgets/tutorial.dart';
@@ -950,6 +952,16 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   padding: const EdgeInsets.fromLTRB(32, 0, 32, 28),
                   child: Column(
                     children: [
+                      // The advent calendar, over "play" at the right (not while
+                      // the tutorial points at the collection).
+                      if (!widget.collectionArrow) ...[
+                        if (kDebugMode) ...[
+                          Align(alignment: Alignment.centerRight, child: AdventCheat(game: g)),
+                          const SizedBox(height: 8),
+                        ],
+                        Align(alignment: Alignment.centerRight, child: AdventButton(game: g)),
+                        const SizedBox(height: 14),
+                      ],
                       // Hidden rather than gone: the collection button keeps its place.
                       Visibility.maintain(
                         visible: !widget.collectionArrow,

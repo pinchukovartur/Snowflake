@@ -76,6 +76,12 @@ const _stencils = [
   ('xstar', LucideIcons.sparkle, 'stencil_xstar'),
   ('gift', LucideIcons.gift, 'stencil_gift'),
   ('bell', LucideIcons.bell, 'stencil_bell'),
+  // The advent calendar's, each once its door is open; stand-in icons but
+  // for the cane.
+  ('snowman', LucideIcons.snowflake, 'stencil_snowman'),
+  ('mitten', LucideIcons.hand, 'stencil_mitten'),
+  ('cane', LucideIcons.candyCane, 'stencil_cane'),
+  ('ornament', LucideIcons.circleDot, 'stencil_ornament'),
 ];
 
 /// The Halloween stencils, set apart in the list.
@@ -84,8 +90,11 @@ const _halloween = {'bone', 'hat', 'bat', 'jack'};
 /// The Christmas stencils, set apart in the list too.
 const _christmas = {'tree', 'xstar', 'gift', 'bell'};
 
+/// The advent calendar's stencils, set apart in the list too.
+const _newYear = {'snowman', 'mitten', 'cane', 'ornament'};
+
 /// The seasonal stencil groups after the everyday ones, each on its own ground.
-const _stencilGroups = [(_halloween, Color(0xFFFF7A1A)), (_christmas, Color(0xFF2FB37E))];
+const _stencilGroups = [(_halloween, Color(0xFFFF7A1A)), (_christmas, Color(0xFF2FB37E)), (_newYear, Color(0xFF3E61B8))];
 
 /// Cuts on the board and the pieces each one dropped, in step, on paper
 /// folded [folds] times.
@@ -551,6 +560,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
 
             return PaperDialog(
               paper: _paper,
+              patterns: [for (final id in paperPatterns) if (widget.game.unlocked(id)) id],
               onChanged: set,
               preview: (p) => SnowflakeView(preset: 'classic', size: 170, color: p.color, pattern: p.pattern),
               onClose: () => Navigator.pop(ctx),
@@ -698,7 +708,8 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                         child: Column(children: [
                                           for (final (i, group) in [
                                             [for (final t in _stencils) if (!_stencilGroups.any((g) => g.$1.contains(t.$1))) t],
-                                            for (final (ids, _) in _stencilGroups) [for (final t in _stencils) if (ids.contains(t.$1)) t],
+                                            // Only those the player has (see [GameState.unlocked]).
+                                            for (final (ids, _) in _stencilGroups) [for (final t in _stencils) if (ids.contains(t.$1) && widget.game.unlocked(t.$1)) t],
                                           ].indexed)
                                             if (group.isNotEmpty)
                                               Container(

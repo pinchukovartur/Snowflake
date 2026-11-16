@@ -131,4 +131,18 @@
   <string name="collection_empty">Коллекция пуста</string>
   <string name="add_last_to_collection">Добавить последнюю снежинку в коллекцию</string>
   <string name="add_last">Добавить последнюю</string>
+
+  <!-- Advent calendar -->
+  <string name="advent">Адвент-календарь</string>
+  <string name="advent_note">С 25 декабря по 1 января каждый день открывается новая дверца</string>
+  <string name="advent_paper">Бумага</string>
+  <string name="advent_stencil">Трафарет</string>
+  <string name="pattern_snowfall">Снегопад</string>
+  <string name="pattern_candy">Леденец</string>
+  <string name="pattern_garland">Гирлянда</string>
+  <string name="pattern_tartan">Шотландка</string>
+  <string name="stencil_snowman">Снеговик</string>
+  <string name="stencil_mitten">Варежка</string>
+  <string name="stencil_cane">Карамельная трость</string>
+  <string name="stencil_ornament">Ёлочный шар</string>
 </resources>

@@ -131,4 +131,18 @@
   <string name="collection_empty">The collection is empty</string>
   <string name="add_last_to_collection">Add the last snowflake to the collection</string>
   <string name="add_last">Add the last one</string>
+
+  <!-- Advent calendar -->
+  <string name="advent">Advent calendar</string>
+  <string name="advent_note">From 25 December to 1 January a new door opens every day</string>
+  <string name="advent_paper">Paper</string>
+  <string name="advent_stencil">Stencil</string>
+  <string name="pattern_snowfall">Snowfall</string>
+  <string name="pattern_candy">Candy</string>
+  <string name="pattern_garland">Garland</string>
+  <string name="pattern_tartan">Tartan</string>
+  <string name="stencil_snowman">Snowman</string>
+  <string name="stencil_mitten">Mitten</string>
+  <string name="stencil_cane">Candy cane</string>
+  <string name="stencil_ornament">Bauble</string>
 </resources>

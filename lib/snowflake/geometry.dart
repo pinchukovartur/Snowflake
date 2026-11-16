@@ -543,6 +543,11 @@ const paperPatterns = [
   'gradient',
   'analogous',
   'gingerbread',
+  // The advent calendar's (see [adventRewards]).
+  'snowfall',
+  'candy',
+  'garland',
+  'tartan',
 ];
 
 /// Patterns drawn from a seamless texture (dark lines on white) rather than
@@ -616,6 +621,10 @@ Cut stencilShape(String tool, double cx, double cy, double r) {
       for (final q in _christmasStencils[tool]!) {
         pts.add(Offset(cx + q.dx * r, cy + q.dy * r));
       }
+    case 'snowman' || 'mitten' || 'cane' || 'ornament':
+      for (final q in _newYearStencils[tool]!) {
+        pts.add(Offset(cx + q.dx * r, cy + q.dy * r));
+      }
   }
   return pts;
 }
@@ -629,6 +638,63 @@ List<Offset> _arcPts(Offset c, double k, double from, double to, [int steps = 10
 /// A shape symmetric left to right, from its right [half] (top to bottom, on
 /// the middle line at both ends): that, then its mirror back up.
 List<Offset> _mirrored(List<Offset> half) => [...half, for (final q in half.reversed.skip(1).take(half.length - 2)) Offset(-q.dx, q.dy)];
+
+/// The advent calendar's stencils (see [adventRewards]): outlines at radius 1
+/// about the origin (y down).
+final Map<String, List<Offset>> _newYearStencils = {
+  // A snowman: three balls, each bigger than the one above.
+  'snowman': () {
+    const balls = [(-.64, .26), (-.1, .34), (.5, .46)];
+    const top = -.9, bottom = .96;
+    return _mirrored([
+      for (var i = 0; i <= 48; i++)
+        () {
+          final y = top + (bottom - top) * i / 48;
+          var x = 0.0;
+          for (final (cy, r) in balls) {
+            final d = r * r - (y - cy) * (y - cy);
+            if (d > 0) x = math.max(x, math.sqrt(d));
+          }
+          return Offset(x, y);
+        }(),
+    ]);
+  }(),
+  // A mitten, its thumb out to the left, on a cuff.
+  'mitten': const [
+    Offset(-.4, .92),
+    Offset(.4, .92),
+    Offset(.4, .6),
+    Offset(.5, .3),
+    Offset(.52, -.1),
+    Offset(.46, -.48),
+    Offset(.3, -.78),
+    Offset(.06, -.92),
+    Offset(-.18, -.86),
+    Offset(-.34, -.62),
+    Offset(-.4, -.3),
+    Offset(-.52, -.42),
+    Offset(-.7, -.38),
+    Offset(-.8, -.18),
+    Offset(-.72, .04),
+    Offset(-.5, .28),
+    Offset(-.4, .6),
+  ],
+  // A candy cane: a straight stick, hooked over to the left at the top.
+  'cane': [
+    const Offset(.49, .95),
+    ..._arcPts(const Offset(0, -.35), .49, 0, -180, 16),
+    const Offset(-.49, -.1),
+    const Offset(-.21, -.1),
+    ..._arcPts(const Offset(0, -.35), .21, -180, 0, 10),
+    const Offset(.21, .95),
+  ],
+  // A bauble: a ball under its cap.
+  'ornament': _mirrored([
+    const Offset(0, -.92),
+    const Offset(.2, -.92),
+    ..._arcPts(const Offset(0, .14), .8, math.atan2(-.775, .2) * 180 / math.pi, 90, 16),
+  ]),
+};
 
 /// Christmas stencil outlines at radius 1 about the origin (y down).
 final Map<String, List<Offset>> _christmasStencils = {
@@ -883,6 +949,9 @@ Paint makePaperFill(Color color, String pattern, double unitPx) {
     'sparkle' => sparkleTile(unitPx),
     'bubbles' => sparkleTile(unitPx) * 2.5 * 1.3,
     'gingerbread' => sparkleTile(unitPx),
+    'snowfall' || 'garland' => math.max(28.0, unitPx * .4),
+    'candy' => math.max(14.0, unitPx * .16),
+    'tartan' => math.max(20.0, unitPx * .25),
     // One hologram cell: a big burst with small ones at its corners.
     'holo' => math.max(16.0, unitPx * .3),
     // A texture's tile: a few across the paper, so its motifs read; the
@@ -1175,6 +1244,84 @@ ui.Image _tile(Color color, String pattern, double t) {
       for (var i = 0; i < 36; i++) {
         speck(const Color(0xFFFFF4E6).withValues(alpha: .7 + rnd() * .3), math.max(.6, t * (.0048 + rnd() * .0096)));
       }
+    case 'snowfall':
+      // Snowflakes, six-armed, and dots of snow: white, or blue on pale paper.
+      final c = color.computeLuminance() > .6 ? const Color(0x803E61B8) : const Color(0xE6FFFFFF);
+      final arm = Paint()
+        ..color = c
+        ..strokeWidth = math.max(1.0, t * .012)
+        ..strokeCap = StrokeCap.round;
+      const flakes = [(.2, .25, .09), (.68, .16, .06), (.56, .6, .1), (.14, .74, .06), (.86, .84, .07), (.4, .42, .045)];
+      for (final (fx, fy, fr) in flakes) {
+        final r = fr * t;
+        for (final dx in [-t, 0.0, t]) {
+          for (final dy in [-t, 0.0, t]) {
+            final o = Offset(fx * t + dx, fy * t + dy);
+            for (var k = 0; k < 6; k++) {
+              final a = k * math.pi / 3, u = Offset(math.cos(a), math.sin(a));
+              x.drawLine(o, o + u * r, arm);
+              // A little V near each arm's tip.
+              for (final side in [-1.0, 1.0]) {
+                final b = a + side * math.pi / 4;
+                x.drawLine(o + u * r * .55, o + u * r * .55 + Offset(math.cos(b), math.sin(b)) * r * .35, arm);
+              }
+            }
+          }
+        }
+      }
+      const dots = [(.42, .1), (.9, .4), (.3, .55), (.75, .38), (.05, .45), (.6, .9), (.32, .92), (.95, .1)];
+      for (final (dx, dy) in dots) {
+        x.drawCircle(Offset(dx * t, dy * t), math.max(.8, t * .014), Paint()..color = c);
+      }
+    case 'candy':
+      // A candy cane's stripes: broad white ones and a thin one between (red
+      // ones on white paper).
+      final c = color.computeLuminance() > .7 ? const Color(0xFFE0405E) : const Color(0xF2FFFFFF);
+      final broad = Paint()
+        ..color = c
+        ..strokeWidth = t * .26
+        ..style = PaintingStyle.stroke;
+      final thin = Paint()
+        ..color = c.withValues(alpha: .6)
+        ..strokeWidth = t * .06
+        ..style = PaintingStyle.stroke;
+      for (final o in [-t, 0.0, t]) {
+        x.drawLine(Offset(o, t), Offset(o + t, 0), broad);
+        x.drawLine(Offset(o + t / 2, t), Offset(o + 1.5 * t, 0), thin);
+      }
+    case 'garland':
+      // A string of lights: a wire waving across, a bulb of each colour on it.
+      double wave(double px) => t * .5 + t * .12 * math.sin(2 * math.pi * px / t);
+      final wire = Path()..moveTo(0, wave(0));
+      for (var i = 1; i <= 40; i++) {
+        wire.lineTo(i / 40 * t, wave(i / 40 * t));
+      }
+      x.drawPath(
+        wire,
+        Paint()
+          ..color = dark ? const Color(0x66FFFFFF) : const Color(0x801E6B4F)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(1.0, t * .015),
+      );
+      const bulbs = [Color(0xFFE0405E), Color(0xFFFFD34D), Color(0xFF3E9BFF), Color(0xFF2FB37E)];
+      for (var k = 0; k < bulbs.length; k++) {
+        final px = (k + .5) / bulbs.length * t, py = wave(px);
+        final bulb = Offset(px, py + t * .07);
+        x.drawCircle(bulb, t * .09, Paint()..color = bulbs[k].withValues(alpha: .25));
+        x.drawRect(Rect.fromCenter(center: Offset(px, py + t * .015), width: t * .04, height: t * .03), Paint()..color = const Color(0xFF6B7280));
+        x.drawOval(Rect.fromCenter(center: bulb, width: t * .055, height: t * .085), Paint()..color = bulbs[k]);
+      }
+    case 'tartan':
+      // Plaid: broad darker bands either way, deeper where they cross, and
+      // thin light lines between.
+      final shade = Paint()..color = const Color(0x2E000000);
+      final line = Paint()..color = const Color(0x40FFFFFF);
+      x.drawRect(Rect.fromLTWH(t * .1, 0, t * .3, t), shade);
+      x.drawRect(Rect.fromLTWH(0, t * .1, t, t * .3), shade);
+      x.drawRect(Rect.fromLTWH(t * .68, 0, t * .04, t), line);
+      x.drawRect(Rect.fromLTWH(0, t * .68, t, t * .04), line);
+      x.drawRect(Rect.fromLTWH(t * .24, 0, t * .015, t), line);
+      x.drawRect(Rect.fromLTWH(0, t * .24, t, t * .015), line);
     case 'bubbles':
       // Laid out on a square, wrapping round at its edges.
       final circles = _tileBubbles(t);
