@@ -64,6 +64,8 @@ flutter:
 
   assets:
     - assets/
+    - assets/Christmas/
+    - assets/Halloween/
     - assets/flakes/
     - assets/materials/
     - assets/l10n/

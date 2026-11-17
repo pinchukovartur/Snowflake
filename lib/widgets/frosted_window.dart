@@ -157,6 +157,57 @@ class _DomePainter extends CustomPainter {
   bool shouldRepaint(_DomePainter oldDelegate) => oldDelegate.windows != windows;
 }
 
+/// Snowflakes landing on a [WindowDome] (laid over it, the same size): each
+/// a soft white spot that spreads a little as it fades away, here and there
+/// on the glass, one after another as [ticker] runs.
+class DomeSnow extends StatelessWidget {
+  const DomeSnow({super.key, required this.ticker});
+  final AnimationController ticker;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(child: RepaintBoundary(child: CustomPaint(painter: _DomeSnowPainter(ticker), size: Size.infinite)));
+}
+
+class _DomeSnowPainter extends CustomPainter {
+  _DomeSnowPainter(this.ticker) : super(repaint: ticker);
+  final AnimationController ticker;
+
+  /// Flakes landing at once at most: each lands, fades over [_life] seconds,
+  /// and lands again somewhere else after a while of its own.
+  static const _slots = 21;
+  static const _life = 1.6;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final t = ticker.value * ticker.duration!.inMicroseconds / 1e6;
+    final c = Offset(size.width / 2, size.height);
+    final a = size.width / 2 - _stile, b = size.height - _stile;
+    canvas.save();
+    canvas.clipPath(Path()..addOval(Rect.fromCenter(center: c, width: 2 * a, height: 2 * b)));
+    final paint = Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2);
+    for (var i = 0; i < _slots; i++) {
+      final own = math.Random(i * 7919 + 1);
+      final period = 3.5 + own.nextDouble() * 2.5, start = own.nextDouble() * period;
+      final since = t + start;
+      final cycle = (since / period).floor();
+      final age = since - cycle * period;
+      if (age > _life) continue;
+      // Where this landing falls: anywhere on the glass.
+      final r = math.Random(i * 104729 + cycle * 31 + 7);
+      final x = (r.nextDouble() * 2 - 1) * .95;
+      final y = math.sqrt(1 - x * x) * r.nextDouble();
+      final at = Offset(c.dx + x * a, c.dy - y * b);
+      final k = age / _life;
+      paint.color = Colors.white.withValues(alpha: .85 * (1 - k) * (1 - k));
+      canvas.drawCircle(at, (2 + r.nextDouble() * 2) * (1 + .5 * k), paint);
+    }
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_DomeSnowPainter oldDelegate) => oldDelegate.ticker != ticker;
+}
+
 /// Solid wood below a row of [WindowFrame]s: their stiles carried on down,
 /// lit at the left edge and shaded at the right like them.
 class WindowSill extends StatelessWidget {
@@ -247,9 +298,12 @@ const _glass = Color(0x1AFFFFFF);
 
 // The frame's paint, its lit and shaded edges and the shadow it casts, as in
 // the assets/UI textures.
-const _wood = Color(0xFF7E9AC4), _woodLight = Color(0xFFBED8FF), _woodDark = Color(0xFF506D99);
+const _wood = Color(0xFF8B5A2B), _woodLight = Color.fromARGB(255, 109, 63, 41), _woodDark = Color(0xFF5E3A1A);
 const _shadow = Color(0x1A000000);
 const _blur = MaskFilter.blur(BlurStyle.normal, 1.5);
+
+/// The handles' and hinges' metal: gold, and its darker edge.
+const _gold = Color(0xFFF2C14E), _goldEdge = Color(0xFFB07F24);
 
 /// The floor, darker than the wood's shaded edge.
 const _floor = Color(0xFF3F5384);
@@ -435,7 +489,7 @@ class _FramePainter extends CustomPainter {
       ..lineTo(x1, top)
       ..lineTo(x1, foot)
       ..close();
-    canvas.drawPath(path, Paint()..color = Colors.white);
+    canvas.drawPath(path, Paint()..color = const Color.fromARGB(255, 223, 221, 236));
   }
 
   /// A handle's plate, along its length.
@@ -447,13 +501,13 @@ class _FramePainter extends CustomPainter {
         across ? Rect.fromCenter(center: centre, width: long, height: short) : Rect.fromCenter(center: centre, width: short, height: long);
     final plate = RRect.fromRectAndRadius(box(at, _handleLength, 9), const Radius.circular(4.5));
     canvas.drawRRect(plate.shift(const Offset(0, 1.5)), Paint()..color = const Color(0x40101A3F));
-    canvas.drawRRect(plate, Paint()..color = const Color(0xFFDCE4F0));
+    canvas.drawRRect(plate, Paint()..color = _gold);
     canvas.drawRRect(
       plate.deflate(.75),
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5
-        ..color = const Color(0xFF8FA1BE),
+        ..color = _goldEdge,
     );
   }
 
@@ -554,11 +608,11 @@ class _DoorPainter extends CustomPainter {
   static void _hinge(Canvas canvas, Offset at) {
     final barrel = RRect.fromRectAndRadius(Rect.fromCenter(center: at, width: 7, height: 26), const Radius.circular(3));
     canvas.drawRRect(barrel.shift(const Offset(1, 2)), Paint()..color = const Color(0x40101A3F));
-    canvas.drawRRect(barrel, Paint()..color = const Color(0xFFDCE4F0));
+    canvas.drawRRect(barrel, Paint()..color = _gold);
     final metal = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.5
-      ..color = const Color(0xFF8FA1BE);
+      ..color = _goldEdge;
     canvas.drawRRect(barrel.deflate(.75), metal);
     canvas.drawLine(at.translate(-3.5, 0), at.translate(3.5, 0), metal);
   }
@@ -598,8 +652,8 @@ class _VanePainter extends CustomPainter {
   _VanePainter(this.ticker) : super(repaint: ticker);
   final AnimationController ticker;
 
-  static const _blade = Color(0xFF6C68B0), _bladeEdge = Color(0xFF8A85D8);
-  static const _fold = Color(0xFFEEEDF9), _metal = Color(0xFF66777D), _metalLit = Color(0xFF8496A0);
+  static const _blade = Color(0xFFF2B51C), _bladeEdge = Color(0xFFFFD34D);
+  static const _fold = Color(0xFFFFF6D6), _metal = Color(0xFF66777D);
 
   /// Blades round the hub, and its turns a second.
   static const _blades = 6, _spin = .12;
@@ -610,8 +664,8 @@ class _VanePainter extends CustomPainter {
     // The stick, down from the hub into the mound (which covers its foot).
     final w = r * .09;
     final stick = RRect.fromRectAndRadius(Rect.fromLTRB(hub.dx - w / 2, hub.dy, hub.dx + w / 2, size.height + 6), Radius.circular(w / 2));
-    canvas.drawRRect(stick, Paint()..color = _metal);
-    canvas.drawRect(Rect.fromLTWH(hub.dx - w / 2 + w * .2, hub.dy, w * .25, size.height + 6 - hub.dy), Paint()..color = _metalLit);
+    canvas.drawRRect(stick, Paint()..color = _goldEdge);
+    canvas.drawRect(Rect.fromLTWH(hub.dx - w / 2 + w * .2, hub.dy, w * .25, size.height + 6 - hub.dy), Paint()..color = _gold);
     // A little mound of the dome's wood round its foot, the rim covering its base.
     final mound = Path()
       ..addArc(Rect.fromCenter(center: Offset(hub.dx, size.height + 6), width: r * 1.45, height: 2 * (r * .45 + 6)), math.pi, math.pi)

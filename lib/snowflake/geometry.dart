@@ -37,7 +37,7 @@ final Map<String, List<Cut>> snowflakePresets = {
   'chevrons': _chevrons(),
   // Six-fold too, from a paper pattern: a ring of rhombus and square outlines.
   'rhombi': _rhombi(),
-  // New Year pack (not offered yet), four-fold.
+  // Christmas pack, four-fold.
   'snowmen': _snowmen(),
 };
 
@@ -542,7 +542,17 @@ const paperPatterns = [
   'knit',
   'gradient',
   'analogous',
+  // The advent calendar's (see [adventRewards]).
+  'snowfall',
+  'candy',
+  'garland',
+  'tartan',
+  ...christmasPatterns,
 ];
+
+/// The Christmas pack's patterns: kept together, in a row of their own in
+/// the picker, marked with a fir tree.
+const christmasPatterns = ['wrapper', 'gingerbread'];
 
 /// Patterns drawn from a seamless texture (dark lines on white) rather than
 /// by hand: its asset, loaded into [paperTextures] at launch.
@@ -611,6 +621,14 @@ Cut stencilShape(String tool, double cx, double cy, double r) {
       for (final q in _halloweenStencils[tool]!) {
         pts.add(Offset(cx + q.dx * r, cy + q.dy * r));
       }
+    case 'tree' || 'xstar' || 'gift' || 'bell':
+      for (final q in _christmasStencils[tool]!) {
+        pts.add(Offset(cx + q.dx * r, cy + q.dy * r));
+      }
+    case 'snowman' || 'mitten' || 'cane' || 'ornament':
+      for (final q in _newYearStencils[tool]!) {
+        pts.add(Offset(cx + q.dx * r, cy + q.dy * r));
+      }
   }
   return pts;
 }
@@ -620,6 +638,123 @@ Cut stencilShape(String tool, double cx, double cy, double r) {
 List<Offset> _arcPts(Offset c, double k, double from, double to, [int steps = 10]) => [
       for (var i = 0; i <= steps; i++) c + Offset(math.cos((from + (to - from) * i / steps) * math.pi / 180), math.sin((from + (to - from) * i / steps) * math.pi / 180)) * k,
     ];
+
+/// A shape symmetric left to right, from its right [half] (top to bottom, on
+/// the middle line at both ends): that, then its mirror back up.
+List<Offset> _mirrored(List<Offset> half) => [...half, for (final q in half.reversed.skip(1).take(half.length - 2)) Offset(-q.dx, q.dy)];
+
+/// The advent calendar's stencils (see [adventRewards]): outlines at radius 1
+/// about the origin (y down).
+final Map<String, List<Offset>> _newYearStencils = {
+  // A snowman: three balls, each bigger than the one above.
+  'snowman': () {
+    const balls = [(-.64, .26), (-.1, .34), (.5, .46)];
+    const top = -.9, bottom = .96;
+    return _mirrored([
+      for (var i = 0; i <= 48; i++)
+        () {
+          final y = top + (bottom - top) * i / 48;
+          var x = 0.0;
+          for (final (cy, r) in balls) {
+            final d = r * r - (y - cy) * (y - cy);
+            if (d > 0) x = math.max(x, math.sqrt(d));
+          }
+          return Offset(x, y);
+        }(),
+    ]);
+  }(),
+  // A mitten, its thumb out to the left, on a cuff.
+  'mitten': const [
+    Offset(-.4, .92),
+    Offset(.4, .92),
+    Offset(.4, .6),
+    Offset(.5, .3),
+    Offset(.52, -.1),
+    Offset(.46, -.48),
+    Offset(.3, -.78),
+    Offset(.06, -.92),
+    Offset(-.18, -.86),
+    Offset(-.34, -.62),
+    Offset(-.4, -.3),
+    Offset(-.52, -.42),
+    Offset(-.7, -.38),
+    Offset(-.8, -.18),
+    Offset(-.72, .04),
+    Offset(-.5, .28),
+    Offset(-.4, .6),
+  ],
+  // A candy cane: a straight stick, hooked over to the left at the top.
+  'cane': [
+    const Offset(.49, .95),
+    ..._arcPts(const Offset(0, -.35), .49, 0, -180, 16),
+    const Offset(-.49, -.1),
+    const Offset(-.21, -.1),
+    ..._arcPts(const Offset(0, -.35), .21, -180, 0, 10),
+    const Offset(.21, .95),
+  ],
+  // A bauble: a ball under its cap.
+  'ornament': _mirrored([
+    const Offset(0, -.92),
+    const Offset(.2, -.92),
+    ..._arcPts(const Offset(0, .14), .8, math.atan2(-.775, .2) * 180 / math.pi, 90, 16),
+  ]),
+};
+
+/// Christmas stencil outlines at radius 1 about the origin (y down).
+final Map<String, List<Offset>> _christmasStencils = {
+  // A fir tree: three tiers, each wider than the one above, on a trunk.
+  'tree': _mirrored(const [
+    Offset(0, -1),
+    Offset(.36, -.5),
+    Offset(.18, -.5),
+    Offset(.56, -.04),
+    Offset(.32, -.04),
+    Offset(.76, .5),
+    Offset(.15, .5),
+    Offset(.15, .86),
+    Offset(0, .86),
+  ]),
+  // A Christmas star: four long rays, the lowest longest, and four short
+  // ones between.
+  'xstar': [
+    for (var i = 0; i < 16; i++)
+      () {
+        final a = -math.pi / 2 + i * math.pi / 8;
+        final k = switch (i) { 0 => .86, 4 || 12 => .72, 8 => 1.0, _ when i.isEven => .44, _ => .22 };
+        return Offset(math.cos(a), math.sin(a)) * k;
+      }(),
+  ],
+  // A gift box: the box, its lid a little wider, and a bow of two loops on top.
+  'gift': _mirrored(const [
+    Offset(0, -.5),
+    Offset(.35, -.95),
+    Offset(.52, -.9),
+    Offset(.48, -.72),
+    Offset(.12, -.45),
+    Offset(.85, -.45),
+    Offset(.85, -.2),
+    Offset(.75, -.2),
+    Offset(.75, .85),
+    Offset(0, .85),
+  ]),
+  // A bell: a loop on top, the dome flaring out to a rim, the clapper below.
+  'bell': _mirrored(const [
+    Offset(0, -.94),
+    Offset(.1, -.94),
+    Offset(.12, -.8),
+    Offset(.32, -.74),
+    Offset(.46, -.56),
+    Offset(.52, -.3),
+    Offset(.56, 0),
+    Offset(.64, .24),
+    Offset(.8, .42),
+    Offset(.88, .58),
+    Offset(.2, .58),
+    Offset(.17, .72),
+    Offset(.08, .82),
+    Offset(0, .84),
+  ]),
+};
 
 /// Halloween stencil outlines at radius 1 about the origin (y down).
 final Map<String, List<Offset>> _halloweenStencils = {
@@ -789,30 +924,49 @@ final _tileCache = <(Color, String, int), ui.Image>{};
 
 /// Paint for the paper: plain colour or a repeating pattern tile. unitPx = paper radius in px.
 Paint makePaperFill(Color color, String pattern, double unitPx) {
+  // Gingerbread is its own brown: one tile for it, whatever colour is picked.
+  if (pattern == 'gingerbread') color = gingerbreadColor;
   final paint = Paint()..color = color;
   if (pattern == 'plain') return paint;
   // Tinted glass, as see-through as its colour is light: white glass all but
   // clear, dark glass rich. Its glints fall on it from outside (see
   // [drawGlassGlints]).
   if (pattern == 'glass') return paint..color = glassTint(color).withValues(alpha: glassOpacity(color));
+  // Gift wrap: its colour, glowing in the middle of the sheet and darker
+  // towards its edge (see [wrapperEdge]); its gold laid on separately (see
+  // [wrapperGoldLayer] and [drawWedge]).
+  if (pattern == 'wrapper') return paint..shader = ui.Gradient.radial(Offset.zero, unitPx, [color, color, wrapperEdge(color)], [0, wrapperFadeFrom, 1]);
   // Gradients from the top of the sheet to the bottom, across the whole
   // unfolded flake, round the hues (as light and saturated all the way, not
   // straight through to a dull grey): see [gradientHues].
   if (gradientHues[pattern] case (final from, final to)) {
     final hsl = HSLColor.fromColor(color);
     const steps = 6;
-    final colors = [for (var i = 0; i <= steps; i++) hsl.withHue((hsl.hue + from + (to - from) * i / steps) % 360).toColor()];
+    // Colours with no hue to turn round run to another colour instead (see
+    // [_gradientTo]): out to either end (theirs in the middle) for the
+    // gradient, the whole way for hues.
+    final target = _gradientTo[color.toARGB32()];
+    Color at(double t) => target != null
+        ? Color.lerp(color, target, pattern == 'gradient' ? (2 * t - 1).abs() : t)!
+        : hsl.withHue((hsl.hue + from + (to - from) * t) % 360).toColor();
+    final colors = [for (var i = 0; i <= steps; i++) at(i / steps)];
     return paint..shader = ui.Gradient.linear(Offset(0, -unitPx), Offset(0, unitPx), colors, [for (var i = 0; i <= steps; i++) i / steps]);
   }
   // Scattered patterns get big tiles, so they don't visibly repeat.
   final t = switch (pattern) {
     'sparkle' => sparkleTile(unitPx),
     'bubbles' => sparkleTile(unitPx) * 2.5 * 1.3,
+    'gingerbread' => sparkleTile(unitPx),
+    'snowfall' || 'garland' => math.max(28.0, unitPx * .4),
+    'candy' => math.max(14.0, unitPx * .16),
+    'tartan' => math.max(20.0, unitPx * .25),
     // One hologram cell: a big burst with small ones at its corners.
     'holo' => math.max(16.0, unitPx * .3),
     // A texture's tile: a few across the paper, so its motifs read; the
     // knit's stitches a fifth bigger still.
     'knit' => math.max(43.2, unitPx * 1.08),
+    // Gift wrap: a few gold loops across the paper, as on the real thing.
+    wrapperGoldLayer => math.max(36.0, unitPx * .6),
     _ when textureAssets.containsKey(pattern) => math.max(36.0, unitPx * .9),
     _ => math.max(8.0, unitPx * 0.075),
   };
@@ -835,14 +989,65 @@ Paint makePaperFill(Color color, String pattern, double unitPx) {
       filterQuality: FilterQuality.medium);
 }
 
+/// Gingerbread paper's own brown, whatever colour is picked (that one goes
+/// to its icing, see [drawWedge]).
+const gingerbreadColor = Color(0xFFC46A30);
+
+/// Gingerbread's darker crumbs, in these browns.
+const gingerbreadCrumbs = [ui.Color.fromARGB(255, 165, 91, 41), ui.Color.fromARGB(255, 126, 58, 14)];
+
+/// The gold of gift wrap's strings and stars.
+const wrapperGold = Color(0xFFF2C14E);
+
+/// Gift wrap's gold's outline: the gold, darker, on paper of any colour.
+const wrapperOutline = Color(0xFF8A5A00);
+
+/// How far out from the middle of the sheet gift wrap starts to darken
+/// (see [wrapperEdge]), as a share of its radius: 0 at once, 1 not at all.
+const wrapperFadeFrom = .3;
+
+/// Gift wrap's colour at the edge of the sheet, running in to the colour
+/// itself in the middle: the same hue, deeper (darker, and fuller rather
+/// than greyed, as mixing in black would leave it). Light paper (the
+/// palette's pastels and white) goes less dark and softer instead: deepened
+/// as the rest is, its pastels would turn loud.
+Color wrapperEdge(Color color) {
+  final hsl = HSLColor.fromColor(color);
+  final light = hsl.lightness > .7;
+  return hsl.withLightness(hsl.lightness * (light ? .82 : .7)).withSaturation(math.min(1, hsl.saturation * (light ? .55 : 1.15))).toColor();
+}
+
+/// The pattern of gift wrap's gold alone, on nothing, to lay over its paper.
+const wrapperGoldLayer = 'wrapperGold';
+
+/// How thick gift wrap's gold's outline is (see [wrapperOutline]): its
+/// stroke, half of it showing outside the gold, as a share of its tile.
+const _wrapperOutline = .008;
+
+/// How close gift wrap's bead strings may come to one another, as a
+/// share of its tile.
+const _wrapperStringGap = .08;
+
 /// The gradient patterns, by the hues they run between, in degrees from the
 /// paper's own: to its complement (half round), or its analogous neighbours
 /// (30° either side, through the paper's colour in the middle).
 const gradientHues = {'gradient': (0.0, 180.0), 'analogous': (-30.0, 30.0)};
 
+/// What paper with no hue to turn round runs to in its gradients, by its
+/// colour: white to the palette's light blue (ice), black to its red.
+const _gradientTo = {
+  0xFFFFFFFF: Color(0xFFC4ECFF),
+  0xFF1E1F26: Color(0xFFE0405E),
+};
+
 /// Side of the glitter pattern's tile, for paper [unitPx] in radius: four
-/// times the other patterns', so its dots don't visibly repeat.
-double sparkleTile(double unitPx) => (math.max(8, (unitPx * 0.075).round()) * 4).toDouble();
+/// times the other patterns', so its dots don't visibly repeat. In step with
+/// the paper, not rounded: zooming, the pattern grows with it, never slides.
+double sparkleTile(double unitPx) => math.max(32.0, unitPx * .3);
+
+/// Glitter's dots to a tile, however many px it is: zoomed in, the same
+/// dots grow, as on real paper, rather than more coming.
+const _sparkleDots = 1600;
 
 /// The twinkling glints of glitter paper, in one tile [t] across: where each
 /// sits, how big it is, and when in its own cycle it flashes.
@@ -924,7 +1129,8 @@ void drawWedgeGlints(Canvas canvas, double s, List<Cut> cuts, double half, Color
 ui.Image _tile(Color color, String pattern, double t) {
   final rec = ui.PictureRecorder();
   final x = Canvas(rec);
-  x.drawRect(Rect.fromLTWH(0, 0, t, t), Paint()..color = color);
+  // Gift wrap's gold alone lies on nothing: the paper is under it.
+  if (pattern != wrapperGoldLayer) x.drawRect(Rect.fromLTWH(0, 0, t, t), Paint()..color = color);
   // Navy on light paper, white on dark paper, where navy would vanish.
   final dark = color.computeLuminance() < 0.2;
   final ink = dark ? const Color(0x38FFFFFF) : const Color(0x292E4A94); // rgba(46,74,148,.16)
@@ -986,8 +1192,7 @@ ui.Image _tile(Color color, String pattern, double t) {
       final dots = light ? [color, shade(-.1), shade(-.18), shade(-.26), shade(-.34)] : [color, shade(-.14), shade(-.07), shade(.12), shade(.22)];
       var seed = 7;
       double rnd() => (seed = (seed * 16807) % 2147483647) / 2147483647;
-      final n = (t * t / 9).round();
-      for (var i = 0; i < n; i++) {
+      for (var i = 0; i < _sparkleDots; i++) {
         // White glints are rare: one dot in twenty-five.
         final pick = rnd();
         final p = Paint()..color = pick < .04 ? const Color(0xEEFFFFFF) : dots[(pick * dots.length).floor() % dots.length];
@@ -1037,6 +1242,247 @@ ui.Image _tile(Color color, String pattern, double t) {
         x.drawPath(diamond, burst(c, 16, math.pi / 16));
         x.drawCircle(c, t * .035, Paint()..color = hi);
       }
+    case wrapperGoldLayer:
+      // Gift wrap's gold, on nothing: long strings of beads winding about,
+      // curling into loops here and there, and little stars scattered
+      // between, each outlined in a darker gold (see [wrapperOutline]). Laid
+      // over the paper (see [drawWedge]). All of it gathered
+      // in [gold] first, then drawn: the outline under, the gold over.
+      var seed = 9;
+      double rnd() => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      final gold = Path();
+      // Drawn again a tile over, every way, so tiles meet seamlessly.
+      void wrapped(void Function(Offset d) draw) {
+        for (final dx in [-t, 0.0, t]) {
+          for (final dy in [-t, 0.0, t]) {
+            draw(Offset(dx, dy));
+          }
+        }
+      }
+
+      // A string walked a little at a time, its heading turning by a bend
+      // that swells and changes side as it goes (two waves summed): gently
+      // winding mostly, curling right round where the bend runs high.
+      List<Offset> string() {
+        var at = Offset(rnd() * t, rnd() * t), heading = rnd() * 2 * math.pi;
+        final p1 = rnd() * 2 * math.pi, p2 = rnd() * 2 * math.pi, f1 = 4 + rnd() * 3, f2 = 9 + rnd() * 4;
+        final length = t * (1.1 + rnd() * .4), ds = t * .004, step = t * .0312;
+        final beads = <Offset>[at];
+        var since = 0.0;
+        for (var s = 0.0; s < length; s += ds) {
+          final u = s / t;
+          final bend = (14 * math.sin(u * f1 + p1) + 7 * math.sin(u * f2 + p2)) / t;
+          heading += bend * ds;
+          at += Offset(math.cos(heading), math.sin(heading)) * ds;
+          since += ds;
+          if (since >= step) {
+            beads.add(at);
+            since = 0;
+          }
+        }
+        return beads;
+      }
+
+      // How far apart two points lie, the tiles' wrapping counted (the
+      // nearest copy of each).
+      double apart(Offset a, Offset b) {
+        var dx = (a.dx - b.dx) % t, dy = (a.dy - b.dy) % t;
+        if (dx > t / 2) dx -= t;
+        if (dy > t / 2) dy -= t;
+        return math.sqrt(dx * dx + dy * dy);
+      }
+
+      // How many of [beads] come within [_wrapperStringGap] of those laid.
+      final laid = <Offset>[];
+      int crowding(List<Offset> beads) {
+        final gap = t * _wrapperStringGap;
+        var n = 0;
+        for (final b in beads) {
+          if (laid.any((q) => apart(b, q) < gap)) n++;
+        }
+        return n;
+      }
+
+      // How many times [beads] cross back over themselves: once for a loop,
+      // more for a figure of eight and the like, which aren't wanted.
+      int crossings(List<Offset> beads) {
+        final near = t * .03;
+        var n = 0, was = false;
+        for (var j = 8; j < beads.length; j++) {
+          final now = beads.take(j - 6).any((q) => apart(beads[j], q) < near);
+          if (now && !was) n++;
+          was = now;
+        }
+        return n;
+      }
+
+      // Each string the one of a few tries that keeps clearest of the rest,
+      // and loops round once at most.
+      for (var i = 0; i < 3; i++) {
+        int cost(List<Offset> s) => crowding(s) + (crossings(s) > 1 ? 1000 : 0);
+        var best = string(), fewest = cost(best);
+        for (var k = 1; k < 40 && fewest > 0; k++) {
+          final s = string(), n = cost(s);
+          if (n < fewest) (best, fewest) = (s, n);
+        }
+        laid.addAll(best);
+        for (final b in best) {
+          gold.addOval(Rect.fromCircle(center: b, radius: t * .0096));
+        }
+      }
+      // The stars, each kept clear of the others and of the strings: placed
+      // where it fits, after a few tries, or left out.
+      final stars = <(Offset, double)>[];
+      for (var i = 0; i < 26; i++) {
+        final k = t * (.012 + rnd() * .012), turn = rnd() * math.pi;
+        Offset? c;
+        for (var tries = 0; tries < 30 && c == null; tries++) {
+          final q = Offset(rnd() * t, rnd() * t);
+          if (stars.any((s) => apart(q, s.$1) < s.$2 + k + t * .02)) continue;
+          if (laid.any((b) => apart(q, b) < k + t * .025)) continue;
+          c = q;
+        }
+        if (c == null) continue;
+        stars.add((c, k));
+        final p = Path();
+        for (var j = 0; j < 10; j++) {
+          final a = turn + j * math.pi / 5, rr = j.isEven ? k : k * .42;
+          final q = c + Offset(math.cos(a), math.sin(a)) * rr;
+          j == 0 ? p.moveTo(q.dx, q.dy) : p.lineTo(q.dx, q.dy);
+        }
+        p.close();
+        gold.addPath(p, Offset.zero);
+      }
+      final outline = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = t * _wrapperOutline
+        ..color = wrapperOutline;
+      final shine = Paint()..color = wrapperGold;
+      wrapped((d) => x.drawPath(gold.shift(d), outline));
+      wrapped((d) => x.drawPath(gold.shift(d), shine));
+    case 'gingerbread':
+      // Baked dough: a scatter of darker brown crumbs, and fewer white ones
+      // (sugar), the same few on every tile whatever its size in px. Each an
+      // uneven blob of its own: a few bumps round, squashed, turned any way.
+      var seed = 3;
+      double rnd() => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      void speck(Color c, double r) {
+        final p = Paint()..color = c;
+        final cx = rnd() * t, cy = rnd() * t;
+        // The blob about its middle: [n] points at uneven distances round it,
+        // joined by curves through the midpoints between them.
+        final n = 4 + (rnd() * 3).floor();
+        final squash = .5 + rnd() * .5, turn = rnd() * math.pi;
+        final pts = [
+          for (var k = 0; k < n; k++)
+            () {
+              final a = (k + rnd() * .6) / n * 2 * math.pi, d = r * (.6 + rnd() * .7);
+              return Offset(math.cos(a) * d, math.sin(a) * d * squash);
+            }(),
+        ];
+        Offset mid(int k) => (pts[k % n] + pts[(k + 1) % n]) / 2;
+        final blob = Path()..moveTo(mid(0).dx, mid(0).dy);
+        for (var k = 1; k <= n; k++) {
+          blob.quadraticBezierTo(pts[k % n].dx, pts[k % n].dy, mid(k).dx, mid(k).dy);
+        }
+        blob.close();
+        // Over an edge, in again on the far side, so tiles meet seamlessly.
+        for (final dx in [-t, 0.0, t]) {
+          for (final dy in [-t, 0.0, t]) {
+            x
+              ..save()
+              ..translate(cx + dx, cy + dy)
+              ..rotate(turn)
+              ..drawPath(blob, p)
+              ..restore();
+          }
+        }
+      }
+
+      for (var i = 0; i < 140; i++) {
+        speck(gingerbreadCrumbs[(rnd() * gingerbreadCrumbs.length).floor() % gingerbreadCrumbs.length].withValues(alpha: .55 + rnd() * .4), math.max(.6, t * (.006 + rnd() * .0144)));
+      }
+      for (var i = 0; i < 36; i++) {
+        speck(const Color(0xFFFFF4E6).withValues(alpha: .7 + rnd() * .3), math.max(.6, t * (.0048 + rnd() * .0096)));
+      }
+    case 'snowfall':
+      // Snowflakes, six-armed, and dots of snow: white, or blue on pale paper.
+      final c = color.computeLuminance() > .6 ? const Color(0x803E61B8) : const Color(0xE6FFFFFF);
+      final arm = Paint()
+        ..color = c
+        ..strokeWidth = math.max(1.0, t * .012)
+        ..strokeCap = StrokeCap.round;
+      const flakes = [(.2, .25, .09), (.68, .16, .06), (.56, .6, .1), (.14, .74, .06), (.86, .84, .07), (.4, .42, .045)];
+      for (final (fx, fy, fr) in flakes) {
+        final r = fr * t;
+        for (final dx in [-t, 0.0, t]) {
+          for (final dy in [-t, 0.0, t]) {
+            final o = Offset(fx * t + dx, fy * t + dy);
+            for (var k = 0; k < 6; k++) {
+              final a = k * math.pi / 3, u = Offset(math.cos(a), math.sin(a));
+              x.drawLine(o, o + u * r, arm);
+              // A little V near each arm's tip.
+              for (final side in [-1.0, 1.0]) {
+                final b = a + side * math.pi / 4;
+                x.drawLine(o + u * r * .55, o + u * r * .55 + Offset(math.cos(b), math.sin(b)) * r * .35, arm);
+              }
+            }
+          }
+        }
+      }
+      const dots = [(.42, .1), (.9, .4), (.3, .55), (.75, .38), (.05, .45), (.6, .9), (.32, .92), (.95, .1)];
+      for (final (dx, dy) in dots) {
+        x.drawCircle(Offset(dx * t, dy * t), math.max(.8, t * .014), Paint()..color = c);
+      }
+    case 'candy':
+      // A candy cane's stripes: broad white ones and a thin one between (red
+      // ones on white paper).
+      final c = color.computeLuminance() > .7 ? const Color(0xFFE0405E) : const Color(0xF2FFFFFF);
+      final broad = Paint()
+        ..color = c
+        ..strokeWidth = t * .26
+        ..style = PaintingStyle.stroke;
+      final thin = Paint()
+        ..color = c.withValues(alpha: .6)
+        ..strokeWidth = t * .06
+        ..style = PaintingStyle.stroke;
+      for (final o in [-t, 0.0, t]) {
+        x.drawLine(Offset(o, t), Offset(o + t, 0), broad);
+        x.drawLine(Offset(o + t / 2, t), Offset(o + 1.5 * t, 0), thin);
+      }
+    case 'garland':
+      // A string of lights: a wire waving across, a bulb of each colour on it.
+      double wave(double px) => t * .5 + t * .12 * math.sin(2 * math.pi * px / t);
+      final wire = Path()..moveTo(0, wave(0));
+      for (var i = 1; i <= 40; i++) {
+        wire.lineTo(i / 40 * t, wave(i / 40 * t));
+      }
+      x.drawPath(
+        wire,
+        Paint()
+          ..color = dark ? const Color(0x66FFFFFF) : const Color(0x801E6B4F)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = math.max(1.0, t * .015),
+      );
+      const bulbs = [Color(0xFFE0405E), Color(0xFFFFD34D), Color(0xFF3E9BFF), Color(0xFF2FB37E)];
+      for (var k = 0; k < bulbs.length; k++) {
+        final px = (k + .5) / bulbs.length * t, py = wave(px);
+        final bulb = Offset(px, py + t * .07);
+        x.drawCircle(bulb, t * .09, Paint()..color = bulbs[k].withValues(alpha: .25));
+        x.drawRect(Rect.fromCenter(center: Offset(px, py + t * .015), width: t * .04, height: t * .03), Paint()..color = const Color(0xFF6B7280));
+        x.drawOval(Rect.fromCenter(center: bulb, width: t * .055, height: t * .085), Paint()..color = bulbs[k]);
+      }
+    case 'tartan':
+      // Plaid: broad darker bands either way, deeper where they cross, and
+      // thin light lines between.
+      final shade = Paint()..color = const Color(0x2E000000);
+      final line = Paint()..color = const Color(0x40FFFFFF);
+      x.drawRect(Rect.fromLTWH(t * .1, 0, t * .3, t), shade);
+      x.drawRect(Rect.fromLTWH(0, t * .1, t, t * .3), shade);
+      x.drawRect(Rect.fromLTWH(t * .68, 0, t * .04, t), line);
+      x.drawRect(Rect.fromLTWH(0, t * .68, t, t * .04), line);
+      x.drawRect(Rect.fromLTWH(t * .24, 0, t * .015, t), line);
+      x.drawRect(Rect.fromLTWH(0, t * .24, t, t * .015), line);
     case 'bubbles':
       // Laid out on a square, wrapping round at its edges.
       final circles = _tileBubbles(t);
@@ -1167,7 +1613,7 @@ void _paintBubbles(Canvas canvas, List<_Bubble> circles, Color color, double s, 
 /// [toSheet]); a hologram ([pattern]) gets its sheen on top, drifted to
 /// [sheenTime] seconds, unless [sheen] is false (a flake that turns lays its
 /// own, fixed to the screen).
-void drawWedge(Canvas canvas, double s, List<Cut> cuts, double half, Paint fill, {double pad = 0, String? pattern, int pos = 0, int folds = 1, bool sheen = true, double sheenTime = 0}) {
+void drawWedge(Canvas canvas, double s, List<Cut> cuts, double half, Paint fill, {double pad = 0, String? pattern, int pos = 0, int folds = 1, bool sheen = true, double sheenTime = 0, Color? icing}) {
   final bounds = Rect.fromCircle(center: Offset.zero, radius: s * 1.3);
   canvas.saveLayer(bounds, Paint());
   final wedge = Path()
@@ -1188,12 +1634,104 @@ void drawWedge(Canvas canvas, double s, List<Cut> cuts, double half, Paint fill,
     drawGlassGlints(canvas, Rect.fromCircle(center: Offset.zero, radius: s));
     canvas.restore();
   }
+  // Gift wrap's gold, over its paper.
+  if (pattern == 'wrapper') {
+    canvas.save();
+    canvas.clipPath(wedge);
+    toSheet(canvas, pos, folds);
+    canvas.drawRect(bounds, makePaperFill(fill.color, wrapperGoldLayer, s));
+    canvas.restore();
+  }
   final clear = Paint()..blendMode = BlendMode.clear;
   for (final c in cuts) {
     if (c.length < 3) continue;
     canvas.drawPath(cutPath(c, s)..fillType = PathFillType.nonZero, clear);
   }
+  if (pattern == 'gingerbread') {
+    final lines = [
+      for (final c in cuts)
+        if (c.length >= 3) cutPath(c, s),
+    ];
+    _bakedEdge(canvas, s, lines, half, pad);
+    if (icing != null) _icing(canvas, s, lines, icing);
+  }
   canvas.restore();
+}
+
+/// Icing piped along gingerbread's cuts: how far in from the edge, and how
+/// thick, as shares of the wedge's radius.
+const _icingGap = .022, _icingWidth = .0144;
+
+/// A smooth line of icing in [color] along every cut ([lines]) in gingerbread paper,
+/// [_icingGap] in from its edge, on the paper only: a ring round each cut
+/// (a broad stroke along it less a narrower one), laid over what is there.
+void _icing(Canvas canvas, double s, List<Path> lines, Color color) {
+  final bounds = Rect.fromCircle(center: Offset.zero, radius: s * 1.3);
+  canvas.saveLayer(bounds, Paint()..blendMode = BlendMode.srcATop);
+  Paint line(double width) => Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = width
+    ..strokeJoin = StrokeJoin.round
+    ..strokeCap = StrokeCap.round;
+  final outer = line(2 * s * (_icingGap + _icingWidth))..color = color;
+  final inner = line(2 * s * _icingGap)..blendMode = BlendMode.clear;
+  for (final l in lines) {
+    canvas.drawPath(l, outer);
+  }
+  for (final l in lines) {
+    canvas.drawPath(l, inner);
+  }
+  // Its inner shadow: what lies either side of the line, in the icing's
+  // colour darkened, blurred in over its edges and kept to the line, so it
+  // looks piped, rounded.
+  final edge = s * _icingShadow;
+  canvas.saveLayer(bounds, Paint()
+    ..blendMode = BlendMode.srcATop
+    ..imageFilter = ui.ImageFilter.blur(sigmaX: edge * .6, sigmaY: edge * .6));
+  final shade = icingShade(color);
+  final beyond = line(2 * (s * (_icingGap + _icingWidth) + edge))..color = shade;
+  final within = line(2 * s * _icingGap)..color = shade;
+  final past = line(2 * s * (_icingGap + _icingWidth))..blendMode = BlendMode.clear;
+  for (final l in lines) {
+    canvas.drawPath(l, beyond);
+  }
+  for (final l in lines) {
+    canvas.drawPath(l, past);
+  }
+  for (final l in lines) {
+    canvas.drawPath(l, within);
+  }
+  canvas.restore();
+  canvas.restore();
+}
+
+/// How far the icing's inner shadow reaches in from its edges, as a share of
+/// the wedge's radius.
+const _icingShadow = .004;
+
+/// The colour of the shadow along icing of [color]: it, darkened.
+Color icingShade(Color color) => Color.lerp(color, const Color(0xFF000000), .4)!.withValues(alpha: .85);
+
+/// Gingerbread's baked edge: the colour of its inner shadow.
+const gingerbreadShadow = ui.Color.fromARGB(198, 141, 50, 14);
+
+/// How wide the baked edge is, and how soft, as shares of the paper's radius.
+const gingerbreadEdgeWidth = .05, gingerbreadEdgeBlur = .04;
+
+/// A soft dark rim inside gingerbread paper (see [gingerbreadShadow]), round
+/// the wedge's outside and every cut in it ([lines]), drawn over the paper only. Not
+/// along its folds, where the flake runs on unbroken.
+void _bakedEdge(Canvas canvas, double s, List<Path> lines, double half, double pad) {
+  final p = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = s * gingerbreadEdgeWidth
+    ..color = gingerbreadShadow
+    ..maskFilter = MaskFilter.blur(BlurStyle.normal, s * gingerbreadEdgeBlur)
+    ..blendMode = BlendMode.srcATop;
+  canvas.drawArc(Rect.fromCircle(center: Offset.zero, radius: s), -math.pi / 2 - half - pad, 2 * (half + pad), false, p);
+  for (final l in lines) {
+    canvas.drawPath(l, p);
+  }
 }
 
 /// Glass's thickness, showing below its edges in [glassShade] the way its

@@ -59,6 +59,7 @@ class _FlakeScreenState extends State<FlakeScreen> with TickerProviderStateMixin
           final f = _flake;
           return PaperDialog(
             paper: Paper(color: f.color ?? Colors.white, pattern: f.pattern),
+            patterns: [for (final id in paperPatterns) if (widget.game.unlocked(id)) id],
             onChanged: (p) {
               setState(() => _flake = widget.game.recolor(_flake, p));
               setLocal(() {});

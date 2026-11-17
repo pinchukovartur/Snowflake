@@ -1,6 +1,6 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -8,8 +8,11 @@ import '../l10n.dart';
 import '../app_state.dart';
 import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
+import '../widgets/advent.dart';
 import '../widgets/ds.dart';
 import '../widgets/frosted_window.dart';
+import '../widgets/snowfall.dart';
+import '../widgets/tutorial.dart';
 import '../widgets/window_decor.dart';
 
 
@@ -17,34 +20,55 @@ import '../widgets/window_decor.dart';
 /// the coins themselves are still kept (see GameState.coins).
 const _showCoins = false;
 
-/// The night, darker under the window: the glass's white haze (about 11% where
-/// it is clear of glints) lifts it back to the other screens' sky. Each is
-/// `(c − 255·a) / (1 − a)` of [SkyBackground.night], for a = .11.
-const _skyUnderHaze = [Color(0xFF001047), Color(0xFF153487), Color(0xFF264EAF)];
-
-/// What the window looks out on. Set by hand for each release: autumn now,
-/// winter in the next update.
+/// What the window looks out on. Set by hand for each release: winter for the
+/// Christmas one.
 enum Season { autumn, winter }
 
-const season = Season.autumn;
+const season = Season.winter;
 
 /// The autumn view: a sunny sky with a maple in leaf, seen through the glass.
 const _autumnView = 'assets/Autumn_Window_Bg.png';
+
+/// The winter view: a snowy plain under the northern lights, snow falling
+/// over it (see [_Snowfall]).
+const _winterView = 'assets/Winter_Window_Bg.png';
+
+/// The view through the glass this season.
+const _outsideView = season == Season.winter ? _winterView : _autumnView;
 
 /// A patch of frost behind the game's title on the window.
 const _titleBg = 'assets/Window_Title_Bg.png';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.game, required this.onPlay, required this.onGallery, this.arriving, this.onArrived});
+  const HomeScreen({super.key, required this.game, required this.onPlay, required this.onGallery, this.arriving, this.back, this.onArrived, this.onView, this.onTutorialDone, this.collectionArrow = false});
   final GameState game;
   final VoidCallback onPlay, onGallery;
+
+  /// Off to a flake's own screen from the collection open for [WindowBack.pane],
+  /// to come back to the window as it was left (see [back]).
+  final void Function(SavedFlake flake, WindowBack from)? onView;
+
+  /// Back from a flake's own screen opened from the collection (see
+  /// [onView]): the window as it was left, the collection open again; with
+  /// [WindowBack.hang], that flake goes up in the pane, as if picked there.
+  final WindowBack? back;
 
   /// A flake on its way to the window: the window scrolls to its first pane
   /// still to fill, and it appears there (see [freePane]).
   final SavedFlake? arriving;
 
-  /// Called as soon as the screen takes [arriving] in hand.
+  /// Called as soon as the screen takes [arriving] or [back] in hand.
   final VoidCallback? onArrived;
+
+  /// Given, the window tutorial (see [firstWindowTutorial]): a bubble in
+  /// place of the top bar asks for a flake hung in the window, which can't be
+  /// panned, the buttons below gone and the pluses bouncing; this is called
+  /// once a flake is hung.
+  final VoidCallback? onTutorialDone;
+
+  /// The tutorial's next step (see [firstCollectionTutorial]): an arrow at
+  /// the collection button, "play" gone from over it.
+  final bool collectionArrow;
 
   /// The first pane in [game]'s window still to fill (a plus, not glass left
   /// clear on purpose), or null when every one is.
@@ -58,6 +82,11 @@ class HomeScreen extends StatefulWidget {
   @override
   State<HomeScreen> createState() => HomeScreenState();
 }
+
+/// Where the window was left for a flake's own screen: the collection open
+/// for [pane], the window panned and zoomed by [view]. [hang]: a flake to
+/// hang in [pane] on coming back.
+typedef WindowBack = ({int pane, Matrix4 view, SavedFlake? hang});
 
 class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late final _ticker = AnimationController(vsync: this, duration: const Duration(hours: 1))..forward();
@@ -100,9 +129,26 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late final _arrive = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
   int? _arrivingPane;
 
+  /// The window tutorial under way (see [HomeScreen.onTutorialDone]).
+  bool get _tutorial => widget.onTutorialDone != null;
+
+  /// In the tutorial, the pluses bouncing row after row, down the window
+  /// in a wave, over and over (see [_RowBounce]).
+  late final _wave = AnimationController(vsync: this, duration: const Duration(milliseconds: 2500));
+
+  /// A pane has been tapped in the tutorial: the pluses have done their job
+  /// and keep still from then on.
+  bool _waveDone = false;
+
+  /// A flake just taken down, leaving its pane: rising a little as it fades.
+  late final _leave = AnimationController(vsync: this, duration: const Duration(milliseconds: 450));
+  ({int pane, SavedFlake flake})? _leaving;
+
   /// The title shows once per launch: fades in, holds a couple of seconds and
   /// fades away, leaving the window clear.
-  late final bool _showTitle = !widget.game.titleShown;
+  /// Not in the window tutorial: the window is to be clear for it (and the
+  /// title then counts as shown this launch).
+  late final bool _showTitle = !widget.game.titleShown && !_tutorial;
   late final _title = AnimationController(vsync: this, duration: const Duration(milliseconds: _titleIn + _titleHold + _titleOut));
   late final _titleOpacity = _title.drive(TweenSequence([
     TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0).chain(CurveTween(curve: Curves.easeOut)), weight: _titleIn.toDouble()),
@@ -122,6 +168,30 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    if (_tutorial) {
+      _wave.repeat();
+      widget.game.titleShown = true;
+    }
+    if (widget.back case final back?) {
+      widget.onArrived?.call();
+      _view.value = back.view.clone();
+      _picking = _sheetPane = back.pane;
+      _sheetRoom = true;
+      _sheet.value = 1;
+      // Built again once laid out: the collection is as tall as half the
+      // screen, not known on the first frame.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+      if (back.hang case final f?) {
+        // Once the screen has come in, as if picked in the collection.
+        Future.delayed(const Duration(milliseconds: 250), () {
+          if (!mounted) return;
+          if (!identical(f, widget.game.window[back.pane])) _hangInto(back.pane, f);
+          _closePicker();
+        });
+      }
+    }
     final f = widget.arriving;
     if (f != null) {
       // Taken in hand at once, so it never comes again on a later visit, even
@@ -139,6 +209,13 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   @override
+  void didUpdateWidget(HomeScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // The tutorial through: the wave stops.
+    if (!_tutorial && _wave.isAnimating) _wave.stop();
+  }
+
+  @override
   void dispose() {
     _ticker.dispose();
     _title.dispose();
@@ -146,6 +223,8 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _pan.dispose();
     _sheet.dispose();
     _arrive.dispose();
+    _leave.dispose();
+    _wave.dispose();
     super.dispose();
   }
 
@@ -163,8 +242,22 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Future<void> _hangInto(int pane, SavedFlake f) async {
     setState(() => _arrivingPane = pane);
     widget.game.hang(pane, f);
+    // A flake hung: the window tutorial is through.
+    widget.onTutorialDone?.call();
     await _arrive.forward(from: 0);
     if (mounted && _arrivingPane == pane) setState(() => _arrivingPane = null);
+  }
+
+  /// Takes the flake in [pane] down: it rises a little and fades away, the
+  /// pane's plus showing through meanwhile.
+  Future<void> _takeDown(int pane) async {
+    final f = widget.game.window[pane];
+    widget.game.unhang(pane);
+    if (f == null) return;
+    final leaving = (pane: pane, flake: f);
+    setState(() => _leaving = leaving);
+    await _leave.forward(from: 0);
+    if (mounted && identical(_leaving, leaving)) setState(() => _leaving = null);
   }
 
   void _openSettings() {
@@ -204,6 +297,15 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   bool get _titleUp => _showTitle && !_title.isCompleted;
+
+  /// Skips the title, if up and not yet fading, on to fading away.
+  void _skipTitle() {
+    const fade = (_titleIn + _titleHold) / (_titleIn + _titleHold + _titleOut);
+    if (!_titleUp || _title.value >= fade) return;
+    // Fading out from there (full, if it was still fading in).
+    _title.value = fade;
+    _title.forward();
+  }
 
   /// Windows side by side, each as wide as the screen, with an arch of its own
   /// over its two sashes; pane rows in each sash, in bands of three.
@@ -260,9 +362,11 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void didChangeDependencies() {
     super.didChangeDependencies();
     // The windows are as wide as the screen, and so the dome as tall as that
-    // makes it: known before they are laid out.
+    // makes it: known before they are laid out. Coming back to them (see
+    // [HomeScreen.back]), they are where they were left.
     if (_placed) return;
     _placed = true;
+    if (widget.back != null) return;
     _view.value = Matrix4.translationValues(0, -_aboveWindows(MediaQuery.sizeOf(context).width), 0);
   }
 
@@ -354,6 +458,10 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// or take down what is there), the window scrolling the pane up clear of
   /// it. Open already, it moves on to [pane]; for the same pane, it closes.
   void _pick(int pane) {
+    if (_tutorial && !_waveDone) {
+      _wave.stop();
+      setState(() => _waveDone = true);
+    }
     if (_picking == pane) {
       _closePicker();
       return;
@@ -491,7 +599,8 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// How far what stands in front of the door is drawn off its place, in the
   /// windows' own measure: at rest where [_goToDecor] brings it, further off
   /// the further it is from there on the screen. Less as the windows shrink,
-  /// and none in the overview.
+  /// and none in the overview. Never drawn above its place: it stands on the
+  /// floor, and would float off it.
   Offset get _decorShift {
     if (_frame.isEmpty) return Offset.zero;
     final m = _view.value, s = m.entry(0, 0), t = m.getTranslation();
@@ -500,7 +609,8 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     if (depth == 0) return Offset.zero;
     final r = _decorOnView;
     final rest = r.center - _decorPan;
-    return (Offset(t.x, t.y) + r.center * s - rest) * depth / s;
+    final shift = (Offset(t.x, t.y) + r.center * s - rest) * depth / s;
+    return Offset(shift.dx, math.max(0, shift.dy));
   }
 
   /// How far the view outside is drawn off its place on the screen: drifting
@@ -569,31 +679,31 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final hazeHeight = _playMiddle + _hazeFade + bottomInset;
     final view = Stack(
       children: [
-        // Outside the window: snow falling in the night in winter; in autumn a
-        // still, sunny day, the picture centred and a fifth taller than the
-        // screen, so the tree's edge and the sun's rays show through.
-        // It drifts a little as the windows pan, being further off.
+        // Outside the window: the season's view (see [_outsideView]), centred
+        // and a fifth taller than the screen, so its edges show through. It
+        // drifts a little as the windows pan, being further off.
         Positioned.fill(
-          child: season == Season.winter
-              ? RepaintBoundary(child: _Snowfall(ticker: _ticker, hazeHeight: hazeHeight, hazeFade: _hazeFade, drift: () => _outsideShift))
-              : LayoutBuilder(
-                  builder: (_, c) {
-                    // Drifting by the windows' size, before they are built.
-                    _layOut(c);
-                    return ClipRect(
-                      child: OverflowBox(
-                        maxWidth: c.maxHeight * 1.2,
-                        maxHeight: c.maxHeight * 1.2,
-                        child: AnimatedBuilder(
-                          animation: _view,
-                          builder: (_, child) => Transform.translate(offset: _outsideShift, child: child),
-                          child: RepaintBoundary(child: Image.asset(_autumnView, fit: BoxFit.cover)),
-                        ),
-                      ),
-                    );
-                  },
+          child: LayoutBuilder(
+            builder: (_, c) {
+              // Drifting by the windows' size, before they are built.
+              _layOut(c);
+              return ClipRect(
+                child: OverflowBox(
+                  maxWidth: c.maxHeight * 1.2,
+                  maxHeight: c.maxHeight * 1.2,
+                  child: AnimatedBuilder(
+                    animation: _view,
+                    builder: (_, child) => Transform.translate(offset: _outsideShift, child: child),
+                    child: RepaintBoundary(child: Image.asset(_outsideView, fit: BoxFit.cover)),
+                  ),
                 ),
+              );
+            },
+          ),
         ),
+        // In winter, snow falling over it.
+        if (season == Season.winter)
+          Positioned.fill(child: RepaintBoundary(child: Snowfall(ticker: _ticker, hazeHeight: hazeHeight, hazeFade: _hazeFade, drift: () => _outsideShift))),
         // The windows, wider and taller than the screen, pan past in any
         // direction, with the roof over them and the sill and floor under
         // them. They stop dead at the edges.
@@ -607,6 +717,8 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 transformationController: _view,
                 constrained: false,
                 scaleEnabled: false,
+                // Held still in the tutorial: its first panes are the ones to fill.
+                panEnabled: !_tutorial,
                 // In the overview too: as wide as the screen there, they pan
                 // up and down.
                 boundaryMargin: EdgeInsets.zero,
@@ -629,7 +741,14 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       height: _roofHeight(frame.width),
                       child: Align(alignment: Alignment.bottomCenter, child: DomeVane(windowWidth: frame.width, ticker: _ticker)),
                     ),
-                    SizedBox(height: WindowDome.heightFor(frame.width), child: const WindowDome(windows: _windows)),
+                    SizedBox(
+                      height: WindowDome.heightFor(frame.width),
+                      // In winter, snowflakes landing on its glass.
+                      child: Stack(fit: StackFit.expand, children: [
+                        const WindowDome(windows: _windows),
+                        if (season == Season.winter) DomeSnow(ticker: _ticker),
+                      ]),
+                    ),
                     SizedBox(
                       height: frame.height,
                       child: Stack(children: [
@@ -649,9 +768,30 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               rect: _paneRect(frame, i),
                               child: _arriving(
                                 i,
-                                _Pane(flake: g.window[i], clear: g.window.containsKey(i) && g.window[i] == null, plusOpacity: _plusOpacity, onTap: () => _overview ? _pickFromOverview(i) : _pick(i)),
+                                _Pane(
+                                  flake: g.window[i],
+                                  clear: g.window.containsKey(i) && g.window[i] == null,
+                                  plusOpacity: _plusOpacity,
+                                  // The first window's, in view, by their row.
+                                  bounce: _tutorial && !_waveDone && i < _rows * 2 ? _wave.drive(_RowBounce(i ~/ 2)) : null,
+                                  onTap: () => _overview ? _pickFromOverview(i) : _pick(i),
+                                ),
                               ),
                             ),
+                        // A flake just taken down, rising out of its pane as it fades.
+                        if (_leaving case (:final pane, :final flake))
+                          Positioned.fromRect(
+                            rect: _paneRect(frame, pane),
+                            child: IgnorePointer(
+                              child: FadeTransition(
+                                opacity: CurvedAnimation(parent: _leave, curve: Curves.easeIn).drive(Tween(begin: 1.0, end: 0.0)),
+                                child: SlideTransition(
+                                  position: CurvedAnimation(parent: _leave, curve: Curves.easeOutCubic).drive(Tween(begin: Offset.zero, end: const Offset(0, -.15))),
+                                  child: _Pane(flake: flake, clear: false, plusOpacity: _plusOpacity, onTap: () {}),
+                                ),
+                              ),
+                            ),
+                          ),
                         // The pane being picked for, outlined.
                         if (_picking case final p?)
                           Positioned.fromRect(
@@ -660,7 +800,6 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
                                   border: Border.all(color: C.berry500, width: 4),
-                                  borderRadius: BorderRadius.circular(4),
                                 ),
                               ),
                             ),
@@ -780,30 +919,67 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         SafeArea(
           child: Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(screenPad, 8, screenPad, 8),
-                child: Row(
-                  children: [
-                    if (_showCoins) CurrencyPill(amount: g.coins),
-                    const Spacer(),
-                    // All the windows at once, small, and back.
-                    BarBtn(_overview ? LucideIcons.zoomIn : LucideIcons.zoomOut, label: tr(_overview ? 'zoom_in' : 'whole_window'), onTap: _toggleOverview),
-                    const SizedBox(width: 8),
-                    BarBtn(LucideIcons.settings, label: tr('settings'), onTap: _openSettings),
-                  ],
+              // Out of the way while the collection is open for a pane.
+              if (_tutorial)
+                AnimatedOpacity(
+                  opacity: _picking == null ? 1 : 0,
+                  duration: Motion.pop,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(screenPad, 12, screenPad, 8),
+                    child: TutorialBubble(tr('tutorial_window')),
+                  ),
+                )
+              else if (widget.collectionArrow)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(screenPad, 12, screenPad, 8),
+                  child: IgnorePointer(child: TutorialBubble(tr('tutorial_collection_button'))),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(screenPad, 8, screenPad, 8),
+                  child: Row(
+                    children: [
+                      if (_showCoins) CurrencyPill(amount: g.coins),
+                      const Spacer(),
+                      // All the windows at once, small, and back.
+                      BarBtn(_overview ? LucideIcons.zoomIn : LucideIcons.zoomOut, label: tr(_overview ? 'zoom_in' : 'whole_window'), onTap: _toggleOverview),
+                      const SizedBox(width: 8),
+                      BarBtn(LucideIcons.settings, label: tr('settings'), onTap: _openSettings),
+                    ],
+                  ),
                 ),
-              ),
               const Spacer(),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(32, 0, 32, 28),
-                child: Column(
-                  children: [
-                    Btn(tr('play'), size: BtnSize.l, icon: LucideIcons.play, block: true, onTap: widget.onPlay),
-                    const SizedBox(height: 12),
-                    Btn(tr('my_collection'), variant: Variant.light, icon: LucideIcons.image, block: true, onTap: widget.onGallery),
-                  ],
+              if (!_tutorial)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(32, 0, 32, 28),
+                  child: Column(
+                    children: [
+                      // The advent calendar, over "play" at the right (not while
+                      // the tutorial points at the collection).
+                      if (!widget.collectionArrow) ...[
+                        if (kDebugMode) ...[
+                          Align(alignment: Alignment.centerRight, child: AdventCheat(game: g)),
+                          const SizedBox(height: 8),
+                        ],
+                        Align(alignment: Alignment.centerRight, child: AdventButton(game: g)),
+                        const SizedBox(height: 14),
+                      ],
+                      // Hidden rather than gone: the collection button keeps its place.
+                      Visibility.maintain(
+                        visible: !widget.collectionArrow,
+                        child: Btn(tr('play'), size: BtnSize.l, icon: LucideIcons.play, block: true, onTap: widget.onPlay),
+                      ),
+                      const SizedBox(height: 12),
+                      Stack(clipBehavior: Clip.none, alignment: Alignment.bottomCenter, children: [
+                        Beckon(
+                          on: widget.collectionArrow,
+                          child: Btn(tr('my_collection'), variant: Variant.light, icon: LucideIcons.image, block: true, onTap: widget.onGallery),
+                        ),
+                        if (widget.collectionArrow) const Positioned(bottom: 64, child: IgnorePointer(child: TutorialArrow())),
+                      ]),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -821,6 +997,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 pane: _sheetPane,
                 onDrag: _dragSheet,
                 onDrop: _dropSheet,
+                onView: widget.onView == null ? null : (f) => widget.onView!(f, (pane: _sheetPane, view: _view.value.clone(), hang: null)),
                 onPick: (f) {
                   // A flake grows into the pane, as one hung from its own screen does;
                   // the one hanging there already, picked again, just stays.
@@ -836,7 +1013,7 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   widget.onPlay();
                 },
                 onUnhang: () {
-                  g.unhang(_sheetPane);
+                  _takeDown(_sheetPane);
                   _closePicker();
                 },
               ),
@@ -844,136 +1021,10 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
       ],
     );
-    return season == Season.winter ? SkyBackground(softDots: true, colors: _skyUnderHaze, child: view) : view;
+    // Any touch anywhere skips the title on to fading out, the touch still
+    // doing what it does.
+    return Listener(behavior: HitTestBehavior.translucent, onPointerDown: (_) => _skipTitle(), child: view);
   }
-}
-
-/// One fleck of snow. [depth] 0 is far off, 1 close to the glass: nearer
-/// flecks are bigger, brighter and fall faster.
-class _Fleck {
-  _Fleck(math.Random r)
-    : x = r.nextDouble(),
-      phase = r.nextDouble(),
-      depth = r.nextDouble(),
-      sway = 3 + r.nextDouble() * 4,
-      swayPhase = r.nextDouble() * 2 * math.pi;
-  final double x, phase, depth, sway, swayPhase;
-
-  /// Seconds from the top of the screen to the bottom.
-  double get fall => 14 - depth * 7;
-  double get alpha => .45 + depth * .5;
-}
-
-/// Snow falling outside the window: small round flecks drifting down, seen
-/// soft through the glass and softer still in the bottom [hazeHeight] behind
-/// the buttons, setting in over its top [hazeFade].
-class _Snowfall extends StatefulWidget {
-  const _Snowfall({required this.ticker, required this.hazeHeight, required this.hazeFade, required this.drift});
-  final AnimationController ticker;
-  final double hazeHeight, hazeFade;
-
-  /// How far the snow has drifted with the windows' pan, now: the nearest
-  /// flecks twice as far as the furthest.
-  final Offset Function() drift;
-
-  @override
-  State<_Snowfall> createState() => _SnowfallState();
-}
-
-class _SnowfallState extends State<_Snowfall> {
-  final _flecks = List.generate(70, (_) => _Fleck(_rnd));
-  static final _rnd = math.Random();
-
-  @override
-  Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: CustomPaint(
-        size: Size.infinite,
-        painter: _SnowfallPainter(
-          _flecks,
-          widget.ticker,
-          dpr: MediaQuery.devicePixelRatioOf(context),
-          hazeHeight: widget.hazeHeight,
-          hazeFade: widget.hazeFade,
-          drift: widget.drift,
-        ),
-      ),
-    );
-  }
-}
-
-/// Draws every fleck from one sprite sheet of ready-blurred dots, so the snow
-/// looks as if seen through frosted glass without blurring the screen.
-class _SnowfallPainter extends CustomPainter {
-  _SnowfallPainter(this.flecks, this.ticker, {required this.dpr, required this.hazeHeight, required this.hazeFade, required this.drift}) : super(repaint: ticker);
-  final List<_Fleck> flecks;
-  final AnimationController ticker;
-  final double dpr, hazeHeight, hazeFade;
-  final Offset Function() drift;
-
-  /// Fleck radii in dp, far to near.
-  static const _radii = [1.55, 2.25, 2.6, 2.9];
-  static const _sizes = 4;
-  static double _radius(int k) => _radii[k];
-
-  /// Blur in dp: through the glass, and behind the buttons.
-  static const _sigmas = [2.5, 5.7];
-
-  /// One sprite's square, wide enough for the largest, blurriest dot.
-  static const _cell = 2 * (4.0 + 3 * 5.7);
-
-  /// Sprite sheets by device pixel ratio: a row per blur, a column per size.
-  static final _sheets = <double, ui.Image>{};
-
-  static ui.Image _sheet(double dpr) => _sheets.putIfAbsent(dpr, () {
-        final rec = ui.PictureRecorder();
-        final c = Canvas(rec)..scale(dpr);
-        for (var l = 0; l < _sigmas.length; l++) {
-          for (var k = 0; k < _sizes; k++) {
-            c.drawCircle(
-              Offset((k + .5) * _cell, (l + .5) * _cell),
-              _radius(k),
-              Paint()
-                ..color = Colors.white
-                ..maskFilter = MaskFilter.blur(BlurStyle.normal, _sigmas[l]),
-            );
-          }
-        }
-        return rec.endRecording().toImageSync((_sizes * _cell * dpr).ceil(), (_sigmas.length * _cell * dpr).ceil());
-      });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final t = (ticker.lastElapsedDuration?.inMicroseconds ?? 0) / 1e6;
-    final sheet = _sheet(dpr);
-    final px = _cell * dpr, margin = _cell / 2;
-    final hazeTop = size.height - hazeHeight;
-    final transforms = <RSTransform>[], rects = <Rect>[], colors = <Color>[];
-    final shift = drift();
-    final tall = size.height + 2 * margin, wide = size.width + 2 * margin;
-    for (final f in flecks) {
-      // Wrapping round as it drifts, so the screen stays full.
-      final near = 1 + f.depth;
-      final ph = (t / f.fall + f.phase + shift.dy * near / tall) % 1;
-      final y = -margin + tall * ph;
-      final x = -margin + (margin + f.x * size.width + shift.dx * near) % wide + (5 + 7 * f.depth) * math.sin(t / f.sway * 2 * math.pi + f.swayPhase);
-      final k = math.min(_sizes - 1, (f.depth * _sizes).floor());
-      // Behind the buttons the softer sprite fades in over the plain one.
-      final w = ((y - hazeTop) / hazeFade).clamp(0.0, 1.0);
-      final haze = w * w * (3 - 2 * w);
-      for (final (l, share) in [(0, 1 - haze), (1, haze)]) {
-        if (share <= 0) continue;
-        transforms.add(RSTransform.fromComponents(rotation: 0, scale: 1 / dpr, anchorX: px / 2, anchorY: px / 2, translateX: x, translateY: y));
-        rects.add(Rect.fromLTWH(k * px, l * px, px, px));
-        colors.add(Color.fromRGBO(255, 255, 255, f.alpha * share));
-      }
-    }
-    canvas.drawAtlas(sheet, transforms, rects, colors, BlendMode.modulate, null, Paint()..filterQuality = FilterQuality.low);
-  }
-
-  @override
-  bool shouldRepaint(_SnowfallPainter o) =>
-      !identical(o.flecks, flecks) || o.ticker != ticker || o.dpr != dpr || o.hazeHeight != hazeHeight || o.hazeFade != hazeFade;
 }
 
 /// Clips to [outline] in the box clipped, so taps outside it fall through.
@@ -992,13 +1043,16 @@ class _OutlineClipper extends CustomClipper<Path> {
 /// [clear], or else a faint plus to fill it. Either way a tap anywhere on the
 /// glass calls [onTap].
 class _Pane extends StatelessWidget {
-  const _Pane({required this.flake, required this.clear, required this.plusOpacity, required this.onTap});
+  const _Pane({required this.flake, required this.clear, required this.plusOpacity, required this.onTap, this.bounce});
   final SavedFlake? flake;
   final bool clear;
 
   /// How far the plus has faded in (flakes show at once, whatever this is).
   final Animation<double> plusOpacity;
   final VoidCallback onTap;
+
+  /// The plus's scale, bouncing, if it is to draw the eye.
+  final Animation<double>? bounce;
 
   @override
   Widget build(BuildContext context) {
@@ -1022,15 +1076,18 @@ class _Pane extends StatelessWidget {
           child: Center(
             child: FadeTransition(
               opacity: plusOpacity,
-              child: Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0x1FFFFFFF),
-                  border: Border.all(color: const Color(0x4DFFFFFF), width: 2),
+              child: ScaleTransition(
+                scale: bounce ?? const AlwaysStoppedAnimation(1.0),
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0x1FFFFFFF),
+                    border: Border.all(color: const Color(0x4DFFFFFF), width: 2),
+                  ),
+                  child: const Icon(LucideIcons.plus, size: 28, color: Color(0x99FFFFFF)),
                 ),
-                child: const Icon(LucideIcons.plus, size: 28, color: Color(0x99FFFFFF)),
               ),
             ),
           ),
@@ -1070,9 +1127,13 @@ class _CollectionSheet extends StatefulWidget {
     required this.onPlay,
     required this.onDrag,
     required this.onDrop,
+    this.onView,
   });
   final GameState game;
   final int pane;
+
+  /// A flake opened on its own screen, by the magnifier on its tile.
+  final ValueChanged<SavedFlake>? onView;
 
   /// Its top (handle and title) dragged down, by so many px; and let go, at
   /// so many px a second downward.
@@ -1192,10 +1253,12 @@ class _CollectionSheetState extends State<_CollectionSheet> {
                   crossAxisSpacing: _gap,
                   children: [
                     for (final f in g.saved)
-                      if (identical(f, current) || !g.isHung(f))
-                        _PickTile(flake: f, selected: identical(f, current), onTap: () => onPick(f))
-                      else
-                        _PickTile(flake: f, selected: false),
+                      _PickTile(
+                        flake: f,
+                        selected: identical(f, current),
+                        onTap: identical(f, current) || !g.isHung(f) ? () => onPick(f) : null,
+                        onView: widget.onView == null ? null : () => widget.onView!(f),
+                      ),
                     // Leaving the pane clear comes last, after every flake.
                     _PickTile(selected: filled && current == null, onTap: () => onPick(null)),
                   ],
@@ -1208,12 +1271,20 @@ class _CollectionSheetState extends State<_CollectionSheet> {
 
 /// A choice in the collection opened for a pane: [flake], or leaving the pane
 /// clear when there is none. Without [onTap] it can't be picked (the flake
-/// already hangs elsewhere): grey, marked "on the window".
+/// already hangs elsewhere): grey, marked "on the window". A magnifier in
+/// the corner opens the flake on its own screen ([onView]).
 class _PickTile extends StatelessWidget {
-  const _PickTile({this.flake, required this.selected, this.onTap});
+  const _PickTile({this.flake, required this.selected, this.onTap, this.onView});
   final SavedFlake? flake;
   final bool selected;
-  final VoidCallback? onTap;
+  final VoidCallback? onTap, onView;
+
+  /// The magnifier's size across, as tall as the badge beside it; and the
+  /// room round it a finger can still hit.
+  static const _lens = 24.0, _lensSlop = 8.0;
+
+  /// How far in from the tile's edges the magnifier and the badge sit.
+  static const _inset = 8.0;
 
   @override
   Widget build(BuildContext context) {
@@ -1243,15 +1314,42 @@ class _PickTile extends StatelessWidget {
                         child: SnowflakeView(cuts: f.cuts, folds: f.folds, color: f.color, pattern: f.pattern, size: (c.maxWidth * .78).clamp(0, 140)),
                       ),
               ),
-              // Already on another pane: said so in the corner.
+              // Already on another pane: said so in the corner (the other
+              // one, with the magnifier there, as tall as it and level with it).
               if (onTap == null)
                 Positioned(
-                  right: 8,
-                  bottom: 8,
+                  left: onView != null && f != null ? _inset : null,
+                  right: onView != null && f != null ? null : _inset,
+                  bottom: _inset,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    height: _lens,
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
                     decoration: BoxDecoration(color: C.night800, borderRadius: BorderRadius.circular(R.s)),
                     child: Text(tr('on_window'), style: display(13, color: Colors.white, height: 1)),
+                  ),
+                ),
+              if (onView case final view? when f != null)
+                Positioned(
+                  right: _inset - _lensSlop,
+                  bottom: _inset - _lensSlop,
+                  child: Semantics(
+                    button: true,
+                    label: tr('view_flake'),
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: view,
+                      // A finger's worth round it, the circle itself kept small.
+                      child: Padding(
+                        padding: const EdgeInsets.all(_lensSlop),
+                        child: Container(
+                          width: _lens,
+                          height: _lens,
+                          decoration: const BoxDecoration(color: C.night800, shape: BoxShape.circle),
+                          child: const Icon(LucideIcons.search, size: 14, color: Colors.white),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
             ]),
@@ -1259,5 +1357,23 @@ class _PickTile extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// A plus's scale through one round of the tutorial's wave (see
+/// [HomeScreenState._wave]): row [row]'s turn comes [_lag] of the round after
+/// the row above's; in its turn it swells by [_lift] and settles, eased, and
+/// rests the rest of the round.
+class _RowBounce extends Animatable<double> {
+  const _RowBounce(this.row);
+  final int row;
+
+  static const _lag = .1, _turn = .3, _lift = .25;
+
+  @override
+  double transform(double t) {
+    final local = (t - row * _lag) % 1;
+    if (local >= _turn) return 1;
+    return 1 + _lift * math.sin(math.pi * local / _turn);
   }
 }

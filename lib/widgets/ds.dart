@@ -236,6 +236,7 @@ class RoundBtn extends StatelessWidget {
     this.disabled = false,
     this.hitSlop = true,
     this.progress,
+    this.fadeTime = Duration.zero,
     this.onTap,
   }) : glyph = null;
 
@@ -251,6 +252,7 @@ class RoundBtn extends StatelessWidget {
     this.disabled = false,
     this.hitSlop = true,
     this.progress,
+    this.fadeTime = Duration.zero,
     this.onTap,
   }) : icon = null;
 
@@ -271,6 +273,10 @@ class RoundBtn extends StatelessWidget {
   /// face as its own colour coming back over the disabled one, clockwise
   /// from the top; under the icon. Null for none.
   final double? progress;
+
+  /// How long it takes to grey out when [disabled], or to come back to its
+  /// colours when not: at once by default.
+  final Duration fadeTime;
   final VoidCallback? onTap;
 
   static const _sizes = {
@@ -290,40 +296,47 @@ class RoundBtn extends StatelessWidget {
       child: _Pressable(
         enabled: !disabled,
         onTap: onTap,
-        builder: (down) {
-          final pressed = down && !disabled;
-          // An active (selected) button stands a little larger instead of sinking.
-          final grow = active && !disabled ? 1.12 : 1.0;
-          final content = switch (glyph) {
-            final g? => Center(child: Text(g, style: display(s.i * 1.15, weight: FontWeight.w400, color: disabled ? C.snow500 : v.fg, height: 1))),
-            null => Icon(icon, size: s.i, color: disabled ? C.snow500 : v.fg),
-          };
-          return Padding(
-            padding: EdgeInsets.only(bottom: s.lip),
-            child: AnimatedContainer(
-              duration: Motion.press,
-              curve: Motion.out,
-              width: s.d,
-              height: s.d,
-              transformAlignment: Alignment.center,
-              transform: Matrix4.translationValues(0, pressed ? s.lip - 1 : 0, 0)..multiply(Matrix4.diagonal3Values(grow, grow, 1)),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                // With [progress], its own colour all along, the disabled one
-                // painted over what is still to go: so it doesn't fade from that
-                // to its own once done, flashing grey.
-                color: disabled && progress == null ? C.snow200 : v.bg,
-                boxShadow: [
-                  if (v.lip != Colors.transparent && !flat)
-                    BoxShadow(color: disabled ? C.snow300 : v.lip, offset: Offset(0, pressed ? 1 : s.lip)),
-                ],
+        builder: (down) => TweenAnimationBuilder<double>(
+          // How far greyed out: 1 disabled.
+          tween: Tween(end: disabled ? 1 : 0),
+          duration: fadeTime,
+          curve: Curves.easeInOut,
+          builder: (_, off, _) {
+            final pressed = down && !disabled;
+            // An active (selected) button stands a little larger instead of sinking.
+            final grow = active && !disabled ? 1.12 : 1.0;
+            final fg = Color.lerp(v.fg, C.snow500, off)!;
+            final content = switch (glyph) {
+              final g? => Center(child: Text(g, style: display(s.i * 1.15, weight: FontWeight.w400, color: fg, height: 1))),
+              null => Icon(icon, size: s.i, color: fg),
+            };
+            return Padding(
+              padding: EdgeInsets.only(bottom: s.lip),
+              child: AnimatedContainer(
+                duration: Motion.press,
+                curve: Motion.out,
+                width: s.d,
+                height: s.d,
+                transformAlignment: Alignment.center,
+                transform: Matrix4.translationValues(0, pressed ? s.lip - 1 : 0, 0)..multiply(Matrix4.diagonal3Values(grow, grow, 1)),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  // With [progress], its own colour all along, the disabled one
+                  // painted over what is still to go: so it doesn't fade from that
+                  // to its own once done, flashing grey.
+                  color: progress == null ? Color.lerp(v.bg, C.snow200, off) : v.bg,
+                  boxShadow: [
+                    if (v.lip != Colors.transparent && !flat)
+                      BoxShadow(color: Color.lerp(v.lip, C.snow300, off)!, offset: Offset(0, pressed ? 1 : s.lip)),
+                  ],
+                ),
+                child: progress == null
+                    ? content
+                    : CustomPaint(painter: _ConePainter(progress!, C.snow200), child: SizedBox.expand(child: content)),
               ),
-              child: progress == null
-                  ? content
-                  : CustomPaint(painter: _ConePainter(progress!, C.snow200), child: SizedBox.expand(child: content)),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
       ),
     );
@@ -556,6 +569,8 @@ class Segmented<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Without [onChanged], disabled: greyed as a disabled button is.
+    final disabled = onChanged == null;
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -576,12 +591,12 @@ class Segmented<T> extends StatelessWidget {
                   height: 44,
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
-                    color: o.value == value ? C.paper : Colors.transparent,
+                    color: o.value == value && !disabled ? C.paper : Colors.transparent,
                     borderRadius: BorderRadius.circular(16),
-                    boxShadow: o.value == value ? const [BoxShadow(color: C.snow300, offset: Offset(0, 3))] : null,
+                    boxShadow: o.value == value && !disabled ? const [BoxShadow(color: C.snow300, offset: Offset(0, 3))] : null,
                   ),
                   child: Builder(builder: (_) {
-                    final fg = o.value == value ? C.night800 : (dark ? C.ice200 : C.snow700);
+                    final fg = disabled ? C.snow500 : o.value == value ? C.night800 : (dark ? C.ice200 : C.snow700);
                     return Row(mainAxisSize: MainAxisSize.min, mainAxisAlignment: MainAxisAlignment.center, children: [
                       if (o.icon != null) ...[Icon(o.icon, size: 20, color: fg), const SizedBox(width: 8)],
                       Text(o.label, style: display(fontSize, weight: FontWeight.w700, color: fg)),

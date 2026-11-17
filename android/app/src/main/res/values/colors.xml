@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="night_800">#1B2A5B</color>
+    <!-- The launch splash, the blue of the icon's ground at its rim. -->
+    <color name="splash">#0099EE</color>
 </resources>

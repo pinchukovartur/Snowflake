@@ -9,11 +9,14 @@ import '../theme/tokens.dart';
 import 'ds.dart';
 
 /// The paper dialog: a flake in [paper] up top ([preview], 170 across), then
-/// the paper colours and patterns to pick from, each pick passed to
+/// the paper colours and [patterns] to pick from, each pick passed to
 /// [onChanged] at once; "Done" and the cross both call [onClose].
 class PaperDialog extends StatelessWidget {
-  const PaperDialog({super.key, required this.paper, required this.onChanged, required this.preview, required this.onClose});
+  const PaperDialog({super.key, required this.paper, required this.onChanged, required this.preview, required this.onClose, this.patterns = paperPatterns});
   final Paper paper;
+
+  /// Those of [paperPatterns] the player has (see [GameState.unlocked]).
+  final List<String> patterns;
   final ValueChanged<Paper> onChanged;
   final Widget Function(Paper paper) preview;
   final VoidCallback onClose;
@@ -67,8 +70,9 @@ class PaperDialog extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 20),
-          // Patterns four to a row, the last row left-aligned with blanks.
-          for (var row = 0; row * 4 < paperPatterns.length; row++) ...[
+          // Patterns four to a row, each row left-aligned with blanks; the
+          // Christmas pack's in a row of their own after the rest.
+          for (final (row, ids) in _patternRows(patterns).indexed) ...[
             if (row > 0) const SizedBox(height: 14),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -76,10 +80,10 @@ class PaperDialog extends StatelessWidget {
                 for (var col = 0; col < 4; col++) ...[
                   if (col > 0) const SizedBox(width: 12),
                   Expanded(
-                    child: row * 4 + col >= paperPatterns.length
+                    child: col >= ids.length
                         ? const SizedBox()
                         : Builder(builder: (_) {
-                            final id = paperPatterns[row * 4 + col];
+                            final id = ids[col];
                             return Semantics(
                               button: true,
                               label: tr('pattern_$id'),
@@ -88,9 +92,17 @@ class PaperDialog extends StatelessWidget {
                                 onTap: () => onChanged(paper.copyWith(pattern: id)),
                                 child: Column(
                                   children: [
-                                    _PaperSwatch(color: paper.color, pattern: id, selected: id == paper.pattern),
+                                    Stack(clipBehavior: Clip.none, children: [
+                                      PaperSwatch(color: paper.color, pattern: id, selected: id == paper.pattern),
+                                      if (christmasPatterns.contains(id)) const Positioned(top: -6, right: -6, child: _ChristmasBadge()),
+                                    ]),
                                     const SizedBox(height: 8),
-                                    FittedBox(child: Text(tr('pattern_$id'), style: display(13, color: C.night800))),
+                                    // One full-size line tall, so a long name shrunk to
+                                    // fit sits centred on it rather than riding up.
+                                    SizedBox(
+                                      height: 13 * 1.2,
+                                      child: FittedBox(child: Text(tr('pattern_$id'), style: display(13, color: C.night800, height: 1.2))),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -107,19 +119,48 @@ class PaperDialog extends StatelessWidget {
   }
 }
 
+/// The pattern picker's rows of [patterns]: the everyday ones four to a
+/// row, then the Christmas pack's in a row of their own (if any are there).
+List<List<String>> _patternRows(List<String> patterns) {
+  final everyday = [for (final p in patterns) if (!christmasPatterns.contains(p)) p];
+  final christmas = [for (final p in patterns) if (christmasPatterns.contains(p)) p];
+  return [
+    for (var i = 0; i < everyday.length; i += 4) everyday.sublist(i, (i + 4).clamp(0, everyday.length)),
+    if (christmas.isNotEmpty) christmas,
+  ];
+}
+
+/// A white fir tree in a little green disc, in the corner of a Christmas pack
+/// pattern's swatch.
+class _ChristmasBadge extends StatelessWidget {
+  const _ChristmasBadge();
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: 26,
+        height: 26,
+        decoration: BoxDecoration(
+          color: const Color(0xFF2FB37E),
+          shape: BoxShape.circle,
+          boxShadow: const [BoxShadow(color: Color(0x33101A3F), offset: Offset(0, 1.5), blurRadius: 2)],
+        ),
+        child: const Icon(LucideIcons.treePine, size: 18, color: Colors.white),
+      );
+}
+
 /// A square of paper in [color] and [pattern] filling its width, for the
 /// pattern picker; styled like the colour swatches.
-class _PaperSwatch extends StatefulWidget {
-  const _PaperSwatch({required this.color, required this.pattern, required this.selected});
+class PaperSwatch extends StatefulWidget {
+  const PaperSwatch({super.key, required this.color, required this.pattern, this.selected = false});
   final Color color;
   final String pattern;
   final bool selected;
 
   @override
-  State<_PaperSwatch> createState() => _PaperSwatchState();
+  State<PaperSwatch> createState() => _PaperSwatchState();
 }
 
-class _PaperSwatchState extends State<_PaperSwatch> with SingleTickerProviderStateMixin {
+class _PaperSwatchState extends State<PaperSwatch> with SingleTickerProviderStateMixin {
   /// Seconds the paper has shimmered for, on a swatch that [shimmers].
   double _twinkleAt = 0;
   late final _twinkle = createTicker((elapsed) => setState(() => _twinkleAt = elapsed.inMicroseconds / 1e6));
@@ -173,9 +214,9 @@ class _PaperSwatchPainter extends CustomPainter {
     canvas.save();
     canvas.scale(1 / dpr);
     var rr = RRect.fromRectAndRadius(Offset.zero & size * dpr, Radius.circular(_radius * dpr));
-    if (gradientHues.containsKey(pattern)) {
+    if (gradientHues.containsKey(pattern) || pattern == 'wrapper') {
       // The whole run of colours on the swatch: the sheet's middle at its
-      // middle, and its top and bottom at the swatch's.
+      // middle, and its top and bottom (its edge) at the swatch's.
       canvas.translate(rr.width / 2, rr.height / 2);
       rr = rr.shift(Offset(-rr.width / 2, -rr.height / 2));
       canvas.drawRRect(rr, makePaperFill(color, pattern, rr.height / 2));
@@ -198,7 +239,10 @@ class _PaperSwatchPainter extends CustomPainter {
       drawGlassGlints(canvas, rr.outerRect);
       canvas.restore();
     }
+    // Gift wrap's gold, over its paper.
+    if (pattern == 'wrapper') canvas.drawRRect(rr, makePaperFill(color, wrapperGoldLayer, 100 * dpr));
     canvas.restore();
+    if (pattern == 'gingerbread') _gingerbread(canvas, size, r);
     canvas.drawRRect(
       r.deflate(1),
       Paint()
@@ -206,6 +250,45 @@ class _PaperSwatchPainter extends CustomPainter {
         ..strokeWidth = 2
         ..color = const Color(0x1A101A3F),
     );
+  }
+
+  /// Gingerbread's swatch dressed as a biscuit: its baked edge (the inner
+  /// shadow its flakes have, see [gingerbreadShadow]) and a little fir tree
+  /// piped on it in icing of the paper's colour, as its cuts get.
+  void _gingerbread(Canvas canvas, Size size, RRect r) {
+    // As on a flake as big round as the swatch is across.
+    final s = size.shortestSide;
+    canvas.save();
+    canvas.clipRRect(r);
+    canvas.drawRRect(
+      r,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = s * gingerbreadEdgeWidth
+        ..color = gingerbreadShadow
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, s * gingerbreadEdgeBlur),
+    );
+    canvas.restore();
+    // The tree's outline: tiers zigzagging out down its right side, across
+    // its foot, and back up its left.
+    final w = size.width, h = size.height, cx = w / 2;
+    const right = [Offset(.18, .4), Offset(.08, .4), Offset(.26, .6), Offset(.12, .6), Offset(.3, .8)];
+    final tree = Path()..moveTo(cx, h * .18);
+    for (final q in right) {
+      tree.lineTo(cx + q.dx * w, q.dy * h);
+    }
+    for (final q in right.reversed) {
+      tree.lineTo(cx - q.dx * w, q.dy * h);
+    }
+    tree.close();
+    final icing = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3
+      ..strokeJoin = StrokeJoin.round
+      ..strokeCap = StrokeCap.round;
+    // Its shadow first, a touch down, then the icing over it.
+    canvas.drawPath(tree.shift(const Offset(0, 1)), icing..color = icingShade(color));
+    canvas.drawPath(tree, icing..color = color);
   }
 
   @override

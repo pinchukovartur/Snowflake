@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Android 12+ system splash: night-sky background like the app. -->
+    <!-- Android 12+ system splash: on the blue of the icon's ground. -->
     <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
         <item name="android:windowBackground">@drawable/launch_background</item>
-        <item name="android:windowSplashScreenBackground">@color/night_800</item>
+        <item name="android:windowSplashScreenBackground">@color/splash</item>
     </style>
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
-        <item name="android:windowBackground">@color/night_800</item>
+        <item name="android:windowBackground">@color/splash</item>
     </style>
 </resources>

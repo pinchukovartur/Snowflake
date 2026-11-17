@@ -15,7 +15,7 @@ class WindowDecor {
 /// What stands in front of the door in this build, set by hand for each
 /// release; null for the door alone.
 // ignore: unnecessary_nullable_for_final_variable_declarations
-const WindowDecor? windowDecor = WindowDecor(image: 'assets/Christmass_Tree.png', aspect: 1035 / 1519, outline: _treeOutline);
+const WindowDecor? windowDecor = WindowDecor(image: 'assets/Christmas/Christmas_Tree.png', aspect: 1035 / 1519, outline: _treeOutline);
 
 /// The ice fir tree's outline in a box [size], roughly: its tip, the skirt
 /// of its lowest branches, down to its foot.

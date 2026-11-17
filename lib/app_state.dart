@@ -8,20 +8,76 @@ import 'snowflake/geometry.dart';
 
 /// For testing tutorials: set to true to make every launch the first one, the
 /// tutorials all showing again (the stored "seen" marks are cleared at start).
-/// Not limited to debug builds for now (see the check in [GameState]): a
-/// release build with this on clears them too, so turn it off before one goes
-/// to players.
-const forceFirstLaunch = true;
+/// Debug builds only: a release never has it, whatever this says.
+const forceFirstLaunch = true && kDebugMode;
+
+/// The first launch's tutorial, step 1: the game opens on the cut board, the
+/// scissors all there is till the player's first cut.
+const firstCutTutorial = 'first_cut';
+
+/// The tutorial's step 2: an arrow to the stencils, then a stencil to move,
+/// turn and cut out.
+const firstStencilTutorial = 'first_stencil';
+
+/// The tutorial's step 3: an arrow to the paper, whose dialog is to be opened
+/// and closed.
+const firstPaperTutorial = 'first_paper';
+
+/// The tutorial's end: all there is to know told, the unfold button beckons
+/// till the flake is unfolded. Till then the game opens on the cut board.
+const firstUnfoldTutorial = 'first_unfold';
+
+/// The second tutorial, on the first flake unfolded: an arrow to "to the
+/// collection", saving it opening the home screen, where a bubble asks for a
+/// flake hung in the window, the window held still and its pluses bouncing;
+/// done once one is hung.
+const firstWindowTutorial = 'first_window';
+
+/// The second tutorial's end, after [firstWindowTutorial]: an arrow to the
+/// home screen's collection button, then the collection, told what it is
+/// for, and back to cutting.
+const firstCollectionTutorial = 'first_collection';
+
+/// The advent calendar's doors, 25 December to 1 January: behind each a new
+/// paper pattern or stencil, papers and stencils by turns. Each, till its
+/// door is opened, is not to be had (see [GameState.unlocked]).
+const adventRewards = <({bool paper, String id})>[
+  (paper: true, id: 'snowfall'),
+  (paper: false, id: 'snowman'),
+  (paper: true, id: 'candy'),
+  (paper: false, id: 'mitten'),
+  (paper: true, id: 'garland'),
+  (paper: false, id: 'cane'),
+  (paper: true, id: 'tartan'),
+  (paper: false, id: 'ornament'),
+];
+
+/// For testing the advent calendar: a tap opens any door, its day come or
+/// not (shown as ever: locked till then). Debug builds only.
+const adventAnyDay = true && kDebugMode;
+
+/// Door [i]'s day in the season [now] is in: 25 December on, the last on
+/// 1 January (January counting with the December before it).
+DateTime adventDay(int i, DateTime now) => DateTime(now.month == 1 ? now.year - 1 : now.year, 12, 25 + i);
 
 /// For testing the Halloween duel: a tap on the boss's flake knocks a cone
 /// off it, as if the next flake had been cut. Debug builds only: a release
 /// never has it, whatever this says.
 const duelCheat = true && kDebugMode;
 
+/// For testing: a "Skip" button on the first launch's cut board, marking
+/// all the tutorials seen at once (see [GameState.skipTutorials]). Debug
+/// builds only, as [duelCheat].
+const tutorialSkip = true && kDebugMode;
+
 /// For testing what falls off a flake: the cut board shows how the last cut
 /// weighed the paper's pieces (see [lastWeighing]), those that fell in red
 /// and the one that stayed in green. Debug builds only, as [duelCheat].
 const detachReadout = true && kDebugMode;
+
+/// A duel's flake done: which duel (its event's id) and which of its flakes
+/// (by preset).
+typedef DuelHit = ({String duel, String preset});
 
 /// A flake the player cut and kept.
 class SavedFlake {
@@ -71,13 +127,15 @@ class GameState extends ChangeNotifier {
     coins = _prefs.getInt(_kCoins) ?? coins;
     sfx = _prefs.getBool(_kSfx) ?? sfx;
     vibration = _prefs.getBool(_kVibration) ?? vibration;
-    // Debug builds only, if the check is put back: `kDebugMode && forceFirstLaunch`.
-    if (forceFirstLaunch /* && kDebugMode */) _prefs.remove(_kTutorials);
+    if (forceFirstLaunch) _prefs.remove(_kTutorials);
     _tutorialsSeen.addAll(_prefs.getStringList(_kTutorials) ?? const []);
     // Started afresh along with the tutorials, for trying it out again.
-    if (forceFirstLaunch) _prefs.remove(_kDuel);
-    duelHits.addAll(_prefs.getStringList(_kDuel) ?? const []);
-    duelSeen = duelHits.length;
+    if (forceFirstLaunch) {
+      for (final k in _prefs.getKeys().where((k) => k.startsWith('duel.')).toList()) {
+        _prefs.remove(k);
+      }
+      _prefs.remove(_kAdvent);
+    }
     // As stored, built-in presets (from older versions) still in it, as null.
     var stored = <SavedFlake?>[];
     final raw = _prefs.getString(_kCollection);
@@ -158,7 +216,9 @@ class GameState extends ChangeNotifier {
   static const panesPerWindow = 24;
   static const _kLast = 'last.v1';
   static const _kTutorials = 'tutorials.seen.v1';
-  static const _kDuel = 'duel.halloween.v1';
+  static const _kAdvent = 'advent.opened.v1';
+  /// Each duel's flakes done, by its event's id ('duel.halloween.v1', …).
+  static String _kDuel(String duel) => 'duel.$duel.v1';
 
   int coins = 128;
 
@@ -174,22 +234,86 @@ class GameState extends ChangeNotifier {
 
   bool tutorialSeen(String id) => _tutorialsSeen.contains(id);
 
-  /// The Halloween duel: the event flakes (by preset) the player has done,
-  /// each one taking a cone off the boss's flake; cutting one again doesn't.
-  final duelHits = <String>{};
+  /// The cut board's demo (a hand showing how to cut) has been touched away
+  /// this launch. Not stored: each launch shows it again till touched.
+  bool cutDemoTouched = false;
 
-  /// How many of [duelHits] the duel's window has shown landing: the rest
-  /// still to knock their cones off as it opens. Not stored.
-  int duelSeen = 0;
+  /// Each duel (by its event's id): the event flakes (by preset) the player
+  /// has done, each one taking a cone off the boss's flake; cutting one again
+  /// doesn't. Read from storage the first time asked for.
+  final _duelHits = <String, Set<String>>{};
+  final _duelSeen = <String, int>{};
 
-  /// The flake (by preset) just done for the first time, whose blow the duel's
-  /// window is to show landing; cleared once it has. Not stored.
-  String? duelFresh;
+  Set<String> duelHits(String duel) => _duelHits.putIfAbsent(duel, () => {...?_prefs.getStringList(_kDuel(duel))});
 
-  void duelHit(String preset) {
-    if (!duelHits.add(preset)) return;
-    duelFresh = preset;
-    _prefs.setStringList(_kDuel, [...duelHits]);
+  /// How many of [duel]'s hits its window has shown landing: the rest still
+  /// to knock their cones off as it opens. Not stored: at launch, all of them.
+  int duelSeen(String duel) => _duelSeen[duel] ?? duelHits(duel).length;
+  void setDuelSeen(String duel, int n) => _duelSeen[duel] = n;
+
+  /// The flake just done for the first time, whose blow its duel's window is
+  /// to show landing; cleared once it has. Not stored.
+  DuelHit? duelFresh;
+
+  void duelHit(DuelHit hit) {
+    final hits = duelHits(hit.duel);
+    // Those before it already seen, as they were.
+    _duelSeen.putIfAbsent(hit.duel, () => hits.length);
+    if (!hits.add(hit.preset)) return;
+    duelFresh = hit;
+    _prefs.setStringList(_kDuel(hit.duel), [...hits]);
+    notifyListeners();
+  }
+
+  /// The advent calendar's doors opened, by their place in [adventRewards];
+  /// kept for good.
+  late final _adventOpened = <int>{...?_prefs.getStringList(_kAdvent)?.map(int.tryParse).whereType<int>()};
+
+  bool adventOpened(int i) => _adventOpened.contains(i);
+
+  /// For testing (debug builds' cheat over the calendar's button): the
+  /// calendar's day taken as today, by its door's place, or null for today
+  /// as it is. Not stored.
+  int? adventCheatDay;
+
+  void setAdventCheatDay(int? i) {
+    adventCheatDay = i;
+    notifyListeners();
+  }
+
+  /// Today, as far as the calendar goes (see [adventCheatDay]).
+  DateTime get adventToday => switch (adventCheatDay) {
+        final i? => adventDay(i, DateTime.now()),
+        null => DateTime.now(),
+      };
+
+  /// Whether door [i] may be opened now: shut, and its day come.
+  bool adventReady(int i) {
+    final now = adventToday;
+    return !adventOpened(i) && !now.isBefore(adventDay(i, now));
+  }
+
+  /// How many doors may be opened now.
+  int get adventWaiting => [for (var i = 0; i < adventRewards.length; i++) if (adventReady(i)) i].length;
+
+  void openAdvent(int i) {
+    if (adventOpened(i) || !(adventReady(i) || adventAnyDay)) return;
+    _adventOpened.add(i);
+    _prefs.setStringList(_kAdvent, [for (final k in _adventOpened) '$k']);
+    notifyListeners();
+  }
+
+  /// Whether paper pattern or stencil [id] is the player's: all are but the
+  /// advent calendar's, each once its door is open.
+  bool unlocked(String id) {
+    final i = adventRewards.indexWhere((r) => r.id == id);
+    return i < 0 || adventOpened(i);
+  }
+
+  /// Every tutorial marked seen at once (see [tutorialSkip]).
+  void skipTutorials() {
+    _tutorialsSeen.addAll(const [firstCutTutorial, firstStencilTutorial, firstPaperTutorial, firstUnfoldTutorial, firstWindowTutorial, firstCollectionTutorial]);
+    _prefs.setStringList(_kTutorials, [..._tutorialsSeen]);
     notifyListeners();
   }
 
