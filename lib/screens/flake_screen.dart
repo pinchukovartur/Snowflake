@@ -10,6 +10,7 @@ import '../theme/tokens.dart';
 import '../widgets/ds.dart';
 import '../widgets/flake_turn_zoom.dart';
 import '../widgets/paper_dialog.dart';
+import '../widgets/shop_dialog.dart';
 
 /// A flake from the collection on its own, on the reveal's sky: turn it and
 /// zoom it, put it on other paper, hang it in the window, take it out of the
@@ -59,7 +60,9 @@ class _FlakeScreenState extends State<FlakeScreen> with TickerProviderStateMixin
           final f = _flake;
           return PaperDialog(
             paper: Paper(color: f.color ?? Colors.white, pattern: f.pattern),
-            patterns: [for (final id in paperPatterns) if (widget.game.unlocked(id)) id],
+            locked: {for (final id in paperPatterns) if (!widget.game.unlocked(id)) id},
+            // Back from the shop, a set bought there shows open.
+            onLocked: () => showShop(ctx, widget.game).then((_) => setLocal(() {})),
             onChanged: (p) {
               setState(() => _flake = widget.game.recolor(_flake, p));
               setLocal(() {});

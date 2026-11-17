@@ -9,6 +9,7 @@ import '../app_state.dart';
 import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
 import '../widgets/advent.dart';
+import '../widgets/shop_dialog.dart';
 import '../widgets/ds.dart';
 import '../widgets/frosted_window.dart';
 import '../widgets/snowfall.dart';
@@ -961,7 +962,8 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           Align(alignment: Alignment.centerRight, child: AdventCheat(game: g)),
                           const SizedBox(height: 8),
                         ],
-                        Align(alignment: Alignment.centerRight, child: AdventButton(game: g)),
+                        // The shop at the left, across from the calendar.
+                        Row(children: [ShopButton(game: g), const Spacer(), AdventButton(game: g)]),
                         const SizedBox(height: 14),
                       ],
                       // Hidden rather than gone: the collection button keeps its place.

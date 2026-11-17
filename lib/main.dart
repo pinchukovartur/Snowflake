@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app_state.dart';
 import 'l10n.dart';
 import 'screens/cut_screen.dart';
+import 'shop.dart';
 import 'screens/flake_screen.dart';
 import 'screens/gallery_screen.dart';
 import 'screens/home_screen.dart';
@@ -29,7 +30,10 @@ Future<void> main() async {
     systemNavigationBarColor: Colors.transparent,
     systemNavigationBarIconBrightness: Brightness.light,
   ));
-  runApp(SnowflakeApp(game: GameState(prefs)));
+  final game = GameState(prefs);
+  // Prices and purchases made before come in when the store answers.
+  Shop.instance.init(game);
+  runApp(SnowflakeApp(game: game));
 }
 
 class SnowflakeApp extends StatelessWidget {

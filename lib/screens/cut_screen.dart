@@ -16,6 +16,7 @@ import '../sound.dart';
 import '../theme/tokens.dart';
 import '../widgets/ds.dart';
 import '../widgets/paper_dialog.dart';
+import '../widgets/shop_dialog.dart';
 import '../widgets/snowfall.dart';
 import '../widgets/tutorial.dart';
 
@@ -555,6 +556,12 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
   /// The paper dialog is up; the palette tool shows as on meanwhile.
   bool _paperOpen = false;
 
+  /// The shop, from a paper or stencil still to be bought; anything bought
+  /// there shows at once on coming back.
+  void _openShop() => showShop(context, widget.game).then((_) {
+        if (mounted) setState(() {});
+      });
+
   void _openPaper() {
     setState(() {
       _stencilsOpen = false;
@@ -572,7 +579,9 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
 
             return PaperDialog(
               paper: _paper,
-              patterns: [for (final id in paperPatterns) if (widget.game.unlocked(id)) id],
+              locked: {for (final id in paperPatterns) if (!widget.game.unlocked(id)) id},
+              // Back from the shop, a set bought there shows open.
+              onLocked: () => showShop(ctx, widget.game).then((_) => setLocal(() {})),
               onChanged: set,
               preview: (p) => SnowflakeView(preset: 'classic', size: 170, color: p.color, pattern: p.pattern),
               onClose: () => Navigator.pop(ctx),
@@ -720,8 +729,8 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                         child: Column(children: [
                                           for (final (i, group) in [
                                             [for (final t in _stencils) if (!_stencilGroups.any((g) => g.$1.contains(t.$1))) t],
-                                            // Only those the player has (see [GameState.unlocked]).
-                                            for (final (ids, _) in _stencilGroups) [for (final t in _stencils) if (ids.contains(t.$1) && widget.game.unlocked(t.$1)) t],
+                                            // Those still to be bought too, locked (see [GameState.unlocked]).
+                                            for (final (ids, _) in _stencilGroups) [for (final t in _stencils) if (ids.contains(t.$1)) t],
                                           ].indexed)
                                             if (group.isNotEmpty)
                                               Container(
@@ -740,7 +749,10 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                                             child: OverflowBox(
                                                               alignment: Alignment.topCenter,
                                                               maxHeight: 48,
-                                                              child: RoundBtn(
+                                                              child: Locked(
+                                                                locked: !widget.game.unlocked(id),
+                                                                lockSize: 10,
+                                                                child: RoundBtn(
                                                                 icon,
                                                                 label: tr(label),
                                                                 size: BtnSize.s,
@@ -754,7 +766,9 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                                                         ? Variant.clear
                                                                         : Variant.light,
                                                                 flat: true,
-                                                                onTap: () => _pickStencil(id),
+                                                                // A locked one opens the shop, to be bought there.
+                                                                onTap: widget.game.unlocked(id) ? () => _pickStencil(id) : _openShop,
+                                                              ),
                                                               ),
                                                             ),
                                                           ),

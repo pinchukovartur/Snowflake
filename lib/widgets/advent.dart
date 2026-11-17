@@ -145,7 +145,7 @@ class _Door extends StatelessWidget {
         child: AnimatedSwitcher(
           duration: const Duration(milliseconds: 350),
           transitionBuilder: (child, a) => ScaleTransition(scale: CurvedAnimation(parent: a, curve: Curves.easeOutBack), child: child),
-          child: open ? _Behind(key: const ValueKey(true), reward: reward) : _Shut(key: const ValueKey(false), day: day, ready: ready),
+          child: open ? RewardTile(key: const ValueKey(true), reward: reward) : _Shut(key: const ValueKey(false), day: day, ready: ready),
         ),
       ),
     );
@@ -183,10 +183,12 @@ class _Shut extends StatelessWidget {
   }
 }
 
-/// An open door: the paper or stencil it held, and what it is.
-class _Behind extends StatelessWidget {
-  const _Behind({super.key, required this.reward});
+/// A paper or stencil from the calendar, and what it is: behind an open
+/// door, or in one of the shop's sets.
+class RewardTile extends StatelessWidget {
+  const RewardTile({super.key, required this.reward, this.frame = _red});
   final ({bool paper, String id}) reward;
+  final Color frame;
 
   @override
   Widget build(BuildContext context) {
@@ -196,7 +198,7 @@ class _Behind extends StatelessWidget {
       decoration: BoxDecoration(
         color: C.paper,
         borderRadius: BorderRadius.circular(R.s),
-        border: Border.all(color: _red, width: 3),
+        border: Border.all(color: frame, width: 3),
       ),
       child: Column(children: [
         Expanded(

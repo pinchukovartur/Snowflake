@@ -7,16 +7,21 @@ import '../snowflake/geometry.dart';
 import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
 import 'ds.dart';
+import 'shop_dialog.dart';
 
 /// The paper dialog: a flake in [paper] up top ([preview], 170 across), then
 /// the paper colours and [patterns] to pick from, each pick passed to
 /// [onChanged] at once; "Done" and the cross both call [onClose].
 class PaperDialog extends StatelessWidget {
-  const PaperDialog({super.key, required this.paper, required this.onChanged, required this.preview, required this.onClose, this.patterns = paperPatterns});
+  const PaperDialog({super.key, required this.paper, required this.onChanged, required this.preview, required this.onClose, this.patterns = paperPatterns, this.locked = const {}, this.onLocked});
   final Paper paper;
 
-  /// Those of [paperPatterns] the player has (see [GameState.unlocked]).
   final List<String> patterns;
+
+  /// Those of [patterns] still to be bought (see [GameState.unlocked]):
+  /// shown grey and locked, a tap on one calling [onLocked] (the shop).
+  final Set<String> locked;
+  final VoidCallback? onLocked;
   final ValueChanged<Paper> onChanged;
   final Widget Function(Paper paper) preview;
   final VoidCallback onClose;
@@ -84,18 +89,24 @@ class PaperDialog extends StatelessWidget {
                         ? const SizedBox()
                         : Builder(builder: (_) {
                             final id = ids[col];
+                            final shut = locked.contains(id);
                             return Semantics(
                               button: true,
                               label: tr('pattern_$id'),
                               selected: id == paper.pattern,
                               child: GestureDetector(
-                                onTap: () => onChanged(paper.copyWith(pattern: id)),
+                                onTap: shut ? onLocked : () => onChanged(paper.copyWith(pattern: id)),
                                 child: Column(
                                   children: [
-                                    Stack(clipBehavior: Clip.none, children: [
-                                      PaperSwatch(color: paper.color, pattern: id, selected: id == paper.pattern),
-                                      if (christmasPatterns.contains(id)) const Positioned(top: -6, right: -6, child: _ChristmasBadge()),
-                                    ]),
+                                    Locked(
+                                      locked: shut,
+                                      lockSize: 16,
+                                      corner: false,
+                                      child: Stack(clipBehavior: Clip.none, children: [
+                                        PaperSwatch(color: paper.color, pattern: id, selected: id == paper.pattern),
+                                        if (christmasPatterns.contains(id)) const Positioned(top: -6, right: -6, child: _ChristmasBadge()),
+                                      ]),
+                                    ),
                                     const SizedBox(height: 8),
                                     // One full-size line tall, so a long name shrunk to
                                     // fit sits centred on it rather than riding up.

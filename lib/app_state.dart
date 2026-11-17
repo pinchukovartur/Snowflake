@@ -52,6 +52,16 @@ const adventRewards = <({bool paper, String id})>[
   (paper: false, id: 'ornament'),
 ];
 
+/// The sets of papers and stencils sold in the shop, for now the advent
+/// calendar's own, two papers and two stencils to each: [id] is the product's
+/// id in Google Play (a one-time purchase), its name `offer_<id>` in the
+/// strings. What a set holds is the player's once it is bought, its doors in
+/// the calendar or not (see [GameState.unlocked]).
+const offers = <({String id, List<({bool paper, String id})> items})>[
+  (id: 'pack_snow_day', items: [(paper: true, id: 'snowfall'), (paper: true, id: 'candy'), (paper: false, id: 'snowman'), (paper: false, id: 'mitten')]),
+  (id: 'pack_holiday', items: [(paper: true, id: 'garland'), (paper: true, id: 'tartan'), (paper: false, id: 'cane'), (paper: false, id: 'ornament')]),
+];
+
 /// For testing the advent calendar: a tap opens any door, its day come or
 /// not (shown as ever: locked till then). Debug builds only.
 const adventAnyDay = true && kDebugMode;
@@ -135,6 +145,8 @@ class GameState extends ChangeNotifier {
         _prefs.remove(k);
       }
       _prefs.remove(_kAdvent);
+      // Real purchases come back with the shop's restore at launch.
+      _prefs.remove(_kOwned);
     }
     // As stored, built-in presets (from older versions) still in it, as null.
     var stored = <SavedFlake?>[];
@@ -217,6 +229,7 @@ class GameState extends ChangeNotifier {
   static const _kLast = 'last.v1';
   static const _kTutorials = 'tutorials.seen.v1';
   static const _kAdvent = 'advent.opened.v1';
+  static const _kOwned = 'shop.owned.v1';
   /// Each duel's flakes done, by its event's id ('duel.halloween.v1', …).
   static String _kDuel(String duel) => 'duel.$duel.v1';
 
@@ -303,11 +316,34 @@ class GameState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The [offers] bought, by id; kept for good (and restored from the store
+  /// at launch, see Shop).
+  late final _owned = <String>{...?_prefs.getStringList(_kOwned)};
+
+  bool owns(String offer) => _owned.contains(offer);
+
+  /// Offer [offer] is the player's: bought, or restored from the store.
+  void grant(String offer) {
+    if (!_owned.add(offer)) return;
+    _prefs.setStringList(_kOwned, [..._owned]);
+    notifyListeners();
+  }
+
+  /// For testing the shop (debug builds' cheat in it): every offer bought
+  /// forgotten here. Purchases made in Play come back with the next restore.
+  void resetPurchases() {
+    if (_owned.isEmpty) return;
+    _owned.clear();
+    _prefs.remove(_kOwned);
+    notifyListeners();
+  }
+
   /// Whether paper pattern or stencil [id] is the player's: all are but the
-  /// advent calendar's, each once its door is open.
+  /// advent calendar's, each once its door is open or a set holding it is
+  /// bought.
   bool unlocked(String id) {
     final i = adventRewards.indexWhere((r) => r.id == id);
-    return i < 0 || adventOpened(i);
+    return i < 0 || adventOpened(i) || offers.any((o) => owns(o.id) && o.items.any((r) => r.id == id));
   }
 
   /// Every tutorial marked seen at once (see [tutorialSkip]).
