@@ -65,6 +65,11 @@ DateTime adventDay(int i, DateTime now) => DateTime(now.month == 1 ? now.year - 
 /// never has it, whatever this says.
 const duelCheat = true && kDebugMode;
 
+/// For testing: a "Skip" button on the first launch's cut board, marking
+/// all the tutorials seen at once (see [GameState.skipTutorials]). Debug
+/// builds only, as [duelCheat].
+const tutorialSkip = true && kDebugMode;
+
 /// For testing what falls off a flake: the cut board shows how the last cut
 /// weighed the paper's pieces (see [lastWeighing]), those that fell in red
 /// and the one that stayed in green. Debug builds only, as [duelCheat].
@@ -303,6 +308,13 @@ class GameState extends ChangeNotifier {
   bool unlocked(String id) {
     final i = adventRewards.indexWhere((r) => r.id == id);
     return i < 0 || adventOpened(i);
+  }
+
+  /// Every tutorial marked seen at once (see [tutorialSkip]).
+  void skipTutorials() {
+    _tutorialsSeen.addAll(const [firstCutTutorial, firstStencilTutorial, firstPaperTutorial, firstUnfoldTutorial, firstWindowTutorial, firstCollectionTutorial]);
+    _prefs.setStringList(_kTutorials, [..._tutorialsSeen]);
+    notifyListeners();
   }
 
   void markTutorialSeen(String id) {

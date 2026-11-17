@@ -52,8 +52,8 @@
   <string name="pick_flake">Pick a snowflake</string>
   <string name="event_repeat">Repeat the snowflake</string>
   <string name="event_halloween">Halloween duel</string>
-  <string name="event_christmas">Help Santa</string>
-  <string name="duel_christmas_title">Help Santa</string>
+  <string name="event_christmas">Help Santa!</string>
+  <string name="duel_christmas_title">Help Santa!</string>
 
   <!-- Stencils -->
   <string name="stencil_star">Star</string>
@@ -102,6 +102,7 @@
   <string name="pattern_bubbles">Bubbles</string>
   <string name="pattern_holo">Hologram</string>
   <string name="pattern_glass">Glass</string>
+  <string name="pattern_wrapper">Wrapper</string>
   <string name="pattern_butterflies">Butterflies</string>
   <string name="pattern_knit">Knit</string>
   <string name="pattern_gradient">Gradient</string>

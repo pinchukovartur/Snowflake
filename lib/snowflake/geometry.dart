@@ -542,13 +542,17 @@ const paperPatterns = [
   'knit',
   'gradient',
   'analogous',
-  'gingerbread',
   // The advent calendar's (see [adventRewards]).
   'snowfall',
   'candy',
   'garland',
   'tartan',
+  ...christmasPatterns,
 ];
+
+/// The Christmas pack's patterns: kept together, in a row of their own in
+/// the picker, marked with a fir tree.
+const christmasPatterns = ['wrapper', 'gingerbread'];
 
 /// Patterns drawn from a seamless texture (dark lines on white) rather than
 /// by hand: its asset, loaded into [paperTextures] at launch.
@@ -928,6 +932,10 @@ Paint makePaperFill(Color color, String pattern, double unitPx) {
   // clear, dark glass rich. Its glints fall on it from outside (see
   // [drawGlassGlints]).
   if (pattern == 'glass') return paint..color = glassTint(color).withValues(alpha: glassOpacity(color));
+  // Gift wrap: its colour, glowing in the middle of the sheet and darker
+  // towards its edge (see [wrapperEdge]); its gold laid on separately (see
+  // [wrapperGoldLayer] and [drawWedge]).
+  if (pattern == 'wrapper') return paint..shader = ui.Gradient.radial(Offset.zero, unitPx, [color, color, wrapperEdge(color)], [0, wrapperFadeFrom, 1]);
   // Gradients from the top of the sheet to the bottom, across the whole
   // unfolded flake, round the hues (as light and saturated all the way, not
   // straight through to a dull grey): see [gradientHues].
@@ -957,6 +965,8 @@ Paint makePaperFill(Color color, String pattern, double unitPx) {
     // A texture's tile: a few across the paper, so its motifs read; the
     // knit's stitches a fifth bigger still.
     'knit' => math.max(43.2, unitPx * 1.08),
+    // Gift wrap: a few gold loops across the paper, as on the real thing.
+    wrapperGoldLayer => math.max(36.0, unitPx * .6),
     _ when textureAssets.containsKey(pattern) => math.max(36.0, unitPx * .9),
     _ => math.max(8.0, unitPx * 0.075),
   };
@@ -985,6 +995,38 @@ const gingerbreadColor = Color(0xFFC46A30);
 
 /// Gingerbread's darker crumbs, in these browns.
 const gingerbreadCrumbs = [ui.Color.fromARGB(255, 165, 91, 41), ui.Color.fromARGB(255, 126, 58, 14)];
+
+/// The gold of gift wrap's strings and stars.
+const wrapperGold = Color(0xFFF2C14E);
+
+/// Gift wrap's gold's outline: the gold, darker, on paper of any colour.
+const wrapperOutline = Color(0xFF8A5A00);
+
+/// How far out from the middle of the sheet gift wrap starts to darken
+/// (see [wrapperEdge]), as a share of its radius: 0 at once, 1 not at all.
+const wrapperFadeFrom = .3;
+
+/// Gift wrap's colour at the edge of the sheet, running in to the colour
+/// itself in the middle: the same hue, deeper (darker, and fuller rather
+/// than greyed, as mixing in black would leave it). Light paper (the
+/// palette's pastels and white) goes less dark and softer instead: deepened
+/// as the rest is, its pastels would turn loud.
+Color wrapperEdge(Color color) {
+  final hsl = HSLColor.fromColor(color);
+  final light = hsl.lightness > .7;
+  return hsl.withLightness(hsl.lightness * (light ? .82 : .7)).withSaturation(math.min(1, hsl.saturation * (light ? .55 : 1.15))).toColor();
+}
+
+/// The pattern of gift wrap's gold alone, on nothing, to lay over its paper.
+const wrapperGoldLayer = 'wrapperGold';
+
+/// How thick gift wrap's gold's outline is (see [wrapperOutline]): its
+/// stroke, half of it showing outside the gold, as a share of its tile.
+const _wrapperOutline = .008;
+
+/// How close gift wrap's bead strings may come to one another, as a
+/// share of its tile.
+const _wrapperStringGap = .08;
 
 /// The gradient patterns, by the hues they run between, in degrees from the
 /// paper's own: to its complement (half round), or its analogous neighbours
@@ -1087,7 +1129,8 @@ void drawWedgeGlints(Canvas canvas, double s, List<Cut> cuts, double half, Color
 ui.Image _tile(Color color, String pattern, double t) {
   final rec = ui.PictureRecorder();
   final x = Canvas(rec);
-  x.drawRect(Rect.fromLTWH(0, 0, t, t), Paint()..color = color);
+  // Gift wrap's gold alone lies on nothing: the paper is under it.
+  if (pattern != wrapperGoldLayer) x.drawRect(Rect.fromLTWH(0, 0, t, t), Paint()..color = color);
   // Navy on light paper, white on dark paper, where navy would vanish.
   final dark = color.computeLuminance() < 0.2;
   final ink = dark ? const Color(0x38FFFFFF) : const Color(0x292E4A94); // rgba(46,74,148,.16)
@@ -1199,6 +1242,124 @@ ui.Image _tile(Color color, String pattern, double t) {
         x.drawPath(diamond, burst(c, 16, math.pi / 16));
         x.drawCircle(c, t * .035, Paint()..color = hi);
       }
+    case wrapperGoldLayer:
+      // Gift wrap's gold, on nothing: long strings of beads winding about,
+      // curling into loops here and there, and little stars scattered
+      // between, each outlined in a darker gold (see [wrapperOutline]). Laid
+      // over the paper (see [drawWedge]). All of it gathered
+      // in [gold] first, then drawn: the outline under, the gold over.
+      var seed = 9;
+      double rnd() => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      final gold = Path();
+      // Drawn again a tile over, every way, so tiles meet seamlessly.
+      void wrapped(void Function(Offset d) draw) {
+        for (final dx in [-t, 0.0, t]) {
+          for (final dy in [-t, 0.0, t]) {
+            draw(Offset(dx, dy));
+          }
+        }
+      }
+
+      // A string walked a little at a time, its heading turning by a bend
+      // that swells and changes side as it goes (two waves summed): gently
+      // winding mostly, curling right round where the bend runs high.
+      List<Offset> string() {
+        var at = Offset(rnd() * t, rnd() * t), heading = rnd() * 2 * math.pi;
+        final p1 = rnd() * 2 * math.pi, p2 = rnd() * 2 * math.pi, f1 = 4 + rnd() * 3, f2 = 9 + rnd() * 4;
+        final length = t * (1.1 + rnd() * .4), ds = t * .004, step = t * .0312;
+        final beads = <Offset>[at];
+        var since = 0.0;
+        for (var s = 0.0; s < length; s += ds) {
+          final u = s / t;
+          final bend = (14 * math.sin(u * f1 + p1) + 7 * math.sin(u * f2 + p2)) / t;
+          heading += bend * ds;
+          at += Offset(math.cos(heading), math.sin(heading)) * ds;
+          since += ds;
+          if (since >= step) {
+            beads.add(at);
+            since = 0;
+          }
+        }
+        return beads;
+      }
+
+      // How far apart two points lie, the tiles' wrapping counted (the
+      // nearest copy of each).
+      double apart(Offset a, Offset b) {
+        var dx = (a.dx - b.dx) % t, dy = (a.dy - b.dy) % t;
+        if (dx > t / 2) dx -= t;
+        if (dy > t / 2) dy -= t;
+        return math.sqrt(dx * dx + dy * dy);
+      }
+
+      // How many of [beads] come within [_wrapperStringGap] of those laid.
+      final laid = <Offset>[];
+      int crowding(List<Offset> beads) {
+        final gap = t * _wrapperStringGap;
+        var n = 0;
+        for (final b in beads) {
+          if (laid.any((q) => apart(b, q) < gap)) n++;
+        }
+        return n;
+      }
+
+      // How many times [beads] cross back over themselves: once for a loop,
+      // more for a figure of eight and the like, which aren't wanted.
+      int crossings(List<Offset> beads) {
+        final near = t * .03;
+        var n = 0, was = false;
+        for (var j = 8; j < beads.length; j++) {
+          final now = beads.take(j - 6).any((q) => apart(beads[j], q) < near);
+          if (now && !was) n++;
+          was = now;
+        }
+        return n;
+      }
+
+      // Each string the one of a few tries that keeps clearest of the rest,
+      // and loops round once at most.
+      for (var i = 0; i < 3; i++) {
+        int cost(List<Offset> s) => crowding(s) + (crossings(s) > 1 ? 1000 : 0);
+        var best = string(), fewest = cost(best);
+        for (var k = 1; k < 40 && fewest > 0; k++) {
+          final s = string(), n = cost(s);
+          if (n < fewest) (best, fewest) = (s, n);
+        }
+        laid.addAll(best);
+        for (final b in best) {
+          gold.addOval(Rect.fromCircle(center: b, radius: t * .0096));
+        }
+      }
+      // The stars, each kept clear of the others and of the strings: placed
+      // where it fits, after a few tries, or left out.
+      final stars = <(Offset, double)>[];
+      for (var i = 0; i < 26; i++) {
+        final k = t * (.012 + rnd() * .012), turn = rnd() * math.pi;
+        Offset? c;
+        for (var tries = 0; tries < 30 && c == null; tries++) {
+          final q = Offset(rnd() * t, rnd() * t);
+          if (stars.any((s) => apart(q, s.$1) < s.$2 + k + t * .02)) continue;
+          if (laid.any((b) => apart(q, b) < k + t * .025)) continue;
+          c = q;
+        }
+        if (c == null) continue;
+        stars.add((c, k));
+        final p = Path();
+        for (var j = 0; j < 10; j++) {
+          final a = turn + j * math.pi / 5, rr = j.isEven ? k : k * .42;
+          final q = c + Offset(math.cos(a), math.sin(a)) * rr;
+          j == 0 ? p.moveTo(q.dx, q.dy) : p.lineTo(q.dx, q.dy);
+        }
+        p.close();
+        gold.addPath(p, Offset.zero);
+      }
+      final outline = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = t * _wrapperOutline
+        ..color = wrapperOutline;
+      final shine = Paint()..color = wrapperGold;
+      wrapped((d) => x.drawPath(gold.shift(d), outline));
+      wrapped((d) => x.drawPath(gold.shift(d), shine));
     case 'gingerbread':
       // Baked dough: a scatter of darker brown crumbs, and fewer white ones
       // (sugar), the same few on every tile whatever its size in px. Each an
@@ -1471,6 +1632,14 @@ void drawWedge(Canvas canvas, double s, List<Cut> cuts, double half, Paint fill,
     canvas.save();
     canvas.clipPath(wedge);
     drawGlassGlints(canvas, Rect.fromCircle(center: Offset.zero, radius: s));
+    canvas.restore();
+  }
+  // Gift wrap's gold, over its paper.
+  if (pattern == 'wrapper') {
+    canvas.save();
+    canvas.clipPath(wedge);
+    toSheet(canvas, pos, folds);
+    canvas.drawRect(bounds, makePaperFill(fill.color, wrapperGoldLayer, s));
     canvas.restore();
   }
   final clear = Paint()..blendMode = BlendMode.clear;
