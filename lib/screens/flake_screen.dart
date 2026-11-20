@@ -62,14 +62,14 @@ class _FlakeScreenState extends State<FlakeScreen> with TickerProviderStateMixin
             paper: Paper(color: f.color ?? Colors.white, pattern: f.pattern),
             locked: {for (final id in paperPatterns) if (!widget.game.unlocked(id)) id},
             // Back from the shop, a set bought there shows open.
-            onLocked: () => showShop(ctx, widget.game).then((_) => setLocal(() {})),
+            onLocked: (id) => showShop(ctx, widget.game, trying: (paper: true, id: id), colour: f.color).then((_) => setLocal(() {})),
             onChanged: (p) {
               setState(() => _flake = widget.game.recolor(_flake, p));
               setLocal(() {});
               widget.onRecolor(_flake);
               if (shimmers(p.pattern)) startTwinkle();
             },
-            preview: (p) => SnowflakeView(cuts: f.cuts, folds: f.folds, color: p.color, pattern: p.pattern, size: 170),
+            preview: (p) => SnowflakeView(cuts: f.cuts, folds: f.folds, color: p.color, pattern: p.pattern, size: PaperDialog.previewSize),
             onClose: () => Navigator.pop(ctx),
           );
         },

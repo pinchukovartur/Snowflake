@@ -7,10 +7,11 @@ import '../snowflake/geometry.dart';
 import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
 import 'ds.dart';
-import 'shop_dialog.dart';
+import 'lock_icon.dart';
 
-/// The paper dialog: a flake in [paper] up top ([preview], 170 across), then
-/// the paper colours and [patterns] to pick from, each pick passed to
+/// The paper dialog: a flake in [paper] up top ([preview], [previewSize]
+/// across), then the paper colours and [patterns] to pick from (only the
+/// patterns scrolling, if the screen is too short), each pick passed to
 /// [onChanged] at once; "Done" and the cross both call [onClose].
 class PaperDialog extends StatelessWidget {
   const PaperDialog({super.key, required this.paper, required this.onChanged, required this.preview, required this.onClose, this.patterns = paperPatterns, this.locked = const {}, this.onLocked});
@@ -19,12 +20,16 @@ class PaperDialog extends StatelessWidget {
   final List<String> patterns;
 
   /// Those of [patterns] still to be bought (see [GameState.unlocked]):
-  /// shown grey and locked, a tap on one calling [onLocked] (the shop).
+  /// shown in their colours with a lock on a dark green corner, a tap on one
+  /// calling [onLocked] with it (the shop).
   final Set<String> locked;
-  final VoidCallback? onLocked;
+  final ValueChanged<String>? onLocked;
   final ValueChanged<Paper> onChanged;
   final Widget Function(Paper paper) preview;
   final VoidCallback onClose;
+
+  /// How big the [preview] flake is across.
+  static const previewSize = 180.0;
 
   @override
   Widget build(BuildContext context) {
@@ -32,11 +37,12 @@ class PaperDialog extends StatelessWidget {
       title: tr('paper'),
       onClose: onClose,
       actions: [Btn(tr('done'), icon: LucideIcons.check, block: true, onTap: onClose)],
+      scrolls: false,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const SizedBox(height: 4),
-          FlakeShadow(size: 170, child: preview(paper)),
+          FlakeShadow(size: previewSize, child: preview(paper)),
           const SizedBox(height: 20),
           // The paper colours, six to a row.
           for (var r = 0; r < paperColors.length; r += 6) ...[
@@ -75,88 +81,147 @@ class PaperDialog extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 20),
-          // Patterns four to a row, each row left-aligned with blanks; the
-          // Christmas pack's in a row of their own after the rest.
-          for (final (row, ids) in _patternRows(patterns).indexed) ...[
-            if (row > 0) const SizedBox(height: 14),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var col = 0; col < 4; col++) ...[
-                  if (col > 0) const SizedBox(width: 12),
-                  Expanded(
-                    child: col >= ids.length
-                        ? const SizedBox()
-                        : Builder(builder: (_) {
-                            final id = ids[col];
-                            final shut = locked.contains(id);
-                            return Semantics(
-                              button: true,
-                              label: tr('pattern_$id'),
-                              selected: id == paper.pattern,
-                              child: GestureDetector(
-                                onTap: shut ? onLocked : () => onChanged(paper.copyWith(pattern: id)),
-                                child: Column(
-                                  children: [
-                                    Locked(
-                                      locked: shut,
-                                      lockSize: 16,
-                                      corner: false,
-                                      child: Stack(clipBehavior: Clip.none, children: [
-                                        PaperSwatch(color: paper.color, pattern: id, selected: id == paper.pattern),
-                                        if (christmasPatterns.contains(id)) const Positioned(top: -6, right: -6, child: _ChristmasBadge()),
-                                      ]),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    // One full-size line tall, so a long name shrunk to
-                                    // fit sits centred on it rather than riding up.
-                                    SizedBox(
-                                      height: 13 * 1.2,
-                                      child: FittedBox(child: Text(tr('pattern_$id'), style: display(13, color: C.night800, height: 1.2))),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          }),
-                  ),
+          // Patterns four to a row, the last row left-aligned with blanks:
+          // the free ones first, then those sold, then the calendar's.
+          // Scrolling on their own, the flake and colours staying put; room
+          // all round for the selection ring.
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(6),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final (row, ids) in _patternRows(patterns).indexed) ...[
+                    if (row > 0) const SizedBox(height: 14),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (var col = 0; col < 4; col++) ...[
+                          if (col > 0) const SizedBox(width: 12),
+                          Expanded(
+                            child: col >= ids.length
+                                ? const SizedBox()
+                                : Builder(builder: (_) {
+                                    final id = ids[col];
+                                    final shut = locked.contains(id);
+                                    return Semantics(
+                                      button: true,
+                                      label: tr('pattern_$id'),
+                                      selected: id == paper.pattern,
+                                      child: GestureDetector(
+                                        onTap: shut ? () => onLocked?.call(id) : () => onChanged(paper.copyWith(pattern: id)),
+                                        child: Column(
+                                          children: [
+                                            // Still to be bought: in its colours as ever, a lock on
+                                            // a green corner. Unclipped, so the lock may be set
+                                            // out past the swatch's edge (see [_LockedCorner]).
+                                            Stack(clipBehavior: Clip.none, children: [
+                                              PaperSwatch(color: paper.color, pattern: id, selected: id == paper.pattern),
+                                              if (shut) const Positioned.fill(child: _LockedCorner()),
+                                            ]),
+                                            const SizedBox(height: 8),
+                                            // One full-size line tall, so a long name shrunk to
+                                            // fit sits centred on it rather than riding up.
+                                            SizedBox(
+                                              height: 13 * 1.2,
+                                              child: FittedBox(child: Text(tr('pattern_$id'), style: display(13, color: C.night800, height: 1.2))),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ],
+          ),
         ],
       ),
     );
   }
 }
 
-/// The pattern picker's rows of [patterns]: the everyday ones four to a
-/// row, then the Christmas pack's in a row of their own (if any are there).
+/// The pattern picker's rows of [patterns], four to a row: those every
+/// player has first, then those sold in the shop's [offers], then those only
+/// the advent calendar gives ([adventRewards]); each lot in [patterns]'
+/// order.
 List<List<String>> _patternRows(List<String> patterns) {
-  final everyday = [for (final p in patterns) if (!christmasPatterns.contains(p)) p];
-  final christmas = [for (final p in patterns) if (christmasPatterns.contains(p)) p];
-  return [
-    for (var i = 0; i < everyday.length; i += 4) everyday.sublist(i, (i + 4).clamp(0, everyday.length)),
-    if (christmas.isNotEmpty) christmas,
+  int lot(String id) => offers.any((o) => o.items.any((r) => r.id == id))
+      ? 1
+      : adventRewards.any((r) => r.id == id)
+          ? 2
+          : 0;
+  final sorted = [
+    for (final l in const [0, 1, 2])
+      for (final p in patterns)
+        if (lot(p) == l) p,
   ];
+  return [for (var i = 0; i < sorted.length; i += 4) sorted.sublist(i, (i + 4).clamp(0, sorted.length))];
 }
 
-/// A white fir tree in a little green disc, in the corner of a Christmas pack
-/// pattern's swatch.
-class _ChristmasBadge extends StatelessWidget {
-  const _ChristmasBadge();
+/// A swatch's top right corner cut off by a dark green triangle, the lock
+/// on it: the paper is still to be bought. The triangle clipped to the
+/// swatch's rounding, the lock not (it may be set out past the edge); takes
+/// no touches.
+class _LockedCorner extends StatelessWidget {
+  const _LockedCorner();
+
+  /// How far along the top and down the side the triangle runs, as a share
+  /// of the swatch's side.
+  static const _reach = .5;
+
+  /// The lock's height, as a share of the triangle's side.
+  static const _lockSize = .77;
+
+  /// How far the lock sits in from the swatch's right edge and from its top,
+  /// as shares of the triangle's side: more is further left / lower, less
+  /// than 0 sticks out past the edge (no further than the grid's padding).
+  static const _lockFromRight = .06, _lockFromTop = .06;
 
   @override
-  Widget build(BuildContext context) => Container(
-        width: 26,
-        height: 26,
-        decoration: BoxDecoration(
-          color: const Color(0xFF2FB37E),
-          shape: BoxShape.circle,
-          boxShadow: const [BoxShadow(color: Color(0x33101A3F), offset: Offset(0, 1.5), blurRadius: 2)],
-        ),
-        child: const Icon(LucideIcons.treePine, size: 18, color: Colors.white),
+  Widget build(BuildContext context) => IgnorePointer(
+        child: LayoutBuilder(builder: (_, box) {
+          final side = box.maxWidth * _reach;
+          return Stack(clipBehavior: Clip.none, children: [
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(_radius),
+                child: Align(
+                  alignment: Alignment.topRight,
+                  child: SizedBox.square(dimension: side, child: const CustomPaint(painter: _CornerPainter())),
+                ),
+              ),
+            ),
+            Positioned(top: side * _lockFromTop, right: side * _lockFromRight, child: LockIcon(size: side * _lockSize)),
+          ]);
+        }),
       );
+}
+
+/// A right triangle filling the top right half of its box, in a green darker
+/// than the palette's darkest.
+class _CornerPainter extends CustomPainter {
+  const _CornerPainter();
+
+  static const _green = Color(0xFF124633);
+
+  @override
+  void paint(Canvas canvas, Size size) => canvas.drawPath(
+        Path()
+          ..moveTo(0, 0)
+          ..lineTo(size.width, 0)
+          ..lineTo(size.width, size.height)
+          ..close(),
+        Paint()..color = _green,
+      );
+
+  @override
+  bool shouldRepaint(_CornerPainter old) => false;
 }
 
 /// A square of paper in [color] and [pattern] filling its width, for the

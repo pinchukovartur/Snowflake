@@ -67,25 +67,178 @@ class _ArrowPainter extends CustomPainter {
   bool shouldRepaint(_ArrowPainter old) => false;
 }
 
-/// What the tutorials say to the player, in a rectangle of paper across the
-/// top of the screen, where its top bar stands otherwise.
+/// What the tutorials say to the player: the penguin in its circle on the
+/// left, saying it in a speech bubble (see [_BubbleFrame]) across the rest
+/// of the row. Placed by the screens, mostly up top where their top bar
+/// stands otherwise.
 class TutorialBubble extends StatelessWidget {
   const TutorialBubble(this.text, {super.key});
   final String text;
 
+  static const _penguin = 'assets/Dialog_Pinguin.png';
+
+  /// The penguin's width (its circle's too: the circle fills the picture's
+  /// width at its foot, the hat sticking out over it), and the picture's
+  /// height over width.
+  static const _penguinWidth = 80.0, _penguinAspect = 622 / 512;
+
+  /// The soft shadow under the penguin's circle and the bubble.
+  static const bubbleShadow = BoxShadow(color: Color(0x40101A3F), offset: Offset(0, 4), blurRadius: 8);
+
+  /// What the penguin says is written in: dark chocolate, to go with the
+  /// bubble's brown outline.
+  static const _ink = Color(0xFF533B22);
+
+  /// The bubble's pop: the size it starts from, and how long it takes.
+  static const _popFrom = .85;
+  static const _pop = Duration(milliseconds: 350);
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      // Across the whole row.
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-      decoration: BoxDecoration(
-        color: C.paper,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: const [BoxShadow(color: C.snow300, offset: Offset(0, 4))],
-      ),
-      child: Text(text, textAlign: TextAlign.center, style: display(22, weight: FontWeight.w700, color: C.night800)),
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return Row(
+      children: [
+        // Only the circle takes room in the row: the hat sticks out over it
+        // without making the row taller.
+        SizedBox.square(
+          dimension: _penguinWidth,
+          child: Stack(clipBehavior: Clip.none, children: [
+            // Under the circle, still while it rocks.
+            const Positioned.fill(
+              child: DecoratedBox(decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: [bubbleShadow])),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: _penguinWidth * _penguinAspect,
+              child: _Sway(
+                // About the circle's middle, not the picture's.
+                pivot: const Alignment(0, 1 - 1 / _penguinAspect),
+                // Decoded at the size it shows, not the source's.
+                child: Image.asset(_penguin, width: _penguinWidth, height: _penguinWidth * _penguinAspect, cacheWidth: (_penguinWidth * dpr).round()),
+              ),
+            ),
+          ]),
+        ),
+        // Room for the bubble's tail.
+        const SizedBox(width: _BubbleFrame.tailWidth + 2),
+        Expanded(
+          // Springs out of the penguin, a touch past its size and back, as it
+          // appears and each time it says something new.
+          child: TweenAnimationBuilder<double>(
+            key: ValueKey(text),
+            tween: Tween(begin: _popFrom, end: 1),
+            duration: _pop,
+            curve: Curves.easeOutBack,
+            builder: (_, s, child) => Transform.scale(scale: s, alignment: Alignment.centerLeft, child: child),
+            child: _BubbleFrame(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                child: Text(text, textAlign: TextAlign.center, style: body(22, weight: FontWeight.w800, color: _ink, height: 1.25)),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
+  }
+}
+
+/// The bubble's paper and outline, any size, around [child], built from two
+/// pictures: the outline's top left corner (Dialog_Bubble_Body), mirrored into
+/// all four with its last row and column stretched along the sides, and the
+/// tail (Dialog_Bubble_Tail) out of the left side, under the outline.
+class _BubbleFrame extends StatelessWidget {
+  const _BubbleFrame({required this.child});
+  final Widget child;
+
+  static const _corner = 'assets/Dialog_Bubble_Body.png', _tail = 'assets/Dialog_Bubble_Tail.png';
+
+  /// The corner picture's pixels per logical pixel, and its outline's width in
+  /// its own pixels.
+  static const _cornerScale = 1.5, _outline = 5.0;
+
+  /// Stretched: the corner's last pixel, paper. In logical pixels, as Flutter
+  /// takes it with a scale: it multiplies it back up itself.
+  static const _stretch = Rect.fromLTWH(36 / _cornerScale, 32 / _cornerScale, 1 / _cornerScale, 1 / _cornerScale);
+
+  /// The outline's outer corner radius, logical.
+  static const _radius = 20.0;
+
+  /// The tail's width and height over width, and how high its bottom is off the
+  /// bubble's.
+  static const tailWidth = 17.0, _tailAspect = 96 / 97, _tailUp = 18.0;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget quarter({required bool right, required bool bottom}) => Transform.flip(
+          flipX: right,
+          flipY: bottom,
+          child: Image.asset(_corner, scale: _cornerScale, centerSlice: _stretch, fit: BoxFit.fill),
+        );
+    return Stack(
+      clipBehavior: Clip.none,
+      // As wide as it is let be, not just its text.
+      fit: StackFit.passthrough,
+      children: [
+        // The shadow, under the paper's rounded rectangle.
+        const Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(borderRadius: BorderRadius.all(Radius.circular(_radius)), boxShadow: [TutorialBubble.bubbleShadow]),
+          ),
+        ),
+        // Under the outline, as far into it as it is wide.
+        Positioned(
+          left: -tailWidth + _outline / _cornerScale,
+          bottom: _tailUp,
+          child: Image.asset(_tail, width: tailWidth, height: tailWidth * _tailAspect),
+        ),
+        Positioned.fill(
+          child: LayoutBuilder(builder: (_, box) {
+            // A hair over half each way, so no seam shows where they meet.
+            final w = box.maxWidth / 2 + .5, h = box.maxHeight / 2 + .5;
+            return Stack(children: [
+              Positioned(left: 0, top: 0, width: w, height: h, child: quarter(right: false, bottom: false)),
+              Positioned(right: 0, top: 0, width: w, height: h, child: quarter(right: true, bottom: false)),
+              Positioned(left: 0, bottom: 0, width: w, height: h, child: quarter(right: false, bottom: true)),
+              Positioned(right: 0, bottom: 0, width: w, height: h, child: quarter(right: true, bottom: true)),
+            ]);
+          }),
+        ),
+        child,
+      ],
+    );
+  }
+}
+
+/// Its [child] rocking gently side to side about [pivot], over and over.
+/// Painted once and only turned: the turning costs no repaint.
+class _Sway extends StatefulWidget {
+  const _Sway({required this.pivot, required this.child});
+  final Alignment pivot;
+  final Widget child;
+
+  @override
+  State<_Sway> createState() => _SwayState();
+}
+
+class _SwayState extends State<_Sway> with SingleTickerProviderStateMixin {
+  /// One way, left to right (or back): a whole rock is twice this.
+  late final _rock = AnimationController(vsync: this, duration: const Duration(milliseconds: 1820))..repeat(reverse: true);
+
+  /// Up to 5° each way, eased at both ends.
+  static final _turn = Tween(begin: -5 / 360, end: 5 / 360).chain(CurveTween(curve: Curves.easeInOutSine));
+
+  @override
+  void dispose() {
+    _rock.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RotationTransition(turns: _turn.animate(_rock), alignment: widget.pivot, child: RepaintBoundary(child: widget.child));
   }
 }
 

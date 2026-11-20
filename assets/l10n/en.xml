@@ -144,17 +144,18 @@
   <string name="pattern_tartan">Tartan</string>
   <string name="stencil_snowman">Snowman</string>
   <string name="stencil_mitten">Mitten</string>
-  <string name="stencil_cane">Candy cane</string>
+  <string name="stencil_cane">Candy</string>
   <string name="stencil_ornament">Bauble</string>
 
   <!-- Shop -->
   <string name="shop">Shop</string>
   <string name="offer_pack_snow_day">Snow Day set</string>
   <string name="offer_pack_holiday">Holiday set</string>
-  <string name="offer_note">Two papers and two stencils, yours for good</string>
+  <string name="offer_note">One-time purchase</string>
+  <string name="try_it">Try it!</string>
   <string name="offer_buy">Buy for {price}</string>
   <string name="offer_get">Get</string>
-  <string name="offer_owned">Yours</string>
+  <string name="offer_owned">OWNED!</string>
   <string name="shop_unavailable">Not available</string>
   <string name="restore_purchases">Restore purchases</string>
   <string name="reset_purchases">Reset purchases</string>

@@ -519,13 +519,13 @@ const paperColors = [
   PaperColor('red', Color(0xFFE0405E)),
   PaperColor('orange', Color(0xFFFF9A3C)),
   PaperColor('green', Color(0xFF2FB37E)),
-  PaperColor('blue', Color(0xFF3E61B8)),
+  PaperColor('blue', Color(0xFF0047AB)),
   PaperColor('violet', Color(0xFF8A5CD6)),
   PaperColor('black', Color(0xFF1E1F26)),
   PaperColor('wine', Color(0xFF8E1F3A)),
-  PaperColor('brown', Color(0xFF8B5A2B)),
+  PaperColor('brown', Color(0xFF713600)),
   PaperColor('forest', Color(0xFF1E6B4F)),
-  PaperColor('navy', Color(0xFF1E2F6B)),
+  PaperColor('navy', Color(0xFF00275F)),
   PaperColor('plum', Color(0xFF4A1A6B)),
 ];
 
@@ -542,17 +542,14 @@ const paperPatterns = [
   'knit',
   'gradient',
   'analogous',
+  'wrapper',
+  'gingerbread',
   // The advent calendar's (see [adventRewards]).
   'snowfall',
   'candy',
   'garland',
   'tartan',
-  ...christmasPatterns,
 ];
-
-/// The Christmas pack's patterns: kept together, in a row of their own in
-/// the picker, marked with a fir tree.
-const christmasPatterns = ['wrapper', 'gingerbread'];
 
 /// Patterns drawn from a seamless texture (dark lines on white) rather than
 /// by hand: its asset, loaded into [paperTextures] at launch.
@@ -957,8 +954,10 @@ Paint makePaperFill(Color color, String pattern, double unitPx) {
     'sparkle' => sparkleTile(unitPx),
     'bubbles' => sparkleTile(unitPx) * 2.5 * 1.3,
     'gingerbread' => sparkleTile(unitPx),
-    'snowfall' || 'garland' => math.max(28.0, unitPx * .4),
-    'candy' => math.max(14.0, unitPx * .16),
+    // Snowfall's flakes a tenth bigger than the garland's tile.
+    'snowfall' => math.max(30.8, unitPx * .44),
+    'garland' => math.max(28.0, unitPx * .4),
+    'candy' => math.max(24.0, unitPx * .28),
     'tartan' => math.max(20.0, unitPx * .25),
     // One hologram cell: a big burst with small ones at its corners.
     'holo' => math.max(16.0, unitPx * .3),
@@ -1027,6 +1026,12 @@ const _wrapperOutline = .008;
 /// How close gift wrap's bead strings may come to one another, as a
 /// share of its tile.
 const _wrapperStringGap = .08;
+
+/// Candy paper's stripes, as shares of its tile: the broad ones' width and
+/// the thin ones', and how far across each its white glow runs; how far
+/// towards white the glow pales its edge.
+const _candyLight = .6;
+const _candyBroad = .38, _candyThin = .045, _candyGlow = .4;
 
 /// The gradient patterns, by the hues they run between, in degrees from the
 /// paper's own: to its complement (half round), or its analogous neighbours
@@ -1435,20 +1440,26 @@ ui.Image _tile(Color color, String pattern, double t) {
         x.drawCircle(Offset(dx * t, dy * t), math.max(.8, t * .014), Paint()..color = c);
       }
     case 'candy':
-      // A candy cane's stripes: broad white ones and a thin one between (red
-      // ones on white paper).
-      final c = color.computeLuminance() > .7 ? const Color(0xFFE0405E) : const Color(0xF2FFFFFF);
-      final broad = Paint()
-        ..color = c
-        ..strokeWidth = t * .26
-        ..style = PaintingStyle.stroke;
-      final thin = Paint()
-        ..color = c.withValues(alpha: .6)
-        ..strokeWidth = t * .06
-        ..style = PaintingStyle.stroke;
+      // A candy cane's stripes on white: broad ones in the paper's colour
+      // (red on white paper) and a thin one between, each lit along its
+      // upper edge by a soft white inner glow, so it looks rounded.
+      x.drawRect(Rect.fromLTWH(0, 0, t, t), Paint()..color = const Color(0xFFFFFFFF));
+      final c = color.computeLuminance() > .9 ? const Color(0xFFE0405E) : color;
+      // Across a stripe of width [w] centred on the line x + y = [k]: its
+      // colour paled towards white ([_candyLight]) at its upper left edge,
+      // running into the colour itself over [_candyGlow] of it.
+      Paint stripe(double k, double w) {
+        final mid = Offset(k / 2, k / 2), across = const Offset(1, 1) / math.sqrt2 * .5;
+        return Paint()
+          ..strokeWidth = w
+          ..style = PaintingStyle.stroke
+          ..shader = ui.Gradient.linear(mid - across * w, mid + across * w, [Color.lerp(c, const Color(0xFFFFFFFF), _candyLight)!, c, c], [0, _candyGlow, 1]);
+      }
+      // Each line run on well past the tile's corners, so the broad ones
+      // don't end short of its edges.
       for (final o in [-t, 0.0, t]) {
-        x.drawLine(Offset(o, t), Offset(o + t, 0), broad);
-        x.drawLine(Offset(o + t / 2, t), Offset(o + 1.5 * t, 0), thin);
+        x.drawLine(Offset(o - t, 2 * t), Offset(o + 2 * t, -t), stripe(o + t, t * _candyBroad));
+        x.drawLine(Offset(o - t / 2, 2 * t), Offset(o + 2.5 * t, -t), stripe(o + 1.5 * t, t * _candyThin));
       }
     case 'garland':
       // A string of lights: a wire waving across, a bulb of each colour on it.

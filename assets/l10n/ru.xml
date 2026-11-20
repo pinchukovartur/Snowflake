@@ -151,10 +151,11 @@
   <string name="shop">Магазин</string>
   <string name="offer_pack_snow_day">Снежный день</string>
   <string name="offer_pack_holiday">Праздничный набор</string>
-  <string name="offer_note">Две бумаги и два трафарета навсегда</string>
+  <string name="offer_note">Разовая покупка</string>
+  <string name="try_it">Примерь!</string>
   <string name="offer_buy">Купить за {price}</string>
   <string name="offer_get">Получить</string>
-  <string name="offer_owned">Уже ваше</string>
+  <string name="offer_owned">КУПЛЕНО!</string>
   <string name="shop_unavailable">Недоступно</string>
   <string name="restore_purchases">Восстановить покупки</string>
   <string name="reset_purchases">Сбросить покупки</string>

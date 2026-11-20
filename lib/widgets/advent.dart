@@ -6,6 +6,8 @@ import '../l10n.dart';
 import '../snowflake/geometry.dart';
 import '../theme/tokens.dart';
 import 'ds.dart';
+import 'glint.dart';
+import 'lock_icon.dart';
 import 'paper_dialog.dart';
 
 /// The advent calendar's green and red, and the gold of its numbers.
@@ -45,6 +47,8 @@ class AdventButton extends StatelessWidget {
             ),
             child: const Icon(LucideIcons.gift, size: 30, color: _gold),
           ),
+          // Light running over it while a door is ready to open.
+          if (waiting > 0) const Positioned.fill(child: Glint(radius: R.m)),
           if (waiting > 0)
             Positioned(
               right: -6,
@@ -175,7 +179,7 @@ class _Shut extends StatelessWidget {
           Text('$day', style: display(26, weight: FontWeight.w900, color: _gold, height: 1)),
           if (!ready) ...[
             const SizedBox(height: 4),
-            const Icon(LucideIcons.lock, size: 14, color: _gold),
+            const LockIcon(size: 14),
           ],
         ]),
       ),
@@ -184,11 +188,15 @@ class _Shut extends StatelessWidget {
 }
 
 /// A paper or stencil from the calendar, and what it is: behind an open
-/// door, or in one of the shop's sets.
+/// door, framed in [frame], or in one of the shop's sets, framed with the
+/// rest of its set (no [frame] of its own) on [background]. A paper is shown
+/// in [colour], or its own (see [_paperShown]).
 class RewardTile extends StatelessWidget {
-  const RewardTile({super.key, required this.reward, this.frame = _red});
+  const RewardTile({super.key, required this.reward, this.frame = _red, this.background = C.paper, this.colour});
   final ({bool paper, String id}) reward;
-  final Color frame;
+  final Color? frame;
+  final Color background;
+  final Color? colour;
 
   @override
   Widget build(BuildContext context) {
@@ -196,15 +204,22 @@ class RewardTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: C.paper,
+        color: background,
         borderRadius: BorderRadius.circular(R.s),
-        border: Border.all(color: frame, width: 3),
+        border: frame == null ? null : Border.all(color: frame!, width: 3),
       ),
       child: Column(children: [
         Expanded(
           child: Center(
             child: reward.paper
-                ? PaperSwatch(color: _paperShown[id] ?? Colors.white, pattern: id)
+                ? AnimatedSwitcher(
+                    // A new colour fading in over the last, as the shop's turn;
+                    // the last solid under it till it is gone (each colour's
+                    // swatch drawn once, only faded).
+                    duration: const Duration(milliseconds: 250),
+                    transitionBuilder: (child, anim) => child.key == ValueKey(colour) ? FadeTransition(opacity: anim, child: child) : child,
+                    child: PaperSwatch(key: ValueKey(colour), color: colour ?? _paperShown[id] ?? Colors.white, pattern: id),
+                  )
                 : AspectRatio(aspectRatio: 1, child: CustomPaint(painter: _StencilPainter(id))),
           ),
         ),

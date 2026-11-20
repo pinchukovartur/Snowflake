@@ -930,11 +930,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     child: TutorialBubble(tr('tutorial_window')),
                   ),
                 )
+              // Its bubble is down by the button it points at.
               else if (widget.collectionArrow)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(screenPad, 12, screenPad, 8),
-                  child: IgnorePointer(child: TutorialBubble(tr('tutorial_collection_button'))),
-                )
+                const SizedBox.shrink()
               else
                 Padding(
                   padding: const EdgeInsets.fromLTRB(screenPad, 8, screenPad, 8),
@@ -950,6 +948,12 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   ),
                 ),
               const Spacer(),
+              // Over the arrow, where "play" stands otherwise.
+              if (widget.collectionArrow && !_tutorial)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(screenPad, 0, screenPad, 8),
+                  child: IgnorePointer(child: TutorialBubble(tr('tutorial_collection_button'))),
+                ),
               if (!_tutorial)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(32, 0, 32, 28),

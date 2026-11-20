@@ -364,12 +364,17 @@ class _ConePainter extends CustomPainter {
 
 /// Pale ice card (the cut board's table colour) with an ice title ribbon and a berry close button.
 class DsDialog extends StatelessWidget {
-  const DsDialog({super.key, this.title, required this.child, this.actions = const [], this.onClose});
+  const DsDialog({super.key, this.title, required this.child, this.actions = const [], this.onClose, this.scrolls = true});
 
   final String? title;
   final Widget child;
   final List<Widget> actions;
   final VoidCallback? onClose;
+
+  /// Whether the [child] scrolls as a whole when the screen is too short for
+  /// it; if not, it is given the room there is and scrolls what it will
+  /// itself.
+  final bool scrolls;
 
   @override
   Widget build(BuildContext context) {
@@ -397,16 +402,16 @@ class DsDialog extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Scrolls if the screen is too short for it all, the actions
-                  // staying in view below.
+                  // Given the room the actions leave below, which stay in view:
+                  // the child scrolling in it as a whole if the screen is too
+                  // short, or, if not [scrolls], scrolling what it will itself.
                   Flexible(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: DefaultTextStyle(
-                        style: body(17, height: 1.4),
-                        textAlign: TextAlign.center,
-                        child: child,
-                      ),
+                    child: DefaultTextStyle(
+                      style: body(17, height: 1.4),
+                      textAlign: TextAlign.center,
+                      child: scrolls
+                          ? SingleChildScrollView(padding: const EdgeInsets.symmetric(horizontal: 8), child: child)
+                          : Padding(padding: const EdgeInsets.symmetric(horizontal: 8), child: child),
                     ),
                   ),
                   if (actions.isNotEmpty) ...[
@@ -419,23 +424,7 @@ class DsDialog extends StatelessWidget {
                 ],
               ),
             ),
-            if (title != null)
-              Positioned(
-                top: -26,
-                child: Container(
-                  height: 52,
-                  padding: const EdgeInsets.symmetric(horizontal: 28),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: C.ice500,
-                    borderRadius: BorderRadius.circular(26),
-                  ),
-                  child: Text(
-                    title!,
-                    style: display(22, height: 1, shadows: const [Shadow(color: Color(0x26000000), offset: Offset(0, 2))]),
-                  ),
-                ),
-              ),
+            if (title case final title?) Positioned(top: -26, child: DsDialogTitle(title)),
             if (onClose != null)
               Positioned(
                 top: -18,
@@ -449,9 +438,33 @@ class DsDialog extends StatelessWidget {
   }
 }
 
+/// A dialog's title: white on an ice-blue pill, 52 tall (see [DsDialog]).
+class DsDialogTitle extends StatelessWidget {
+  const DsDialogTitle(this.title, {super.key});
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        height: 52,
+        padding: const EdgeInsets.symmetric(horizontal: 28),
+        decoration: BoxDecoration(
+          color: C.ice500,
+          borderRadius: BorderRadius.circular(26),
+        ),
+        // As wide as the title, whatever room it is given.
+        child: Center(
+          widthFactor: 1,
+          child: Text(
+            title,
+            style: display(22, height: 1, shadows: const [Shadow(color: Color(0x26000000), offset: Offset(0, 2))]),
+          ),
+        ),
+      );
+}
+
 /// Modal dialog over a night-900/60% blurred scrim, popping in with a bounce.
 /// A tap on the scrim closes it unless [dismissible] is false.
-Future<T?> showDsDialog<T>(BuildContext context, {required Widget Function(BuildContext) builder, bool dismissible = true}) {
+Future<T?> showDsDialog<T>(BuildContext context, {required Widget Function(BuildContext) builder, bool dismissible = true, EdgeInsets padding = const EdgeInsets.all(24)}) {
   return showGeneralDialog<T>(
     context: context,
     barrierDismissible: dismissible,
@@ -475,7 +488,7 @@ Future<T?> showDsDialog<T>(BuildContext context, {required Widget Function(Build
         SafeArea(
           child: Center(
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: padding,
               child: FadeTransition(
                 opacity: anim,
                 child: ScaleTransition(scale: Tween(begin: .6, end: 1.0).animate(pop), child: Material(type: MaterialType.transparency, child: child)),

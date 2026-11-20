@@ -556,9 +556,9 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
   /// The paper dialog is up; the palette tool shows as on meanwhile.
   bool _paperOpen = false;
 
-  /// The shop, from a paper or stencil still to be bought; anything bought
-  /// there shows at once on coming back.
-  void _openShop() => showShop(context, widget.game).then((_) {
+  /// The shop, from stencil [id] still to be bought (on its demo flake from
+  /// the start); anything bought there shows at once on coming back.
+  void _openShop(String id) => showShop(context, widget.game, trying: (paper: false, id: id)).then((_) {
         if (mounted) setState(() {});
       });
 
@@ -579,11 +579,13 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
 
             return PaperDialog(
               paper: _paper,
+              // In the tutorial only those already open: nothing to buy yet.
+              patterns: [for (final id in paperPatterns) if (!_tutorial || widget.game.unlocked(id)) id],
               locked: {for (final id in paperPatterns) if (!widget.game.unlocked(id)) id},
               // Back from the shop, a set bought there shows open.
-              onLocked: () => showShop(ctx, widget.game).then((_) => setLocal(() {})),
+              onLocked: (id) => showShop(ctx, widget.game, trying: (paper: true, id: id), colour: _paper.color).then((_) => setLocal(() {})),
               onChanged: set,
-              preview: (p) => SnowflakeView(preset: 'classic', size: 170, color: p.color, pattern: p.pattern),
+              preview: (p) => SnowflakeView(preset: 'classic', size: PaperDialog.previewSize, color: p.color, pattern: p.pattern),
               onClose: () => Navigator.pop(ctx),
             );
           },
@@ -728,9 +730,10 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                         padding: const EdgeInsets.all(_stencilsPad),
                                         child: Column(children: [
                                           for (final (i, group) in [
-                                            [for (final t in _stencils) if (!_stencilGroups.any((g) => g.$1.contains(t.$1))) t],
-                                            // Those still to be bought too, locked (see [GameState.unlocked]).
-                                            for (final (ids, _) in _stencilGroups) [for (final t in _stencils) if (ids.contains(t.$1)) t],
+                                            [for (final t in _stencils) if (!_stencilGroups.any((g) => g.$1.contains(t.$1)) && (!_tutorial || widget.game.unlocked(t.$1))) t],
+                                            // Those still to be bought too, locked (see [GameState.unlocked]);
+                                            // not in the tutorial, where there is nothing to buy yet.
+                                            for (final (ids, _) in _stencilGroups) [for (final t in _stencils) if (ids.contains(t.$1) && (!_tutorial || widget.game.unlocked(t.$1))) t],
                                           ].indexed)
                                             if (group.isNotEmpty)
                                               Container(
@@ -751,7 +754,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                                               maxHeight: 48,
                                                               child: Locked(
                                                                 locked: !widget.game.unlocked(id),
-                                                                lockSize: 10,
+                                                                lockSize: 18,
                                                                 child: RoundBtn(
                                                                 icon,
                                                                 label: tr(label),
@@ -767,7 +770,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                                                         : Variant.light,
                                                                 flat: true,
                                                                 // A locked one opens the shop, to be bought there.
-                                                                onTap: widget.game.unlocked(id) ? () => _pickStencil(id) : _openShop,
+                                                                onTap: widget.game.unlocked(id) ? () => _pickStencil(id) : () => _openShop(id),
                                                               ),
                                                               ),
                                                             ),
@@ -1105,10 +1108,10 @@ const List<_Event> _allEvents = [
       (preset: 'bats', folds: 6, color: Color(0xFF8A5CD6), pattern: 'plain'),
       (preset: 'ghosts', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
       (preset: 'hats', folds: 6, color: Color(0xFF1E6B4F), pattern: 'plain'),
-      (preset: 'cats', folds: 6, color: Color(0xFF1E2F6B), pattern: 'plain'),
+      (preset: 'cats', folds: 6, color: Color(0xFF00275F), pattern: 'plain'),
       (preset: 'zombies', folds: 6, color: Color(0xFF9DFFAA), pattern: 'plain'),
       (preset: 'halloween_3', folds: 4, color: Color(0xFFE0405E), pattern: 'plain'),
-      (preset: 'halloween_4', folds: 6, color: Color(0xFF8B5A2B), pattern: 'plain'),
+      (preset: 'halloween_4', folds: 6, color: Color(0xFF713600), pattern: 'plain'),
       (preset: 'halloween_5', folds: 6, color: Color(0xFF2FB37E), pattern: 'plain'),
       // A stand-in, till its own is drawn.
       (preset: 'rhombi', folds: 6, color: Color(0xFF9AA3B5), pattern: 'plain'),
@@ -1132,11 +1135,11 @@ const List<_Event> _allEvents = [
       (preset: 'christmass_5', folds: 6, color: Color(0xFFC4ECFF), pattern: 'plain'),
       (preset: 'christmass_6', folds: 4, color: Color(0xFF1E6B4F), pattern: 'plain'),
       (preset: 'christmass_7', folds: 6, color: Color(0xFF8E1F3A), pattern: 'plain'),
-      (preset: 'christmass_8', folds: 6, color: Color(0xFF3E61B8), pattern: 'plain'),
+      (preset: 'christmass_8', folds: 6, color: Color(0xFF0047AB), pattern: 'plain'),
       (preset: 'christmass_9', folds: 6, color: Color(0xFFFFFFFF), pattern: 'gingerbread'),
       (preset: 'rhombi', folds: 6, color: Color(0xFF9DFFAA), pattern: 'plain'),
       (preset: 'ghosts', folds: 6, color: Color(0xFFDCD2FF), pattern: 'plain'),
-      (preset: 'cats', folds: 6, color: Color(0xFF1E2F6B), pattern: 'plain'),
+      (preset: 'cats', folds: 6, color: Color(0xFF00275F), pattern: 'plain'),
     ],
   ),
 ];
