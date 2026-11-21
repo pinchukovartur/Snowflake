@@ -15,7 +15,7 @@ void main() {
   });
 
   test('a notch that does not separate anything drops nothing', () {
-    expect(detachedPieces([stencilShape('circle', 0, -0.5, 0.1)], const [], 6), isEmpty);
+    expect(detachedPieces(stencilParts('circle', 0, -0.5, 0.1), const [], 6), isEmpty);
   });
 
   test('cutting across near the rim drops the tip', () {

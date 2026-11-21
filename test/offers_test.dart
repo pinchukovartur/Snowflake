@@ -3,16 +3,26 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snowflake/app_state.dart';
 
 void main() {
-  test('offers are the advent calendar\'s rewards, two papers and two stencils each', () {
+  test('offers hold papers and stencils, none in two of them', () {
     expect(offers, hasLength(2));
     for (final o in offers) {
-      expect(o.items.where((r) => r.paper), hasLength(2));
-      expect(o.items.where((r) => !r.paper), hasLength(2));
-      for (final r in o.items) {
-        expect(adventRewards, contains(r));
-      }
+      expect(o.items.where((r) => r.paper), isNotEmpty);
+      expect(o.items.where((r) => !r.paper), isNotEmpty);
     }
-    expect({for (final o in offers) ...o.items}, hasLength(adventRewards.length));
+    final all = [for (final o in offers) ...o.items];
+    expect(all.toSet(), hasLength(all.length));
+  });
+
+  test('what only the shop sells is shut till bought, as the calendar\'s is', () async {
+    SharedPreferences.setMockInitialValues({});
+    final game = GameState(await SharedPreferences.getInstance());
+    final shopOnly = [
+      for (final o in offers)
+        for (final r in o.items)
+          if (!adventRewards.contains(r)) r.id,
+    ];
+    expect(shopOnly, isNotEmpty);
+    expect(shopOnly.any(game.unlocked), isFalse);
   });
 
   test('a bought offer unlocks what it holds, and only that', () async {

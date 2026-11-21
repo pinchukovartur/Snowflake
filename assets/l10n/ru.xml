@@ -72,6 +72,9 @@
   <string name="stencil_xstar">Рождественская звезда</string>
   <string name="stencil_gift">Подарок</string>
   <string name="stencil_bell">Колокольчик</string>
+  <string name="stencil_elfhat">Колпак эльфа</string>
+  <string name="stencil_angel">Ангел</string>
+  <string name="stencil_gingerman">Пряничный человечек</string>
 
   <!-- Цвета бумаги -->
   <string name="color_white">Белая</string>
@@ -108,6 +111,8 @@
   <string name="pattern_gradient">Градиент</string>
   <string name="pattern_analogous">Оттенки</string>
   <string name="pattern_gingerbread">Пряник</string>
+  <string name="pattern_crystal">Кристалл</string>
+  <string name="pattern_chocolate">Шоколад</string>
 
   <!-- Раскрытие -->
   <string name="unfolding">Раскрываем…</string>
@@ -135,7 +140,7 @@
 
   <!-- Advent calendar -->
   <string name="advent">Адвент-календарь</string>
-  <string name="advent_note">С 25 декабря по 1 января каждый день открывается новая дверца</string>
+  <string name="advent_note">С 18 по 25 декабря каждый день открывается новая дверца</string>
   <string name="advent_paper">Бумага</string>
   <string name="advent_stencil">Трафарет</string>
   <string name="pattern_snowfall">Снегопад</string>
@@ -149,7 +154,7 @@
 
   <!-- Shop -->
   <string name="shop">Магазин</string>
-  <string name="offer_pack_snow_day">Снежный день</string>
+  <string name="offer_pack_snow_day">Зимний сладкий набор</string>
   <string name="offer_pack_holiday">Праздничный набор</string>
   <string name="offer_note">Разовая покупка</string>
   <string name="try_it">Примерь!</string>

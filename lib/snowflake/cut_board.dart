@@ -10,7 +10,7 @@ import 'snowflake_view.dart';
 
 /// Interactive folded wedge: drag a loop to cut a piece out or a line to slit
 /// the paper (tool `free`). Any other tool is a stencil shape (see
-/// [stencilShape]), put on the paper in a selection box like a paint
+/// [stencilParts]), put on the paper in a selection box like a paint
 /// program's: drag it about, size it by the corner handles, stretch it by the
 /// side ones, turn it by the knob above, and cut it out (see [stencilCut]) as
 /// many times as you like. Pieces appended to [fallen] drop off the board.
@@ -48,7 +48,9 @@ class CutBoard extends StatefulWidget {
   });
 
   final List<Cut> cuts, fallen;
-  final ValueChanged<Cut> onCut;
+  /// A cut made: one, or a stencil's several parts at once (see
+  /// [stencilParts]), as one step.
+  final ValueChanged<List<Cut>> onCut;
   final int folds;
   final double height, touchMargin;
   final String tool;
@@ -314,16 +316,16 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   /// The tool's shape at radius 1 about the origin, and its bounds: kept for
   /// the tool they were made for, as the box asks for them many times a frame.
   String? _unitTool;
-  Cut _unitShapeKept = const [];
+  List<Cut> _unitShapeKept = const [];
   Rect _unitBoxKept = Rect.zero;
   void _syncUnit() {
     if (_unitTool == widget.tool) return;
     _unitTool = widget.tool;
-    _unitShapeKept = stencilShape(widget.tool, 0, 0, 1);
-    _unitBoxKept = cutPath(_unitShapeKept, 1).getBounds();
+    _unitShapeKept = stencilParts(widget.tool, 0, 0, 1);
+    _unitBoxKept = _unitShapeKept.map((c) => cutPath(c, 1).getBounds()).reduce((a, b) => a.expandToInclude(b));
   }
 
-  Cut get _unitShape {
+  List<Cut> get _unitShape {
     _syncUnit();
     return _unitShapeKept;
   }
@@ -357,7 +359,9 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
     return Offset(d.dx * cos + d.dy * sin, -d.dx * sin + d.dy * cos);
   }
 
-  Cut get _stencil => [for (final q in _unitShape) _fromStencil(Offset(q.dx * _sx, q.dy * _sy))];
+  List<Cut> get _stencil => [
+        for (final part in _unitShape) [for (final q in part) _fromStencil(Offset(q.dx * _sx, q.dy * _sy))],
+      ];
 
   /// The box's handles in its own frame, clockwise from the top-left corner:
   /// corners at even indices, side middles at odd ones.
@@ -406,12 +410,16 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
 
   void _cutStencil() {
     _press.forward(from: 0);
-    final cut = _stencil;
-    if (cutsPaper(cut, [...widget.cuts, ...widget.fallen], widget.folds)) {
-      widget.onCut(cut);
-    } else {
-      _fadeOut(cut);
+    // Each part that cuts any paper, as one step; those that cut none fade.
+    final kept = <Cut>[];
+    for (final cut in _stencil) {
+      if (cutsPaper(cut, [...widget.cuts, ...widget.fallen, ...kept], widget.folds)) {
+        kept.add(cut);
+      } else {
+        _fadeOut(cut);
+      }
     }
+    if (kept.isNotEmpty) widget.onCut(kept);
   }
 
   void _down(PointerDownEvent e) {
@@ -501,7 +509,7 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
     if (d == null || d.pts.length <= cutMinPoints) return;
     final cut = isLoop(d.pts, maxGap: loopMaxGap / _zoom) ? d.pts : slit(d.pts, overshoot: slitOvershoot / _zoom);
     if (cutsPaper(cut, [...widget.cuts, ...widget.fallen], widget.folds)) {
-      widget.onCut(cut);
+      widget.onCut([cut]);
     } else {
       _fadeOut(cut);
     }
@@ -588,6 +596,7 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
               paperOpacity: widget.paperOpacity,
               twinkle: shimmers(widget.pattern) ? _twinkleAt : null,
               hint: widget.hintOpacity > 0 ? (cuts: widget.hintCuts, opacity: widget.hintOpacity) : null,
+              dpr: MediaQuery.devicePixelRatioOf(context),
             ),
           ),
         ),
@@ -614,6 +623,7 @@ class _BoardPainter extends CustomPainter {
     required this.paperOpacity,
     required this.twinkle,
     required this.hint,
+    required this.dpr,
   });
 
   final List<Cut> cuts, fallen;
@@ -624,7 +634,7 @@ class _BoardPainter extends CustomPainter {
   /// The stencil's outline with its selection box (corners), the box's
   /// handles, the rotate knob and where its stalk meets the box, and how far
   /// it is turned (shown while [turning]), while a stencil tool is on.
-  final ({Cut shape, List<Offset> box, List<Offset> handles, Offset knob, Offset knobBase, double turn, bool turning, Offset centre, double press})? stencil;
+  final ({List<Cut> shape, List<Offset> box, List<Offset> handles, Offset knob, Offset knobBase, double turn, bool turning, Offset centre, double press})? stencil;
   final double half, s;
   final int folds;
   final Offset apex;
@@ -636,12 +646,16 @@ class _BoardPainter extends CustomPainter {
   final double? twinkle;
   final ({List<Cut> cuts, double opacity})? hint;
 
+  /// The screen's pixels to the logical pixel: the paper's pattern drawn in
+  /// them, crisp (see [makePaperFill]).
+  final double dpr;
+
   @override
   void paint(Canvas canvas, Size size) {
     canvas.save();
     canvas.translate(apex.dx, apex.dy);
 
-    final fill = makePaperFill(color, pattern, s);
+    final fill = makePaperFill(color, pattern, s, dpr: dpr);
     if (paperOpacity > 0) {
       final fading = paperOpacity < 1;
       if (fading) canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, paperOpacity));
@@ -666,14 +680,14 @@ class _BoardPainter extends CustomPainter {
       }
       // The folded paper shows its top layer (see [foldedTop]), so the flake
       // opens from just what the board showed.
-      drawWedge(canvas, s, [...cuts, ...fallen], half, glass ? (Paint()..color = glassTint(color)) : fill, pattern: pattern, sheen: !glass, sheenTime: twinkle ?? 0, pos: foldedTop(folds), folds: folds, icing: color);
+      drawWedge(canvas, s, [...cuts, ...fallen], half, glass ? (Paint()..color = glassTint(color)) : fill, pattern: pattern, sheen: !glass, sheenTime: twinkle ?? 0, pos: foldedTop(folds), folds: folds, icing: color, dpr: dpr);
       if (glass) {
         canvas.restore();
         // Nothing but the glints, kept to the wedge and out of its holes.
         drawWedge(canvas, s, [...cuts, ...fallen], half, Paint()..color = const Color(0x00000000), pattern: pattern, pos: foldedTop(folds), folds: folds);
       }
       final tw = twinkle;
-      if (tw != null && pattern == 'sparkle') drawWedgeGlints(canvas, s, [...cuts, ...fallen], half, color, tw, pos: foldedTop(folds), folds: folds);
+      if (tw != null && sheetGlints(pattern)) drawWedgeGlints(canvas, s, [...cuts, ...fallen], half, color, tw, pos: foldedTop(folds), folds: folds, pattern: pattern);
       if (fading) canvas.restore();
     }
 
@@ -743,10 +757,12 @@ class _BoardPainter extends CustomPainter {
       final k = 1 - _CutBoardState._pressDepth * st.press;
       canvas.scale(k);
       canvas.translate(-st.centre.dx * s, -st.centre.dy * s);
-      canvas.drawPath(cutPath(st.shape, s), Paint()..color = const Color(0x2EE0405E));
-      final outline = cutOutline(st.shape, s);
-      drawDashed(canvas, outline, _halo(stroke), 8, 6);
-      drawDashed(canvas, outline, stroke, 8, 6);
+      for (final part in st.shape) {
+        canvas.drawPath(cutPath(part, s), Paint()..color = const Color(0x2EE0405E));
+        final outline = cutOutline(part, s);
+        drawDashed(canvas, outline, _halo(stroke), 8, 6);
+        drawDashed(canvas, outline, stroke, 8, 6);
+      }
       _paintSelection(canvas, st.box, st.handles, st.knob, st.knobBase, st.turn);
       if (st.turning) _paintDegrees(canvas, st.knob * s, st.turn);
       canvas.restore();
@@ -774,7 +790,7 @@ class _BoardPainter extends CustomPainter {
         canvas.clipPath(path);
         canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, 1 - t * t));
         // As the board draws its paper (the top layer, see there).
-        drawWedge(canvas, s, dropCuts, half, fill, pattern: pattern, sheenTime: twinkle ?? 0, pos: foldedTop(folds), folds: folds, icing: color);
+        drawWedge(canvas, s, dropCuts, half, fill, pattern: pattern, sheenTime: twinkle ?? 0, pos: foldedTop(folds), folds: folds, icing: color, dpr: dpr);
         canvas.restore();
         canvas.restore();
       }
@@ -892,6 +908,7 @@ class _BoardPainter extends CustomPainter {
       o.pattern != pattern ||
       o.paperOpacity != paperOpacity ||
       o.twinkle != twinkle ||
+      o.dpr != dpr ||
       o.hint != hint ||
       o.s != s;
 }

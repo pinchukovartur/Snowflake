@@ -23,7 +23,13 @@ class SnowflakeView extends StatelessWidget {
     this.shading = true,
     this.twinkle,
     this.segments,
+    this.turns = restTurns,
   });
+
+  /// How many segments round from where it was folded the flake lies (see
+  /// [SnowflakePainter.turns]): as every open flake rests, unless it turns
+  /// there itself as it unfolds (by [spin]).
+  final int turns;
 
   final List<Cut>? cuts;
   final String preset;
@@ -56,6 +62,7 @@ class SnowflakeView extends StatelessWidget {
         shading: shading,
         twinkle: shimmers(pattern) ? twinkle : null,
         segments: segments,
+        turns: turns,
         dpr: MediaQuery.devicePixelRatioOf(context),
       ),
     );
@@ -145,19 +152,20 @@ ui.Image _wedgeImage(_WedgeKey k) {
 }
 
 class _FlakeKey {
-  _FlakeKey(this.wedge, this.size, this.shading, Set<int>? segments) : segments = segments == null ? '' : ([...segments]..sort()).join(',');
+  _FlakeKey(this.wedge, this.size, this.shading, Set<int>? segments, this.turns) : segments = segments == null ? '' : ([...segments]..sort()).join(',');
   final _WedgeKey wedge;
   final double size;
   final bool shading;
+  final int turns;
 
   /// The segments drawn, as a sorted list ('' for all).
   final String segments;
 
   @override
-  bool operator ==(Object o) => o is _FlakeKey && o.wedge == wedge && o.size == size && o.shading == shading && o.segments == segments;
+  bool operator ==(Object o) => o is _FlakeKey && o.wedge == wedge && o.size == size && o.shading == shading && o.segments == segments && o.turns == turns;
 
   @override
-  int get hashCode => Object.hash(wedge, size, shading, segments);
+  int get hashCode => Object.hash(wedge, size, shading, segments, turns);
 }
 
 // Fully unfolded, unrotated, still (not shimmering) flakes are baked once:
@@ -372,8 +380,15 @@ class SnowflakePainter extends CustomPainter {
     required this.shading,
     this.twinkle,
     this.segments,
+    this.turns = restTurns,
     required this.dpr,
   });
+
+  /// How many segments round from where it was folded the flake lies: its
+  /// pattern turned that far with it, its cuts the same in every segment.
+  /// [restTurns] as it rests, as it does once it has unfolded; 0 for one
+  /// still turning there itself as it opens (by [spin]).
+  final int turns;
 
   final List<Cut> cuts;
   final int folds;
@@ -400,7 +415,7 @@ class SnowflakePainter extends CustomPainter {
       _paintFlake(canvas, s);
       return;
     }
-    final key = _FlakeKey(_wedgeKey(s), s, shading, segments);
+    final key = _FlakeKey(_wedgeKey(s), s, shading, segments, turns);
     var img = _flakeCache.remove(key);
     if (img == null) {
       final rec = ui.PictureRecorder();
@@ -462,12 +477,12 @@ class SnowflakePainter extends CustomPainter {
           canvas.save();
           canvas.rotate(i * step);
           if (i.isOdd) canvas.scale(-1, 1);
-          canvas.drawImageRect(_wedgeImage(key.at(i)), src, dst, i.isOdd ? back : front);
+          canvas.drawImageRect(_wedgeImage(key.at(i - turns)), src, dst, i.isOdd ? back : front);
           canvas.restore();
         }
         final tw = twinkle;
-        if (tw != null && pattern == 'sparkle') {
-          // The glints, drawn straight on (no image per frame): each segment
+        if (tw != null && sheetGlints(pattern)) {
+          // The glints (or flares), drawn straight on (no image per frame): each segment
           // clipped to its paper and showing its own part of the sheet's.
           final r = s / 2 * .96;
           final clip = _paperPath(key, r);
@@ -478,17 +493,17 @@ class SnowflakePainter extends CustomPainter {
             canvas.rotate(i * step);
             if (i.isOdd) canvas.scale(-1, 1);
             canvas.clipPath(clip);
-            toSheet(canvas, i, folds);
+            toSheet(canvas, i - turns, folds);
             // Only where this segment lies on the sheet.
             final corners = [Offset.zero, Offset(-r * math.sin(h), -r * math.cos(h)), Offset(r * math.sin(h), -r * math.cos(h)), Offset(0, -r)];
             final onSheet = [
-              for (final q in corners) _sheetPoint(i.isOdd ? Offset(-q.dx, q.dy) : q, i * step),
+              for (final q in corners) _sheetPoint(i.isOdd ? Offset(-q.dx, q.dy) : q, (i - turns) * step + sheetTurn(folds)),
             ];
             var area = Rect.fromPoints(onSheet.first, onSheet.first);
             for (final q in onSheet) {
               area = area.expandToInclude(Rect.fromPoints(q, q));
             }
-            drawGlints(canvas, area.inflate(r * .05), color, r, tw);
+            drawSheetGlints(canvas, pattern, area.inflate(r * .05), color, r, tw);
             canvas.restore();
           }
         }
@@ -595,7 +610,7 @@ class SnowflakePainter extends CustomPainter {
       final a = side * ((before ? 1 - e : 0) + (after ? e : 0)) + (active > 0 ? _turnShade * math.sin(phi) : 0);
       canvas.save();
       canvas.transform((persp.clone()..multiply(m)).storage);
-      canvas.drawImageRect(_wedgeImage(key.at(l.pos)), src, dst, _shade(a));
+      canvas.drawImageRect(_wedgeImage(key.at(l.pos - turns)), src, dst, _shade(a));
       canvas.restore();
     }
   }
@@ -608,6 +623,7 @@ class SnowflakePainter extends CustomPainter {
       o.pattern != pattern ||
       o.unfold != unfold ||
       o.spin != spin ||
+      o.turns != turns ||
       o.twinkle != twinkle ||
       o.shading != shading ||
       !setEquals(o.segments, segments) ||

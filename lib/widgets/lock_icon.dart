@@ -1,19 +1,20 @@
 import 'package:flutter/material.dart';
 
 /// The game's lock, on whatever is still shut (assets/Lock.png): a bauble with
-/// a keyhole, [size] high, as wide as its picture is for that.
+/// a keyhole, [size] high, as wide as its picture is for that. The advent
+/// calendar's own ([advent]: its doors, and what only they hold) a blue one
+/// (assets/Lock_2.png), the same shape.
 class LockIcon extends StatelessWidget {
-  const LockIcon({super.key, required this.size});
+  const LockIcon({super.key, required this.size, this.advent = false});
   final double size;
-
-  static const _asset = 'assets/Lock.png';
+  final bool advent;
 
   /// The picture's width over its height.
   static const _aspect = 589 / 628;
 
   @override
   Widget build(BuildContext context) => Image.asset(
-        _asset,
+        advent ? 'assets/Lock_2.png' : 'assets/Lock.png',
         width: size * _aspect,
         height: size,
         // Decoded at the size it shows, not the source's.

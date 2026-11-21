@@ -27,7 +27,7 @@
 
 Сезонные события
 
-В событиях соперник показывает свою снежинку. Повтори её, и она появится в твоей коллекции. Зимой — событие «Помощь Санте» и адвент-календарь: с 25 декабря по 1 января каждый день открывается новая бумага или трафарет.
+В событиях соперник показывает свою снежинку. Повтори её, и она появится в твоей коллекции. Зимой — событие «Помощь Санте» и адвент-календарь: с 18 по 25 декабря каждый день открывается новая бумага или трафарет.
 
 Новогодние наборы
 
@@ -75,7 +75,7 @@ Choose your paper
 
 Seasonal events
 
-In events, a rival shows you their snowflake. Repeat it, and it joins your collection. In winter there is the Help Santa! event and an advent calendar: from 25 December to 1 January a new paper or stencil opens every day.
+In events, a rival shows you their snowflake. Repeat it, and it joins your collection. In winter there is the Help Santa! event and an advent calendar: from 18 to 25 December a new paper or stencil opens every day.
 
 Festive sets
 

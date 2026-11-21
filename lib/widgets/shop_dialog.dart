@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
@@ -13,6 +14,7 @@ import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
 import 'advent.dart';
 import 'ds.dart';
+import 'event_title.dart';
 import 'glint.dart';
 import 'lock_icon.dart';
 
@@ -122,6 +124,16 @@ class _ShopViewState extends State<_ShopView> {
     _ => _turnColors,
   };
 
+  /// The sets in the order shown: those still to buy first, those bought
+  /// under them. Settled as the shop opens and kept while it is open, so a
+  /// set bought here stays where it was till the shop is opened again.
+  late final _offers = [
+    for (final o in offers)
+      if (!widget.game.owns(o.id)) o,
+    for (final o in offers)
+      if (widget.game.owns(o.id)) o,
+  ];
+
   /// How long each of [_colors] is shown before the next.
   static const _turn = Duration(seconds: 5);
 
@@ -213,7 +225,7 @@ class _ShopViewState extends State<_ShopView> {
                   transitionBuilder: (child, anim) => child.key == ValueKey(_colour) ? FadeTransition(opacity: anim, child: child) : child,
                   child: SnowflakeView(
                     key: ValueKey(_colour),
-                    cuts: [if (stencil != null) stencilShape(stencil, _stencilAt.dx, _stencilAt.dy, _stencilSize)],
+                    cuts: [if (stencil != null) ...stencilParts(stencil, _stencilAt.dx, _stencilAt.dy, _stencilSize)],
                     size: _flakeSize,
                     color: _colors[_colour],
                     pattern: paper ?? 'plain',
@@ -245,7 +257,7 @@ class _ShopViewState extends State<_ShopView> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      for (final (i, o) in offers.indexed) ...[
+                      for (final (i, o) in _offers.indexed) ...[
                         if (i > 0) const SizedBox(height: 16),
                         _OfferCard(game: game, offer: o, tried: {?paper, ?stencil}, onTry: _try, colour: _colors[_colour]),
                       ],
@@ -281,6 +293,10 @@ class _ShopViewState extends State<_ShopView> {
 /// price, or that it is the player's already. A tap on a paper or stencil
 /// calls [onTry]; those [tried] on the demo flake are framed so.
 class _OfferCard extends StatelessWidget {
+  /// The set's title's red, running down it: the Christmas event's (Help
+  /// Santa's).
+  static const _titleFade = (Color(0xFFFFA49A), Color(0xFFD11011));
+
   const _OfferCard({required this.game, required this.offer, required this.tried, required this.onTry, required this.colour});
   final GameState game;
   final ({String id, List<_Item> items}) offer;
@@ -290,45 +306,74 @@ class _OfferCard extends StatelessWidget {
   /// The colour its papers are shown in.
   final Color colour;
 
-  /// Behind a paper or stencil on the demo flake: mustard.
-  static const _triedTint = Color(0x59E1AD21);
+  /// Behind a paper or stencil on the demo flake: warm cream.
+  static const _triedTint = Color(0xFFFFF7EC);
+
+  /// Each set's card, so the sets tell apart: the winter treats' warm beige,
+  /// the holiday's berry. A set not here on paper white. Flat, no lip under it.
+  static const _grounds = {
+    'pack_snow_day': ui.Color.fromARGB(255, 255, 236, 211),
+    'pack_holiday': C.berry100,
+  };
+
+  /// The ground under a set's papers and stencils, by set; a set not here
+  /// gets its card's colour a little darker (see [_wellShade]).
+  static const _wells = {'pack_snow_day': Color(0xFFDFC1A4)};
+
+  /// How much darker than its card the ground under a set's papers and
+  /// stencils is, if not given: its card's colour this far towards the night
+  /// ink.
+  static const _wellShade = .07;
+
+  /// The sets with a candy cane border: the winter treats.
+  static const _canes = {'pack_snow_day'};
+
+  /// A sprig behind a set's buy button, by set: green leaves with a red bow,
+  /// for the winter treats.
+  static const _sprigs = {'pack_snow_day': 'assets/Christmas/Christmas_Offer1_Leafs.png'};
+
+  /// How wide a sprig is, and its picture's height over width.
+  static const _sprigWidth = 230.0, _sprigAspect = 164 / 517;
 
   @override
   Widget build(BuildContext context) {
     final shop = Shop.instance, id = offer.id;
     final owned = game.owns(id), price = shop.price(id);
     // None once it is the player's: a tag on its corner says so instead.
+    // As wide as its words, in the middle, not the card's whole width.
     final Widget? button;
     if (owned) {
       button = null;
     } else if (shop.busy.contains(id)) {
-      button = Btn('…', variant: Variant.reward, size: BtnSize.s, block: true, disabled: true);
+      button = Btn('…', variant: Variant.reward, size: BtnSize.s, disabled: true);
     } else if (price != null) {
-      button = Btn(tr('offer_buy', {'price': price}), variant: Variant.reward, size: BtnSize.s, block: true, onTap: () => shop.buy(id));
+      button = Btn(tr('offer_buy', {'price': price}), variant: Variant.reward, size: BtnSize.s, onTap: () => shop.buy(id));
     } else if (shop.canBuy(id)) {
-      button = Btn('${tr('offer_get')} (debug)', variant: Variant.reward, size: BtnSize.s, block: true, onTap: () => shop.buy(id));
+      button = Btn('${tr('offer_get')} (debug)', variant: Variant.reward, size: BtnSize.s, onTap: () => shop.buy(id));
     } else {
-      button = Btn(tr('shop_unavailable'), size: BtnSize.s, block: true, disabled: true);
+      button = Btn(tr('shop_unavailable'), size: BtnSize.s, disabled: true);
     }
+    final ground = _grounds[id] ?? C.paper;
+    final sprig = _sprigs[id];
     final card = Container(
       padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
       decoration: BoxDecoration(
-        color: C.paper,
+        color: ground,
         borderRadius: BorderRadius.circular(R.m),
-        boxShadow: const [BoxShadow(color: C.snow300, offset: Offset(0, 4))],
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(tr('offer_$id'), style: display(19, color: C.night800, height: 1.1)),
+          // Set as the Christmas event's title is, Help Santa's red.
+          EventTitle(tr('offer_$id'), loud: true, size: 24, maxLines: 1, fade: _titleFade),
           const SizedBox(height: 10),
-          // The set's papers and stencils in one frame together; the ones
-          // on the demo flake tinted.
+          // The set's papers and stencils together on a ground a little
+          // darker than the card; the ones on the demo flake tinted.
           Container(
-            padding: const EdgeInsets.all(4),
+            padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
+              color: _wells[id] ?? Color.lerp(ground, C.night800, _wellShade),
               borderRadius: BorderRadius.circular(R.s + 4),
-              border: Border.all(color: owned ? C.mint500 : C.sun500, width: 3),
             ),
             child: Row(
               children: [
@@ -339,7 +384,7 @@ class _OfferCard extends StatelessWidget {
                       aspectRatio: .78,
                       child: GestureDetector(
                         onTap: () => onTry(r),
-                        child: RewardTile(reward: r, frame: null, colour: colour, background: tried.contains(r.id) ? _triedTint : C.paper),
+                        child: RewardTile(reward: r, frame: null, colour: colour, background: tried.contains(r.id) ? _triedTint : Colors.transparent),
                       ),
                     ),
                   ),
@@ -347,65 +392,134 @@ class _OfferCard extends StatelessWidget {
               ],
             ),
           ),
-          // Before buying, what it is (a one-time purchase) and how to buy
-          // it; after, only room for the "owned" tag at the corner.
+          // Before buying, how to buy it and, under that, what it is (a
+          // one-time purchase); after, only room for the "owned" tag at the
+          // corner.
           if (button != null) ...[
-            const SizedBox(height: 8),
+            SizedBox(height: sprig == null ? 12 : 18),
+            // Behind the button, taking no room of their own: the set's
+            // sprig, if it has one, its leaves out at the button's sides, and
+            // over it a glow round the button.
+            Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
+              if (sprig != null)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: OverflowBox(
+                      maxWidth: _sprigWidth,
+                      maxHeight: _sprigWidth * _sprigAspect,
+                      child: Image.asset(sprig, width: _sprigWidth, cacheWidth: (_sprigWidth * MediaQuery.devicePixelRatioOf(context)).round()),
+                    ),
+                  ),
+                ),
+              const Positioned.fill(child: IgnorePointer(child: _ButtonGlow())),
+              button,
+            ]),
+            // Under the sprig's leaves, not over them.
+            SizedBox(height: sprig == null ? 6 : 20),
             Text(tr('offer_note'), style: body(13, color: C.snow700, height: 1.2)),
-            const SizedBox(height: 10),
-            button,
           ] else
             const SizedBox(height: 18),
         ],
       ),
     );
-    if (!owned) return card;
-    return Stack(clipBehavior: Clip.none, children: [card, const Positioned(bottom: -10, right: -6, child: _OwnedTag())]);
+    // The sets with a candy cane round them (see [_canes]), its stripes over
+    // the card's edge.
+    final framed = _canes.contains(id) ? CustomPaint(foregroundPainter: const _CaneBorder(radius: R.m), child: card) : card;
+    if (!owned) return framed;
+    return Stack(clipBehavior: Clip.none, children: [framed, const Positioned(bottom: -10, right: -6, child: _OwnedTag())]);
   }
 }
 
-/// On the bottom corner of a set the player has: a slanted bright green tag, a tick
-/// and "Owned!" on it.
+/// A soft glow round a set's buy button, in its shape: its rounded box,
+/// light cream, blurred out past its edge. Drawn once with the card, not
+/// animated.
+class _ButtonGlow extends StatelessWidget {
+  const _ButtonGlow();
+
+  /// The small button's corner radius (see [BtnSize.s]); how far the glow
+  /// spreads out past it and how soft it is.
+  static const _radius = 14.0, _spread = 5.0, _blur = 6.0;
+
+  @override
+  Widget build(BuildContext context) => const DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.all(Radius.circular(_radius)),
+          boxShadow: [BoxShadow(color: ui.Color.fromARGB(255, 255, 248, 236), spreadRadius: _spread, blurRadius: _blur)],
+        ),
+      );
+}
+
+/// A candy cane round a card of corner [radius]: a thick border along its
+/// edge, striped slantwise red and green by turns, white between each, the
+/// stripes running on round it. One stroke with a repeating gradient.
+class _CaneBorder extends CustomPainter {
+  const _CaneBorder({required this.radius});
+  final double radius;
+
+  /// How thick the border is, and how wide each stripe across it.
+  static const _width = 6.0, _stripe = 7.0;
+
+  static const _red = Color(0xFFE0405E), _white = Color(0xFFFFFFFF), _green = Color(0xFF2FB37E);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Four stripes to a round (red, white, green, white), measured along
+    // the diagonal.
+    const step = _stripe * 4 / math.sqrt2;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = _width
+      ..shader = ui.Gradient.linear(
+        Offset.zero,
+        const Offset(step, step),
+        const [_red, _red, _white, _white, _green, _green, _white, _white],
+        const [0, .25, .25, .5, .5, .75, .75, 1],
+        TileMode.repeated,
+      );
+    // Its stroke wholly on the card, its outer edge the card's.
+    final r = RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(radius)).deflate(_width / 2);
+    canvas.drawRRect(r, paint);
+  }
+
+  @override
+  bool shouldRepaint(_CaneBorder old) => old.radius != radius;
+}
+
+/// On the bottom corner of a set the player has: a bright green tag, a tick
+/// and "Owned!" on it, upright.
 class _OwnedTag extends StatelessWidget {
   const _OwnedTag();
 
   static const _green = Color(0xFF3FEA6E);
 
   @override
-  Widget build(BuildContext context) => Stack(children: [
-        // The tag leaning forward, as its italics do; the words on it in
-        // the game's own face, italic, not leant.
-        Positioned.fill(
-          child: Transform(
-            alignment: Alignment.center,
-            transform: Matrix4.skewX(-.2),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: _green,
-                borderRadius: BorderRadius.circular(4),
-                boxShadow: const [BoxShadow(color: Color(0x40101A3F), offset: Offset(0, 2), blurRadius: 3)],
-              ),
-            ),
-          ),
+  Widget build(BuildContext context) => DecoratedBox(
+        decoration: BoxDecoration(
+          color: _green,
+          borderRadius: BorderRadius.circular(4),
+          boxShadow: const [BoxShadow(color: Color(0x40101A3F), offset: Offset(0, 2), blurRadius: 3)],
         ),
-        Padding(
+        child: Padding(
           padding: const EdgeInsets.fromLTRB(10, 4, 12, 4),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             const Icon(LucideIcons.check, size: 18, color: C.night800),
             const SizedBox(width: 4),
-            Text(tr('offer_owned'), style: display(16, weight: FontWeight.w900, color: C.night800, height: 1).copyWith(fontStyle: FontStyle.italic)),
+            Text(tr('offer_owned'), style: display(16, weight: FontWeight.w900, color: C.night800, height: 1)),
           ]),
         ),
-      ]);
+      );
 }
 
 /// What [child] looks like while it is still to be bought: as ever, a lock
 /// on its top right corner.
 class Locked extends StatelessWidget {
-  const Locked({super.key, required this.child, this.locked = true, this.lockSize = 14});
+  const Locked({super.key, required this.child, this.locked = true, this.lockSize = 14, this.advent = false});
   final Widget child;
   final bool locked;
   final double lockSize;
+
+  /// Only the advent calendar's: its blue lock (see [LockIcon.advent]).
+  final bool advent;
 
   @override
   Widget build(BuildContext context) {
@@ -416,7 +530,7 @@ class Locked extends StatelessWidget {
       children: [
         child,
         // A touch out past the corner.
-        Positioned(top: -2, right: -2, child: LockIcon(size: lockSize)),
+        Positioned(top: -2, right: -2, child: LockIcon(size: lockSize, advent: advent)),
       ],
     );
   }

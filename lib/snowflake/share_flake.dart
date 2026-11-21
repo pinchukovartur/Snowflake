@@ -166,6 +166,8 @@ class _Loop {
       // twinkle once it lies open.
       twinkle: shimmers(f.pattern) && (unfold == 1 || f.pattern == 'holo') ? t : null,
       spin: unfold * 2 * math.pi / f.folds,
+      // Turning to rest itself, its pattern with it.
+      turns: 0,
       shading: true,
       dpr: dpr,
     );

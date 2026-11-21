@@ -108,6 +108,8 @@ class _RevealScreenState extends State<RevealScreen> with TickerProviderStateMix
                     // One turn of the flake's own symmetry (2π / folds), so it comes to rest
                     // as every flake does, a crease upright.
                     spin: _anim.value * 2 * math.pi / widget.folds + turn,
+                    // Turning there itself, its pattern with it.
+                    turns: 0,
                   ),
                 ),
                 const SizedBox(height: 20),

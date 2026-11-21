@@ -544,11 +544,14 @@ const paperPatterns = [
   'analogous',
   'wrapper',
   'gingerbread',
+  'crystal',
   // The advent calendar's (see [adventRewards]).
   'snowfall',
   'candy',
   'garland',
   'tartan',
+  // The shop's alone (see [offers]).
+  'chocolate',
 ];
 
 /// Patterns drawn from a seamless texture (dark lines on white) rather than
@@ -566,14 +569,31 @@ const textureAssets = {
 final paperTextures = <String, ui.Image>{};
 
 /// Whether paper with [pattern] shimmers over time: glitter's glints
-/// twinkling, a hologram's sheen drifting.
-bool shimmers(String pattern) => pattern == 'sparkle' || pattern == 'holo';
+/// twinkling, a hologram's sheen drifting, crystal's flares flashing.
+bool shimmers(String pattern) => pattern == 'sparkle' || pattern == 'holo' || pattern == 'crystal';
+
+/// Whether paper with [pattern] has light flashing on its sheet as it
+/// shimmers, laid over the paper, segment by segment: glitter's glints,
+/// crystal's flares (see [drawSheetGlints]).
+bool sheetGlints(String pattern) => pattern == 'sparkle' || pattern == 'crystal';
+
+/// The light flashing on paper with [pattern] at [time] seconds (see
+/// [sheetGlints]), in sheet terms (centre at the origin, radius [r]), over
+/// [area] of it.
+void drawSheetGlints(Canvas canvas, String pattern, Rect area, Color color, double r, double time) {
+  if (pattern == 'crystal') {
+    drawCrystalFlares(canvas, r, time);
+  } else {
+    drawGlints(canvas, area, color, r, time);
+  }
+}
 
 double wedgeHalfAngle(int folds) => math.pi / (2 * folds);
 
 /// Stencil polygon in wedge units, for the stencil named [tool]; the names
-/// are the cases below.
-Cut stencilShape(String tool, double cx, double cy, double r) {
+/// are the cases below. Only through [stencilParts], which knows those cut
+/// in more than one piece too (not here).
+Cut _stencilShape(String tool, double cx, double cy, double r) {
   final pts = <Offset>[];
   void p(double a, double rr) => pts.add(Offset(cx + math.cos(a) * rr, cy + math.sin(a) * rr));
   switch (tool) {
@@ -618,17 +638,175 @@ Cut stencilShape(String tool, double cx, double cy, double r) {
       for (final q in _halloweenStencils[tool]!) {
         pts.add(Offset(cx + q.dx * r, cy + q.dy * r));
       }
-    case 'tree' || 'xstar' || 'gift' || 'bell':
+    case 'tree' || 'xstar' || 'gift' || 'bell' || 'gingerman' || 'elfhat' || 'angel':
       for (final q in _christmasStencils[tool]!) {
         pts.add(Offset(cx + q.dx * r, cy + q.dy * r));
       }
-    case 'snowman' || 'mitten' || 'cane' || 'ornament':
+    case 'snowman' || 'mitten' || 'cane':
       for (final q in _newYearStencils[tool]!) {
         pts.add(Offset(cx + q.dx * r, cy + q.dy * r));
       }
   }
   return pts;
 }
+
+/// Stencil [tool]'s outline in parts, each a cut of its own, at [cx], [cy],
+/// radius [r] (see [_stencilShape]): one part for most, more for those cut
+/// in pieces (see [_stencilParts]), a strip of paper left between them.
+List<Cut> stencilParts(String tool, double cx, double cy, double r) {
+  final parts = _stencilParts[tool];
+  if (parts == null) return [_stencilShape(tool, cx, cy, r)];
+  return [
+    for (final part in parts) [for (final q in part) Offset(cx + q.dx * r, cy + q.dy * r)],
+  ];
+}
+
+/// Stencils cut in more than one piece, each piece's outline at radius 1
+/// about the origin (y down), all on the same scale.
+const Map<String, List<List<Offset>>> _stencilParts = {
+  // A bauble, from assets/stencils/stencil_baulbe.svg: its hook, cap and the
+  // top of its ball, a star's points notched into it, and below a strip left
+  // across it, the bottom of the ball, a star's lower points notched into its
+  // top.
+  'ornament': [
+    [
+      Offset(-0.009, -0.950),
+      Offset(0.028, -0.930),
+      Offset(0.043, -0.907),
+      Offset(0.055, -0.876),
+      Offset(0.062, -0.841),
+      Offset(0.065, -0.802),
+      Offset(0.062, -0.764),
+      Offset(0.055, -0.729),
+      Offset(0.083, -0.729),
+      Offset(0.111, -0.721),
+      Offset(0.131, -0.701),
+      Offset(0.138, -0.673),
+      Offset(0.138, -0.606),
+      Offset(0.187, -0.596),
+      Offset(0.231, -0.583),
+      Offset(0.274, -0.569),
+      Offset(0.316, -0.552),
+      Offset(0.357, -0.532),
+      Offset(0.397, -0.510),
+      Offset(0.435, -0.487),
+      Offset(0.471, -0.461),
+      Offset(0.506, -0.433),
+      Offset(0.539, -0.403),
+      Offset(0.571, -0.371),
+      Offset(0.601, -0.338),
+      Offset(0.628, -0.303),
+      Offset(0.654, -0.266),
+      Offset(0.678, -0.228),
+      Offset(0.699, -0.188),
+      Offset(0.719, -0.148),
+      Offset(0.736, -0.105),
+      Offset(0.750, -0.062),
+      Offset(0.762, -0.018),
+      Offset(0.772, 0.028),
+      Offset(0.207, 0.028),
+      Offset(0.356, -0.208),
+      Offset(0.066, -0.025),
+      Offset(-0.009, -0.360),
+      Offset(-0.085, -0.025),
+      Offset(-0.374, -0.208),
+      Offset(-0.225, 0.028),
+      Offset(-0.772, 0.028),
+      Offset(-0.762, -0.018),
+      Offset(-0.750, -0.062),
+      Offset(-0.736, -0.105),
+      Offset(-0.719, -0.148),
+      Offset(-0.699, -0.188),
+      Offset(-0.678, -0.228),
+      Offset(-0.654, -0.266),
+      Offset(-0.628, -0.303),
+      Offset(-0.601, -0.338),
+      Offset(-0.571, -0.371),
+      Offset(-0.539, -0.403),
+      Offset(-0.506, -0.433),
+      Offset(-0.471, -0.461),
+      Offset(-0.435, -0.487),
+      Offset(-0.397, -0.510),
+      Offset(-0.357, -0.532),
+      Offset(-0.316, -0.552),
+      Offset(-0.274, -0.569),
+      Offset(-0.231, -0.583),
+      Offset(-0.187, -0.596),
+      Offset(-0.157, -0.602),
+      Offset(-0.157, -0.673),
+      Offset(-0.149, -0.701),
+      Offset(-0.129, -0.721),
+      Offset(-0.101, -0.729),
+      Offset(-0.073, -0.729),
+      Offset(-0.080, -0.764),
+      Offset(-0.083, -0.802),
+      Offset(-0.080, -0.841),
+      Offset(-0.073, -0.876),
+      Offset(-0.061, -0.907),
+      Offset(-0.046, -0.930),
+    ],
+    [
+      Offset(0.783, 0.212),
+      Offset(0.778, 0.263),
+      Offset(0.770, 0.313),
+      Offset(0.759, 0.362),
+      Offset(0.745, 0.410),
+      Offset(0.729, 0.456),
+      Offset(0.709, 0.501),
+      Offset(0.687, 0.544),
+      Offset(0.662, 0.586),
+      Offset(0.635, 0.626),
+      Offset(0.605, 0.665),
+      Offset(0.573, 0.701),
+      Offset(0.539, 0.735),
+      Offset(0.503, 0.768),
+      Offset(0.465, 0.797),
+      Offset(0.425, 0.825),
+      Offset(0.383, 0.850),
+      Offset(0.340, 0.873),
+      Offset(0.295, 0.893),
+      Offset(0.249, 0.910),
+      Offset(0.201, 0.924),
+      Offset(0.153, 0.935),
+      Offset(0.103, 0.943),
+      Offset(0.052, 0.948),
+      Offset(0.000, 0.950),
+      Offset(-0.052, 0.948),
+      Offset(-0.103, 0.943),
+      Offset(-0.153, 0.935),
+      Offset(-0.201, 0.924),
+      Offset(-0.249, 0.910),
+      Offset(-0.295, 0.893),
+      Offset(-0.340, 0.873),
+      Offset(-0.383, 0.850),
+      Offset(-0.425, 0.825),
+      Offset(-0.465, 0.797),
+      Offset(-0.503, 0.768),
+      Offset(-0.539, 0.735),
+      Offset(-0.573, 0.701),
+      Offset(-0.605, 0.665),
+      Offset(-0.635, 0.626),
+      Offset(-0.662, 0.586),
+      Offset(-0.687, 0.544),
+      Offset(-0.709, 0.501),
+      Offset(-0.729, 0.456),
+      Offset(-0.745, 0.410),
+      Offset(-0.759, 0.362),
+      Offset(-0.770, 0.313),
+      Offset(-0.778, 0.263),
+      Offset(-0.783, 0.212),
+      Offset(-0.281, 0.212),
+      Offset(-0.191, 0.232),
+      Offset(-0.374, 0.522),
+      Offset(-0.085, 0.339),
+      Offset(-0.009, 0.673),
+      Offset(0.066, 0.339),
+      Offset(0.356, 0.522),
+      Offset(0.173, 0.232),
+      Offset(0.262, 0.212),
+    ],
+    ],
+};
 
 /// Points round a circle at [c], radius [k], from [from] to [to] degrees
 /// (y down, so increasing angles turn clockwise on screen).
@@ -643,23 +821,149 @@ List<Offset> _mirrored(List<Offset> half) => [...half, for (final q in half.reve
 /// The advent calendar's stencils (see [adventRewards]): outlines at radius 1
 /// about the origin (y down).
 final Map<String, List<Offset>> _newYearStencils = {
-  // A snowman: three balls, each bigger than the one above.
-  'snowman': () {
-    const balls = [(-.64, .26), (-.1, .34), (.5, .46)];
-    const top = -.9, bottom = .96;
-    return _mirrored([
-      for (var i = 0; i <= 48; i++)
-        () {
-          final y = top + (bottom - top) * i / 48;
-          var x = 0.0;
-          for (final (cy, r) in balls) {
-            final d = r * r - (y - cy) * (y - cy);
-            if (d > 0) x = math.max(x, math.sqrt(d));
-          }
-          return Offset(x, y);
-        }(),
-    ]);
-  }(),
+  // A snowman, from assets/stencils/stencil_snowman.svg: a top hat, a
+  // round head and a round body under it.
+  'snowman': const [
+Offset(0.270, -0.950),
+    Offset(0.293, -0.929),
+    Offset(0.288, -0.889),
+    Offset(0.283, -0.854),
+    Offset(0.278, -0.816),
+    Offset(0.273, -0.777),
+    Offset(0.268, -0.737),
+    Offset(0.263, -0.698),
+    Offset(0.258, -0.662),
+    Offset(0.254, -0.630),
+    Offset(0.249, -0.590),
+    Offset(0.263, -0.562),
+    Offset(0.294, -0.562),
+    Offset(0.325, -0.562),
+    Offset(0.357, -0.561),
+    Offset(0.380, -0.541),
+    Offset(0.386, -0.511),
+    Offset(0.380, -0.481),
+    Offset(0.357, -0.460),
+    Offset(0.324, -0.460),
+    Offset(0.330, -0.417),
+    Offset(0.342, -0.386),
+    Offset(0.352, -0.353),
+    Offset(0.358, -0.320),
+    Offset(0.362, -0.286),
+    Offset(0.364, -0.253),
+    Offset(0.363, -0.220),
+    Offset(0.359, -0.188),
+    Offset(0.353, -0.158),
+    Offset(0.339, -0.116),
+    Offset(0.334, -0.086),
+    Offset(0.355, -0.062),
+    Offset(0.371, -0.033),
+    Offset(0.379, -0.001),
+    Offset(0.383, 0.032),
+    Offset(0.385, 0.062),
+    Offset(0.393, 0.095),
+    Offset(0.416, 0.123),
+    Offset(0.440, 0.156),
+    Offset(0.460, 0.186),
+    Offset(0.479, 0.219),
+    Offset(0.496, 0.253),
+    Offset(0.508, 0.285),
+    Offset(0.516, 0.316),
+    Offset(0.523, 0.350),
+    Offset(0.528, 0.387),
+    Offset(0.531, 0.425),
+    Offset(0.531, 0.464),
+    Offset(0.529, 0.503),
+    Offset(0.523, 0.541),
+    Offset(0.509, 0.593),
+    Offset(0.489, 0.646),
+    Offset(0.464, 0.695),
+    Offset(0.434, 0.742),
+    Offset(0.399, 0.784),
+    Offset(0.359, 0.823),
+    Offset(0.315, 0.857),
+    Offset(0.266, 0.887),
+    Offset(0.214, 0.911),
+    Offset(0.157, 0.930),
+    Offset(0.097, 0.943),
+    Offset(0.065, 0.947),
+    Offset(0.033, 0.949),
+    Offset(0.000, 0.950),
+    Offset(-0.033, 0.949),
+    Offset(-0.065, 0.947),
+    Offset(-0.097, 0.943),
+    Offset(-0.127, 0.937),
+    Offset(-0.186, 0.921),
+    Offset(-0.240, 0.899),
+    Offset(-0.291, 0.873),
+    Offset(-0.337, 0.841),
+    Offset(-0.379, 0.804),
+    Offset(-0.417, 0.764),
+    Offset(-0.450, 0.719),
+    Offset(-0.477, 0.671),
+    Offset(-0.500, 0.620),
+    Offset(-0.517, 0.566),
+    Offset(-0.525, 0.529),
+    Offset(-0.530, 0.490),
+    Offset(-0.531, 0.451),
+    Offset(-0.530, 0.412),
+    Offset(-0.526, 0.375),
+    Offset(-0.521, 0.339),
+    Offset(-0.513, 0.305),
+    Offset(-0.505, 0.276),
+    Offset(-0.491, 0.241),
+    Offset(-0.473, 0.208),
+    Offset(-0.454, 0.176),
+    Offset(-0.434, 0.147),
+    Offset(-0.410, 0.116),
+    Offset(-0.390, 0.092),
+    Offset(-0.385, 0.057),
+    Offset(-0.382, 0.026),
+    Offset(-0.379, -0.005),
+    Offset(-0.369, -0.039),
+    Offset(-0.352, -0.066),
+    Offset(-0.330, -0.089),
+    Offset(-0.344, -0.130),
+    Offset(-0.356, -0.173),
+    Offset(-0.361, -0.204),
+    Offset(-0.363, -0.236),
+    Offset(-0.363, -0.270),
+    Offset(-0.361, -0.303),
+    Offset(-0.355, -0.337),
+    Offset(-0.347, -0.369),
+    Offset(-0.336, -0.401),
+    Offset(-0.323, -0.431),
+    Offset(-0.306, -0.460),
+    Offset(-0.340, -0.460),
+    Offset(-0.371, -0.467),
+    Offset(-0.385, -0.498),
+    Offset(-0.384, -0.530),
+    Offset(-0.367, -0.557),
+    Offset(-0.333, -0.562),
+    Offset(-0.298, -0.562),
+    Offset(-0.265, -0.562),
+    Offset(-0.267, -0.602),
+    Offset(-0.270, -0.645),
+    Offset(-0.272, -0.680),
+    Offset(-0.274, -0.718),
+    Offset(-0.276, -0.757),
+    Offset(-0.279, -0.797),
+    Offset(-0.283, -0.835),
+    Offset(-0.286, -0.872),
+    Offset(-0.290, -0.905),
+    Offset(-0.292, -0.936),
+    Offset(-0.247, -0.950),
+    Offset(-0.202, -0.950),
+    Offset(-0.157, -0.950),
+    Offset(-0.112, -0.950),
+    Offset(-0.067, -0.950),
+    Offset(-0.022, -0.950),
+    Offset(0.023, -0.950),
+    Offset(0.068, -0.950),
+    Offset(0.112, -0.950),
+    Offset(0.157, -0.950),
+    Offset(0.202, -0.950),
+    Offset(0.247, -0.950),
+  ],
   // A mitten, its thumb out to the left, on a cuff.
   'mitten': const [
     Offset(-.4, .92),
@@ -680,25 +984,292 @@ final Map<String, List<Offset>> _newYearStencils = {
     Offset(-.5, .28),
     Offset(-.4, .6),
   ],
-  // A candy cane: a straight stick, hooked over to the left at the top.
+  // A candy cane: a straight stick, hooked over to the left at the top,
+  // both its ends rounded off.
   'cane': [
-    const Offset(.49, .95),
+    const Offset(.49, .81),
     ..._arcPts(const Offset(0, -.35), .49, 0, -180, 16),
-    const Offset(-.49, -.1),
-    const Offset(-.21, -.1),
+    ..._arcPts(const Offset(-.35, -.1), .14, 180, 0, 8),
     ..._arcPts(const Offset(0, -.35), .21, -180, 0, 10),
-    const Offset(.21, .95),
+    const Offset(.21, .81),
+    ..._arcPts(const Offset(.35, .81), .14, 180, 0, 8),
   ],
-  // A bauble: a ball under its cap.
-  'ornament': _mirrored([
-    const Offset(0, -.92),
-    const Offset(.2, -.92),
-    ..._arcPts(const Offset(0, .14), .8, math.atan2(-.775, .2) * 180 / math.pi, 90, 16),
-  ]),
 };
 
 /// Christmas stencil outlines at radius 1 about the origin (y down).
 final Map<String, List<Offset>> _christmasStencils = {
+  // An angel, from assets/stencils/stencil_angel.svg: a round head, wings
+  // spread wide either side, a long robe flaring to its hem.
+  'angel': const [
+Offset(-0.000, -0.950),
+    Offset(0.049, -0.947),
+    Offset(0.096, -0.938),
+    Offset(0.141, -0.923),
+    Offset(0.187, -0.898),
+    Offset(0.227, -0.863),
+    Offset(0.255, -0.824),
+    Offset(0.275, -0.783),
+    Offset(0.293, -0.734),
+    Offset(0.306, -0.681),
+    Offset(0.313, -0.630),
+    Offset(0.311, -0.582),
+    Offset(0.295, -0.529),
+    Offset(0.270, -0.479),
+    Offset(0.246, -0.438),
+    Offset(0.301, -0.478),
+    Offset(0.358, -0.513),
+    Offset(0.416, -0.539),
+    Offset(0.477, -0.560),
+    Offset(0.540, -0.579),
+    Offset(0.604, -0.599),
+    Offset(0.669, -0.623),
+    Offset(0.713, -0.643),
+    Offset(0.753, -0.673),
+    Offset(0.788, -0.712),
+    Offset(0.821, -0.753),
+    Offset(0.868, -0.767),
+    Offset(0.901, -0.730),
+    Offset(0.911, -0.678),
+    Offset(0.914, -0.628),
+    Offset(0.908, -0.579),
+    Offset(0.895, -0.533),
+    Offset(0.872, -0.490),
+    Offset(0.839, -0.454),
+    Offset(0.867, -0.408),
+    Offset(0.878, -0.360),
+    Offset(0.868, -0.312),
+    Offset(0.839, -0.265),
+    Offset(0.801, -0.235),
+    Offset(0.759, -0.208),
+    Offset(0.717, -0.184),
+    Offset(0.729, -0.136),
+    Offset(0.732, -0.088),
+    Offset(0.708, -0.046),
+    Offset(0.659, -0.023),
+    Offset(0.602, -0.006),
+    Offset(0.553, 0.008),
+    Offset(0.503, 0.022),
+    Offset(0.484, 0.070),
+    Offset(0.474, 0.117),
+    Offset(0.453, 0.170),
+    Offset(0.422, 0.214),
+    Offset(0.384, 0.251),
+    Offset(0.359, 0.297),
+    Offset(0.373, 0.350),
+    Offset(0.387, 0.399),
+    Offset(0.403, 0.456),
+    Offset(0.420, 0.517),
+    Offset(0.438, 0.579),
+    Offset(0.455, 0.639),
+    Offset(0.471, 0.695),
+    Offset(0.485, 0.742),
+    Offset(0.499, 0.790),
+    Offset(0.492, 0.838),
+    Offset(0.443, 0.863),
+    Offset(0.393, 0.884),
+    Offset(0.346, 0.902),
+    Offset(0.297, 0.918),
+    Offset(0.250, 0.929),
+    Offset(0.196, 0.937),
+    Offset(0.144, 0.943),
+    Offset(0.089, 0.947),
+    Offset(0.032, 0.950),
+    Offset(-0.022, 0.950),
+    Offset(-0.078, 0.948),
+    Offset(-0.134, 0.944),
+    Offset(-0.187, 0.939),
+    Offset(-0.234, 0.932),
+    Offset(-0.285, 0.921),
+    Offset(-0.334, 0.906),
+    Offset(-0.382, 0.889),
+    Offset(-0.425, 0.871),
+    Offset(-0.471, 0.851),
+    Offset(-0.504, 0.816),
+    Offset(-0.491, 0.761),
+    Offset(-0.472, 0.695),
+    Offset(-0.456, 0.639),
+    Offset(-0.439, 0.579),
+    Offset(-0.421, 0.517),
+    Offset(-0.403, 0.456),
+    Offset(-0.387, 0.399),
+    Offset(-0.374, 0.350),
+    Offset(-0.360, 0.297),
+    Offset(-0.385, 0.251),
+    Offset(-0.423, 0.214),
+    Offset(-0.450, 0.177),
+    Offset(-0.472, 0.127),
+    Offset(-0.484, 0.076),
+    Offset(-0.482, 0.029),
+    Offset(-0.531, 0.014),
+    Offset(-0.578, 0.001),
+    Offset(-0.627, -0.013),
+    Offset(-0.676, -0.029),
+    Offset(-0.717, -0.056),
+    Offset(-0.735, -0.101),
+    Offset(-0.725, -0.150),
+    Offset(-0.740, -0.197),
+    Offset(-0.780, -0.221),
+    Offset(-0.821, -0.249),
+    Offset(-0.857, -0.288),
+    Offset(-0.876, -0.336),
+    Offset(-0.876, -0.384),
+    Offset(-0.856, -0.431),
+    Offset(-0.865, -0.481),
+    Offset(-0.890, -0.522),
+    Offset(-0.906, -0.567),
+    Offset(-0.914, -0.616),
+    Offset(-0.913, -0.666),
+    Offset(-0.905, -0.715),
+    Offset(-0.883, -0.757),
+    Offset(-0.836, -0.767),
+    Offset(-0.804, -0.731),
+    Offset(-0.772, -0.692),
+    Offset(-0.734, -0.656),
+    Offset(-0.691, -0.632),
+    Offset(-0.648, -0.614),
+    Offset(-0.583, -0.592),
+    Offset(-0.519, -0.573),
+    Offset(-0.457, -0.554),
+    Offset(-0.397, -0.531),
+    Offset(-0.339, -0.502),
+    Offset(-0.283, -0.464),
+    Offset(-0.247, -0.431),
+    Offset(-0.271, -0.479),
+    Offset(-0.295, -0.529),
+    Offset(-0.312, -0.582),
+    Offset(-0.314, -0.630),
+    Offset(-0.307, -0.681),
+    Offset(-0.294, -0.734),
+    Offset(-0.276, -0.783),
+    Offset(-0.255, -0.824),
+    Offset(-0.227, -0.863),
+    Offset(-0.188, -0.898),
+    Offset(-0.141, -0.923),
+    Offset(-0.096, -0.938),
+    Offset(-0.050, -0.947),
+  ],
+  // An elf's hat, from assets/stencils/stencil_elf_hat.svg: a brim at the
+  // foot, its tip flopping over to the right with a bobble on it.
+  'elfhat': const [
+Offset(-0.950, 0.270),
+    Offset(-0.862, 0.371),
+    Offset(-0.858, 0.294),
+    Offset(-0.852, 0.219),
+    Offset(-0.843, 0.147),
+    Offset(-0.833, 0.078),
+    Offset(-0.820, 0.011),
+    Offset(-0.805, -0.054),
+    Offset(-0.787, -0.115),
+    Offset(-0.767, -0.174),
+    Offset(-0.745, -0.231),
+    Offset(-0.720, -0.285),
+    Offset(-0.693, -0.337),
+    Offset(-0.663, -0.386),
+    Offset(-0.630, -0.432),
+    Offset(-0.595, -0.477),
+    Offset(-0.557, -0.518),
+    Offset(-0.516, -0.558),
+    Offset(-0.473, -0.594),
+    Offset(-0.426, -0.629),
+    Offset(-0.377, -0.661),
+    Offset(-0.324, -0.691),
+    Offset(-0.268, -0.718),
+    Offset(-0.210, -0.743),
+    Offset(-0.148, -0.765),
+    Offset(-0.083, -0.785),
+    Offset(-0.002, -0.803),
+    Offset(0.067, -0.812),
+    Offset(0.144, -0.817),
+    Offset(0.229, -0.818),
+    Offset(0.317, -0.812),
+    Offset(0.407, -0.798),
+    Offset(0.497, -0.776),
+    Offset(0.584, -0.744),
+    Offset(0.666, -0.700),
+    Offset(0.741, -0.644),
+    Offset(0.806, -0.575),
+    Offset(0.850, -0.509),
+    Offset(0.878, -0.458),
+    Offset(0.902, -0.407),
+    Offset(0.921, -0.355),
+    Offset(0.942, -0.276),
+    Offset(0.950, -0.194),
+    Offset(0.945, -0.111),
+    Offset(0.934, -0.055),
+    Offset(0.915, 0.002),
+    Offset(0.890, 0.060),
+    Offset(0.931, 0.123),
+    Offset(0.948, 0.196),
+    Offset(0.938, 0.270),
+    Offset(0.905, 0.336),
+    Offset(0.850, 0.387),
+    Offset(0.781, 0.416),
+    Offset(0.707, 0.419),
+    Offset(0.635, 0.397),
+    Offset(0.576, 0.351),
+    Offset(0.536, 0.288),
+    Offset(0.521, 0.215),
+    Offset(0.531, 0.142),
+    Offset(0.566, 0.076),
+    Offset(0.621, 0.026),
+    Offset(0.691, -0.002),
+    Offset(0.765, -0.004),
+    Offset(0.754, -0.099),
+    Offset(0.729, -0.201),
+    Offset(0.693, -0.285),
+    Offset(0.648, -0.353),
+    Offset(0.595, -0.403),
+    Offset(0.536, -0.434),
+    Offset(0.471, -0.447),
+    Offset(0.403, -0.439),
+    Offset(0.333, -0.411),
+    Offset(0.262, -0.361),
+    Offset(0.191, -0.289),
+    Offset(0.156, -0.245),
+    Offset(0.137, -0.167),
+    Offset(0.127, -0.094),
+    Offset(0.126, -0.023),
+    Offset(0.136, 0.047),
+    Offset(0.157, 0.121),
+    Offset(0.178, 0.173),
+    Offset(0.204, 0.228),
+    Offset(0.235, 0.286),
+    Offset(0.273, 0.350),
+    Offset(0.407, 0.283),
+    Offset(0.407, 0.685),
+    Offset(0.344, 0.706),
+    Offset(0.282, 0.726),
+    Offset(0.222, 0.744),
+    Offset(0.164, 0.759),
+    Offset(0.108, 0.773),
+    Offset(0.053, 0.785),
+    Offset(-0.054, 0.803),
+    Offset(-0.158, 0.814),
+    Offset(-0.261, 0.818),
+    Offset(-0.364, 0.814),
+    Offset(-0.468, 0.802),
+    Offset(-0.576, 0.784),
+    Offset(-0.632, 0.772),
+    Offset(-0.690, 0.758),
+    Offset(-0.749, 0.742),
+    Offset(-0.809, 0.725),
+    Offset(-0.872, 0.706),
+    Offset(-0.937, 0.685),
+  ],
+  // A gingerbread man: a round head, arms out straight with round ends, and
+  // legs apart on round feet.
+  'gingerman': _mirrored([
+    ..._arcPts(const Offset(0, -.62), .3, -90, 50, 12),
+    const Offset(.16, -.32),
+    const Offset(.7, -.3),
+    ..._arcPts(const Offset(.72, -.17), .13, -90, 90, 8),
+    const Offset(.3, -.02),
+    const Offset(.34, .3),
+    const Offset(.53, .79),
+    ..._arcPts(const Offset(.4, .84), .14, -20, 160, 8),
+    const Offset(.12, .45),
+    const Offset(0, .38),
+  ]),
   // A fir tree: three tiers, each wider than the one above, on a trunk.
   'tree': _mirrored(const [
     Offset(0, -1),
@@ -919,12 +1490,27 @@ Path cutPath(Cut c, double s, {bool close = true}) {
 
 final _tileCache = <(Color, String, int), ui.Image>{};
 
-/// Paint for the paper: plain colour or a repeating pattern tile. unitPx = paper radius in px.
-Paint makePaperFill(Color color, String pattern, double unitPx) {
+/// How many bytes the tiles in [_tileCache] take, and the most they may:
+/// past that the oldest go, so heavy patterns zoomed and recoloured can't
+/// pile up.
+var _tileBytes = 0;
+const _tileBudget = 24 << 20;
+
+/// How much of the screen's own sharpness a tile is drawn at (see
+/// [makePaperFill]): half its pixels across, a quarter of the memory, and
+/// still far crisper than one drawn in logical pixels.
+const _tileSharpness = .5;
+
+/// Paint for the paper: plain colour or a repeating pattern tile. unitPx =
+/// paper radius in px; [dpr] the screen's pixels to each of those, a tile
+/// being drawn at [_tileSharpness] of them (never fewer than one to each)
+/// so it stays sharp (1 where unitPx is in them already).
+Paint makePaperFill(Color color, String pattern, double unitPx, {double dpr = 1}) {
   // Gingerbread is its own brown: one tile for it, whatever colour is picked.
   if (pattern == 'gingerbread') color = gingerbreadColor;
   final paint = Paint()..color = color;
-  if (pattern == 'plain') return paint;
+  // Crystal's facets are laid over its colour (see [drawCrystalFacets]).
+  if (pattern == 'plain' || pattern == 'crystal') return paint;
   // Tinted glass, as see-through as its colour is light: white glass all but
   // clear, dark glass rich. Its glints fall on it from outside (see
   // [drawGlassGlints]).
@@ -959,6 +1545,8 @@ Paint makePaperFill(Color color, String pattern, double unitPx) {
     'garland' => math.max(28.0, unitPx * .4),
     'candy' => math.max(24.0, unitPx * .28),
     'tartan' => math.max(20.0, unitPx * .25),
+    // One square of a chocolate bar: a few across the paper, chunky.
+    'chocolate' => math.max(24.0, unitPx * .25),
     // One hologram cell: a big burst with small ones at its corners.
     'holo' => math.max(16.0, unitPx * .3),
     // A texture's tile: a few across the paper, so its motifs read; the
@@ -969,16 +1557,21 @@ Paint makePaperFill(Color color, String pattern, double unitPx) {
     _ when textureAssets.containsKey(pattern) => math.max(36.0, unitPx * .9),
     _ => math.max(8.0, unitPx * 0.075),
   };
-  // Drawn at the nearest of a few sizes and scaled to fit, so zooming the
-  // board in and out reuses a handful of tiles instead of making new ones.
-  final tq = math.pow(1.25, (math.log(t) / math.log(1.25)).round()).round();
+  // Drawn, nearly in the screen's pixels (see [_tileSharpness]), at the
+  // nearest of a few sizes and scaled to fit, so zooming the board in and
+  // out reuses a handful of tiles instead of making new ones.
+  final px = t * math.max(1.0, dpr * _tileSharpness);
+  final tq = math.pow(1.25, (math.log(px) / math.log(1.25)).round()).round();
   final key = (color, pattern, tq);
   var img = _tileCache.remove(key);
   if (img == null) {
     img = _tile(color, pattern, tq.toDouble());
-    // The oldest go: dropped, not disposed, as a shader may still hold one.
-    while (_tileCache.length >= 48) {
-      _tileCache.remove(_tileCache.keys.first);
+    _tileBytes += img.width * img.height * 4;
+    // The oldest go, within the budget and never more than 48: dropped, not
+    // disposed, as a shader may still hold one.
+    while (_tileCache.isNotEmpty && (_tileBytes > _tileBudget || _tileCache.length >= 48)) {
+      final old = _tileCache.remove(_tileCache.keys.first)!;
+      _tileBytes -= old.width * old.height * 4;
     }
   }
   _tileCache[key] = img;
@@ -987,6 +1580,14 @@ Paint makePaperFill(Color color, String pattern, double unitPx) {
       // Smooth, as the tile is scaled a little.
       filterQuality: FilterQuality.medium);
 }
+
+/// How wide chocolate paper's squares' sloping sides are, as a share of
+/// their tile.
+const _chocolateBevel = .13;
+
+/// How much chocolate paper's lit sides lose of their colour's fullness for
+/// each step lighter: at .16 lighter (the top side), 16% × this.
+const _chocolateDull = 3.0;
 
 /// Gingerbread paper's own brown, whatever colour is picked (that one goes
 /// to its icing, see [drawWedge]).
@@ -1105,14 +1706,23 @@ void drawGlints(Canvas canvas, Rect area, Color color, double unitPx, double tim
 /// pos steps (and mirrored at odd positions), so the paper's pattern, drawn
 /// after this in sheet terms, runs on unbroken across the unfolded flake.
 void toSheet(Canvas canvas, int pos, int folds) {
-  if (pos == 0) return;
   if (pos.isOdd) canvas.scale(-1, 1);
-  canvas.rotate(-pos * math.pi / folds);
+  canvas.rotate(-pos * math.pi / folds - sheetTurn(folds));
 }
 
-/// [drawGlints] for a paper wedge drawn by [drawWedge] (same [s], [cuts],
-/// [half] and segment [pos] of [folds]), kept to the paper.
-void drawWedgeGlints(Canvas canvas, double s, List<Cut> cuts, double half, Color color, double time, {int pos = 0, int folds = 1}) {
+/// How far the sheet's pattern is turned back within it, for paper folded
+/// [folds] times, so it lies level on the open flake as it rests (turned
+/// [sheetTurn] itself: half a segment, and [restTurns] segments more; see
+/// [SnowflakePainter]): a garland across, a gradient top to bottom.
+double sheetTurn(int folds) => (restTurns + .5) * math.pi / folds;
+
+/// How many segments round from where it was folded an open flake rests:
+/// as it comes to rest after unfolding, a turn of its own symmetry on.
+const restTurns = 2;
+
+/// [drawSheetGlints] for a paper wedge drawn by [drawWedge] (same [s],
+/// [cuts], [half] and segment [pos] of [folds]), kept to the paper.
+void drawWedgeGlints(Canvas canvas, double s, List<Cut> cuts, double half, Color color, double time, {int pos = 0, int folds = 1, String pattern = 'sparkle'}) {
   final bounds = Rect.fromCircle(center: Offset.zero, radius: s * 1.3);
   canvas.saveLayer(bounds, Paint());
   canvas.save();
@@ -1121,7 +1731,7 @@ void drawWedgeGlints(Canvas canvas, double s, List<Cut> cuts, double half, Color
     ..arcTo(Rect.fromCircle(center: Offset.zero, radius: s), -math.pi / 2 - half, 2 * half, false)
     ..close());
   toSheet(canvas, pos, folds);
-  drawGlints(canvas, bounds, color, s, time);
+  drawSheetGlints(canvas, pattern, bounds, color, s, time);
   canvas.restore();
   final clear = Paint()..blendMode = BlendMode.clear;
   for (final c in cuts) {
@@ -1180,6 +1790,28 @@ ui.Image _tile(Color color, String pattern, double t) {
       for (final o in [-t, 0.0, t]) {
         x.drawLine(Offset(o, t), Offset(o + t, 0), p);
       }
+    case 'chocolate':
+      // A bar of chocolate in the paper's colour: one square to a tile,
+      // raised, its sloping sides lit from the top left (lighter there,
+      // darker to the bottom right), meeting the next edge to edge.
+      // Near-white paper makes white chocolate, black dark.
+      final hsl = HSLColor.fromColor(color);
+      // Lighter by adding, and duller as it does (saturated paper, as the
+      // palette's brown, would otherwise light up orange); darker by a share
+      // of its own lightness, so dark chocolate's shaded sides stay
+      // chocolate, not black.
+      Color shade(double d) => d >= 0
+          ? hsl.withLightness(math.min(1, hsl.lightness + d)).withSaturation(hsl.saturation * (1 - d * _chocolateDull)).toColor()
+          : hsl.withLightness(hsl.lightness * (1 + d)).toColor();
+      final i0 = t * _chocolateBevel, i1 = t - i0;
+      void face(List<Offset> pts, Color c) => x.drawPath(Path()..addPolygon(pts, true), Paint()..color = c);
+      // The square whole in its right side's shade first, so nothing shows
+      // through where its sides meet.
+      x.drawRect(Rect.fromLTWH(0, 0, t, t), Paint()..color = shade(-.15));
+      face([Offset(0, t), Offset(i0, i1), Offset(i1, i1), Offset(t, t)], shade(-.28));
+      face([Offset.zero, Offset(t, 0), Offset(i1, i0), Offset(i0, i0)], shade(.16));
+      face([Offset.zero, Offset(i0, i0), Offset(i0, i1), Offset(0, t)], shade(.08));
+      x.drawRect(Rect.fromLTRB(i0, i0, i1, i1), Paint()..color = color);
     case 'checks':
       final p = Paint()..color = inkLight;
       x.drawRect(Rect.fromLTWH(0, 0, t / 2, t / 2), p);
@@ -1462,8 +2094,29 @@ ui.Image _tile(Color color, String pattern, double t) {
         x.drawLine(Offset(o - t / 2, 2 * t), Offset(o + 2.5 * t, -t), stripe(o + 1.5 * t, t * _candyThin));
       }
     case 'garland':
-      // A string of lights: a wire waving across, a bulb of each colour on it.
+      // A string of lights: a wire waving across, a bulb of each colour on it,
+      // each glowing; the glows under the wire, the bulbs over it.
       double wave(double px) => t * .5 + t * .12 * math.sin(2 * math.pi * px / t);
+      const bulbs = [Color(0xFFE0405E), Color(0xFFFFD34D), Color(0xFF3E9BFF), Color(0xFF2FB37E)];
+      Offset bulbAt(int k) {
+        final px = (k + .5) / bulbs.length * t;
+        return Offset(px, wave(px) + t * .07);
+      }
+
+      // Each bulb's glow and its bright spot added to the light under them, as
+      // light is, brightening it rather than tinting it over; on near-white
+      // paper, with no light to add to, laid over instead, or they would
+      // vanish.
+      final glowBlend = color.computeLuminance() > .8 ? BlendMode.srcOver : BlendMode.plus;
+      for (var k = 0; k < bulbs.length; k++) {
+        x.drawCircle(
+          bulbAt(k),
+          t * .09,
+          Paint()
+            ..color = bulbs[k].withValues(alpha: .25)
+            ..blendMode = glowBlend,
+        );
+      }
       final wire = Path()..moveTo(0, wave(0));
       for (var i = 1; i <= 40; i++) {
         wire.lineTo(i / 40 * t, wave(i / 40 * t));
@@ -1475,13 +2128,19 @@ ui.Image _tile(Color color, String pattern, double t) {
           ..style = PaintingStyle.stroke
           ..strokeWidth = math.max(1.0, t * .015),
       );
-      const bulbs = [Color(0xFFE0405E), Color(0xFFFFD34D), Color(0xFF3E9BFF), Color(0xFF2FB37E)];
       for (var k = 0; k < bulbs.length; k++) {
-        final px = (k + .5) / bulbs.length * t, py = wave(px);
-        final bulb = Offset(px, py + t * .07);
-        x.drawCircle(bulb, t * .09, Paint()..color = bulbs[k].withValues(alpha: .25));
+        final bulb = bulbAt(k), px = bulb.dx, py = wave(px);
         x.drawRect(Rect.fromCenter(center: Offset(px, py + t * .015), width: t * .04, height: t * .03), Paint()..color = const Color(0xFF6B7280));
+        // The bulb in its own colour, and lit: a small bright dot up by its
+        // socket, its light added (see [glowBlend]).
         x.drawOval(Rect.fromCenter(center: bulb, width: t * .055, height: t * .085), Paint()..color = bulbs[k]);
+        x.drawCircle(
+          bulb + Offset(0, -t * .024),
+          t * .012,
+          Paint()
+            ..color = const Color(0xCCFFFFFF)
+            ..blendMode = glowBlend,
+        );
       }
     case 'tartan':
       // Plaid: broad darker bands either way, deeper where they cross, and
@@ -1507,6 +2166,218 @@ ui.Image _tile(Color color, String pattern, double t) {
       }
   }
   return rec.endRecording().toImageSync(t.toInt(), t.toInt());
+}
+
+// ---- Crystal ----------------------------------------------------------------
+
+/// Crystal paper: an octagonal gem seen from above across the whole sheet
+/// (centre at the origin, radius 1), as gems are drawn: see-through
+/// triangles laid one over another, lighter (white) or darker (the paper's
+/// deep shade), so where they cross they make the many facets between them.
+/// Its outline's corners a little past the sheet's edge, so its sides clear
+/// it. Lit evenly, from no side: each facet's shade its own.
+///
+/// Made once, in plain numbers, the paper's colour put to them when drawn
+/// (see [_colourCrystal]): the triangles' corners ([positions], three to
+/// each), and at each corner how it lies on what is under it ([shade]):
+/// over 0 the gem's bright shade, under 0 its deep one, as opaque as it is
+/// far from 0; [_baseShade] the gem's own colour, opaque, and [_tableShade]
+/// that nearly opaque (the table, laid over the rest to calm it).
+final _crystal = () {
+  const outer = 1.08, table = .42;
+  const step = math.pi / 4, startAt = -math.pi / 2;
+  Offset at(double r, double a) => Offset(math.cos(a) * r, math.sin(a) * r);
+  Offset v(int i) => at(outer, startAt + i * step);
+  Offset t(int i) => at(table, startAt + i * step);
+  // A share from -1 to 1 for each triangle in turn, the same every launch:
+  // the golden ratio's steps, so neighbours seldom match.
+  var made = 0;
+  double vary() => (++made * .6180339887) % 1 * 2 - 1;
+  final positions = <double>[], shade = <double>[];
+  void tri(Offset a, Offset b, Offset c, double tone) {
+    positions.addAll([a.dx, a.dy, b.dx, b.dy, c.dx, c.dy]);
+    shade.addAll(List.filled(3, tone * _crystalContrast));
+  }
+
+  // The gem's own colour, fuller than the paper's, under all the rest,
+  // wholly hiding the paper.
+  for (var i = 0; i < 8; i++) {
+    positions.addAll([0, 0, v(i).dx, v(i).dy, v(i + 1).dx, v(i + 1).dy]);
+    shade.addAll(const [_baseShade, _baseShade, _baseShade]);
+  }
+
+  // A triangle shaded as a whole: lighter or darker by up to [strength],
+  // its own, and [offset] on top.
+  void lit(Offset a, Offset b, Offset c, double strength, double offset) => tri(a, b, c, strength * vary() + offset);
+
+  for (var i = 0; i < 8; i++) {
+    // The caps: each corner's triangle out past the chord between its
+    // neighbours, crossing its neighbours' near the rim.
+    lit(v(i - 1), v(i), v(i + 1), .5, i.isEven ? .1 : -.14);
+  }
+  for (var i = 0; i < 8; i++) {
+    // The ring between the table and the rim: three triangles to a side,
+    // by turns lighter and darker.
+    final m = (v(i) + v(i + 1)) / 2;
+    lit(v(i), m, t(i), .45, -.16);
+    lit(m, v(i + 1), t(i + 1), .45, .1);
+    lit(m, t(i), t(i + 1), .4, i.isEven ? .16 : -.06);
+  }
+  for (var i = 0; i < 8; i++) {
+    // The star: from each corner in to the table's corners either side,
+    // the arms overlapping one another.
+    lit(v(i), t(i - 1), t(i + 1), .45, -.1);
+  }
+  for (var i = 0; i < 8; i++) {
+    // The table: the paper again, nearly hiding what is under it, then a
+    // touch lighter, its facets by turns more so.
+    positions.addAll([0, 0, t(i).dx, t(i).dy, t(i + 1).dx, t(i + 1).dy]);
+    shade.addAll(const [_tableShade, _tableShade, _tableShade]);
+  }
+  for (var i = 0; i < 8; i++) {
+    tri(Offset.zero, t(i), t(i + 1), i.isEven ? .2 : .12);
+  }
+  // A triangle of white, as opaque as [alpha] (see [_whiteShade]), or
+  // corner by corner as [alpha], [alphaB] and [alphaC].
+  void white(Offset a, Offset b, Offset c, double alpha, [double? alphaB, double? alphaC]) {
+    positions.addAll([a.dx, a.dy, b.dx, b.dy, c.dx, c.dy]);
+    shade.addAll([_whiteShade + alpha, _whiteShade + (alphaB ?? alpha), _whiteShade + (alphaC ?? alpha)]);
+  }
+
+  // Over it all, light lying along four of the table's edges as on glass: a
+  // thin sliver out from each, its point a little past the edge's middle,
+  // white as good as solid along the edge and fading out to its point, so
+  // it reads as a sheen rather than a grey film.
+  for (final i in const [1, 3, 6, 7]) {
+    final strong = _glassStrong + .08 * vary();
+    white(t(i), at(_whiteReach, startAt + (i + .5) * step), t(i + 1), strong, _glassFaint, strong);
+  }
+  return (positions: Float32List.fromList(positions), shade: shade);
+}();
+
+/// How opaque crystal's glass sheen is at its strongest, along the table's
+/// edge, and at its faintest, out at its point.
+const _glassStrong = .7, _glassFaint = .12;
+
+/// How far out from the middle crystal's slivers of sheen along the
+/// table's edges reach, at their points: the table's corners are at .42.
+const _whiteReach = .5;
+
+/// In [_crystal]'s shades: the gem's own colour, opaque, and nearly so
+/// ([_tableOpacity]); white, as opaque as it is over [_whiteShade].
+const _baseShade = 9.0, _tableShade = 8.0, _tableOpacity = .82, _whiteShade = 10.0;
+
+/// How much stronger than drawn [_crystal]'s shades are, all of them.
+const _crystalContrast = 1.45;
+
+/// How much fuller the gem's colour is than the paper's.
+const _crystalSaturation = 1.3;
+
+/// Crystal's triangles coloured for each paper colour it has been drawn in:
+/// a few dozen at most, the palette's.
+final _crystalVertices = <Color, ui.Vertices>{};
+
+/// Crystal paper's triangles (see [_crystal]) coloured for paper of
+/// [color]: the gem's colour (the paper's, fuller: see
+/// [_crystalSaturation]), its bright shade (lighter, as full, so the light is the gem's
+/// colour lit up, not washed out; on near-white paper, white), or its deep
+/// shade (the paper multiplied by itself, so darker without greying;
+/// near-white paper by ice blue), each as opaque as its shade says.
+ui.Vertices _colourCrystal(Color color) {
+  var hsl = HSLColor.fromColor(color);
+  final whitish = hsl.saturation < .15 && hsl.lightness > .8;
+  if (!whitish) {
+    hsl = hsl.withSaturation(math.min(1, hsl.saturation * _crystalSaturation));
+    color = hsl.toColor();
+  }
+  final by = whitish ? const Color(0xFF7F9DC4) : color;
+  final deep = Color.from(alpha: 1, red: color.r * by.r, green: color.g * by.g, blue: color.b * by.b);
+  final bright = whitish ? const Color(0xFFFFFFFF) : hsl.withLightness(math.min(.8, hsl.lightness + .3)).withSaturation(math.min(1, hsl.saturation * 1.1)).toColor();
+  return ui.Vertices.raw(
+    VertexMode.triangles,
+    _crystal.positions,
+    colors: Int32List.fromList([
+      for (final s in _crystal.shade)
+        (s >= _whiteShade
+                ? Color.fromRGBO(255, 255, 255, s - _whiteShade)
+                : s == _baseShade
+                ? color
+                : s == _tableShade
+                ? color.withValues(alpha: _tableOpacity)
+                : s >= 0
+                ? bright.withValues(alpha: math.min(1, s))
+                : deep.withValues(alpha: math.min(1, -s)))
+            .toARGB32(),
+    ]),
+  );
+}
+
+/// Where crystal's flares of light sit on the sheet (at the table's corners
+/// and the star's points), their sizes, and when in a round each flashes,
+/// as a share of it, so they come by turns.
+const _crystalFlares = [(Offset(.3, -.31), 1.0, 0.0), (Offset(-.47, .12), .8, .42), (Offset(.08, .4), .7, .2), (Offset(-.22, -.38), .6, .64), (Offset(.55, .16), .65, .84)];
+
+/// How long a round of crystal's flares takes, in seconds, and what share of
+/// it each flare is lit for: up and gone again, then dark till its turn.
+const _flareRound = 5.6, _flareLit = .32;
+
+/// How far a flare's rays turn while it is lit, clockwise from level, in
+/// radians.
+const _flareTurn = .5;
+
+/// A flare's soft glow, at the origin, radius 1.
+final _flareGlow = ui.Gradient.radial(Offset.zero, 1, const [Color(0xCCFFFFFF), Color(0x55B4C8FF), Color(0x00B4C8FF)], const [0, .25, 1]);
+
+/// A flare's rays: long and thin across, shorter up and down.
+final _flareRays = () {
+  Path ray(double long, double thin, double turn) {
+    final c = math.cos(turn), s = math.sin(turn);
+    Offset p(double x, double y) => Offset(x * c - y * s, x * s + y * c);
+    return Path()..addPolygon([p(-long, 0), p(0, -thin), p(long, 0), p(0, thin)], true);
+  }
+
+  return Path()
+    ..addPath(ray(2.2, .07, 0), Offset.zero)
+    ..addPath(ray(1.1, .06, math.pi / 2), Offset.zero);
+}();
+
+/// Crystal paper's gem over its [color], laid in sheet terms (centre at the
+/// origin, radius [r]): its triangles coloured to it (see [_colourCrystal]),
+/// in one draw. Still: its flares go on separately, over it, while it
+/// shimmers (see [drawCrystalFlares]).
+void drawCrystalFacets(Canvas canvas, double r, Color color) {
+  canvas.save();
+  canvas.scale(r);
+  // The vertices' own colours, the paint's left out.
+  canvas.drawVertices(_crystalVertices.putIfAbsent(color, () => _colourCrystal(color)), BlendMode.dst, Paint());
+  canvas.restore();
+}
+
+/// Crystal paper's flares at [time] seconds, laid in sheet terms (centre at
+/// the origin, radius [r]), over the gem: each, in its turn, swelling up out
+/// of nothing and dying away, its rays turning a little as it does (from
+/// level, clockwise: see [_flareTurn]). Only
+/// those lit are drawn, a couple at a time at most.
+void drawCrystalFlares(Canvas canvas, double r, double time) {
+  final ray = Paint();
+  for (final (at, size, phase) in _crystalFlares) {
+    final u = (time / _flareRound + phase) % 1;
+    if (u >= _flareLit) continue;
+    final lit = math.sin(math.pi * u / _flareLit);
+    canvas.save();
+    canvas.translate(at.dx * r, at.dy * r);
+    canvas.rotate(_flareTurn * u / _flareLit);
+    canvas.scale(r * .09 * size * (.4 + .6 * lit));
+    canvas.drawCircle(
+      Offset.zero,
+      1,
+      Paint()
+        ..shader = _flareGlow
+        ..color = Color.fromRGBO(255, 255, 255, lit),
+    );
+    canvas.drawPath(_flareRays, ray..color = Color.fromRGBO(255, 255, 255, .9 * lit));
+    canvas.restore();
+  }
 }
 
 // ---- Hologram ---------------------------------------------------------------
@@ -1624,7 +2495,7 @@ void _paintBubbles(Canvas canvas, List<_Bubble> circles, Color color, double s, 
 /// [toSheet]); a hologram ([pattern]) gets its sheen on top, drifted to
 /// [sheenTime] seconds, unless [sheen] is false (a flake that turns lays its
 /// own, fixed to the screen).
-void drawWedge(Canvas canvas, double s, List<Cut> cuts, double half, Paint fill, {double pad = 0, String? pattern, int pos = 0, int folds = 1, bool sheen = true, double sheenTime = 0, Color? icing}) {
+void drawWedge(Canvas canvas, double s, List<Cut> cuts, double half, Paint fill, {double pad = 0, String? pattern, int pos = 0, int folds = 1, bool sheen = true, double sheenTime = 0, Color? icing, double dpr = 1}) {
   final bounds = Rect.fromCircle(center: Offset.zero, radius: s * 1.3);
   canvas.saveLayer(bounds, Paint());
   final wedge = Path()
@@ -1636,6 +2507,7 @@ void drawWedge(Canvas canvas, double s, List<Cut> cuts, double half, Paint fill,
   toSheet(canvas, pos, folds);
   canvas.drawRect(bounds, fill);
   if (pattern == 'holo' && sheen) drawHoloSheen(canvas, bounds, s, time: sheenTime);
+  if (pattern == 'crystal') drawCrystalFacets(canvas, s, fill.color);
   canvas.restore();
   // Unturned by the segment's place on the sheet: light on glass keeps to
   // the screen.
@@ -1650,7 +2522,7 @@ void drawWedge(Canvas canvas, double s, List<Cut> cuts, double half, Paint fill,
     canvas.save();
     canvas.clipPath(wedge);
     toSheet(canvas, pos, folds);
-    canvas.drawRect(bounds, makePaperFill(fill.color, wrapperGoldLayer, s));
+    canvas.drawRect(bounds, makePaperFill(fill.color, wrapperGoldLayer, s, dpr: dpr));
     canvas.restore();
   }
   final clear = Paint()..blendMode = BlendMode.clear;
@@ -1751,8 +2623,8 @@ void _bakedEdge(Canvas canvas, double s, List<Path> lines, double half, double p
 const glassDepth = .01;
 
 /// How opaque glass of [color] is: as see-through as the colour is light,
-/// from a quarter (white) to three quarters (black).
-double glassOpacity(Color color) => ui.lerpDouble(.75, .25, color.computeLuminance())!;
+/// from about a third (white) to three quarters (black).
+double glassOpacity(Color color) => ui.lerpDouble(.75, .35, color.computeLuminance())!;
 
 /// Glass is richer than the paper colour picked for it: its saturation (as
 /// in HSV) times this, the hue and brightness kept; white, black and greys,

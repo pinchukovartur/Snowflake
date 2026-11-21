@@ -72,6 +72,9 @@
   <string name="stencil_xstar">Christmas star</string>
   <string name="stencil_gift">Gift</string>
   <string name="stencil_bell">Bell</string>
+  <string name="stencil_elfhat">Elf hat</string>
+  <string name="stencil_angel">Angel</string>
+  <string name="stencil_gingerman">Gingerman</string>
 
   <!-- Paper colours -->
   <string name="color_white">White</string>
@@ -108,6 +111,8 @@
   <string name="pattern_gradient">Gradient</string>
   <string name="pattern_analogous">Hues</string>
   <string name="pattern_gingerbread">Gingerbread</string>
+  <string name="pattern_crystal">Crystal</string>
+  <string name="pattern_chocolate">Chocolate</string>
 
   <!-- Reveal -->
   <string name="unfolding">Unfolding…</string>
@@ -135,7 +140,7 @@
 
   <!-- Advent calendar -->
   <string name="advent">Advent calendar</string>
-  <string name="advent_note">From 25 December to 1 January a new door opens every day</string>
+  <string name="advent_note">From 18 to 25 December a new door opens every day</string>
   <string name="advent_paper">Paper</string>
   <string name="advent_stencil">Stencil</string>
   <string name="pattern_snowfall">Snowfall</string>
@@ -144,12 +149,12 @@
   <string name="pattern_tartan">Tartan</string>
   <string name="stencil_snowman">Snowman</string>
   <string name="stencil_mitten">Mitten</string>
-  <string name="stencil_cane">Candy</string>
+  <string name="stencil_cane">Cane</string>
   <string name="stencil_ornament">Bauble</string>
 
   <!-- Shop -->
   <string name="shop">Shop</string>
-  <string name="offer_pack_snow_day">Snow Day set</string>
+  <string name="offer_pack_snow_day">Winter Treats set</string>
   <string name="offer_pack_holiday">Holiday set</string>
   <string name="offer_note">One-time purchase</string>
   <string name="try_it">Try it!</string>

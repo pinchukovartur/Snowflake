@@ -117,7 +117,7 @@ class PaperDialog extends StatelessWidget {
                                             // out past the swatch's edge (see [_LockedCorner]).
                                             Stack(clipBehavior: Clip.none, children: [
                                               PaperSwatch(color: paper.color, pattern: id, selected: id == paper.pattern),
-                                              if (shut) const Positioned.fill(child: _LockedCorner()),
+                                              if (shut) Positioned.fill(child: _LockedCorner(advent: adventOnly(id))),
                                             ]),
                                             const SizedBox(height: 8),
                                             // One full-size line tall, so a long name shrunk to
@@ -169,7 +169,10 @@ List<List<String>> _patternRows(List<String> patterns) {
 /// swatch's rounding, the lock not (it may be set out past the edge); takes
 /// no touches.
 class _LockedCorner extends StatelessWidget {
-  const _LockedCorner();
+  const _LockedCorner({required this.advent});
+
+  /// Only the advent calendar's: its blue lock (see [LockIcon.advent]).
+  final bool advent;
 
   /// How far along the top and down the side the triangle runs, as a share
   /// of the swatch's side.
@@ -197,7 +200,7 @@ class _LockedCorner extends StatelessWidget {
                 ),
               ),
             ),
-            Positioned(top: side * _lockFromTop, right: side * _lockFromRight, child: LockIcon(size: side * _lockSize)),
+            Positioned(top: side * _lockFromTop, right: side * _lockFromRight, child: LockIcon(size: side * _lockSize, advent: advent)),
           ]);
         }),
       );
@@ -227,10 +230,14 @@ class _CornerPainter extends CustomPainter {
 /// A square of paper in [color] and [pattern] filling its width, for the
 /// pattern picker; styled like the colour swatches.
 class PaperSwatch extends StatefulWidget {
-  const PaperSwatch({super.key, required this.color, required this.pattern, this.selected = false});
+  const PaperSwatch({super.key, required this.color, required this.pattern, this.selected = false, this.flat = false});
   final Color color;
   final String pattern;
   final bool selected;
+
+  /// With no lip under it: flat, as in the shop's sets and behind the advent
+  /// calendar's doors.
+  final bool flat;
 
   @override
   State<PaperSwatch> createState() => _PaperSwatchState();
@@ -262,7 +269,7 @@ class _PaperSwatchState extends State<PaperSwatch> with SingleTickerProviderStat
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(_radius),
           boxShadow: [
-            const BoxShadow(color: C.snow300, offset: Offset(0, 3)),
+            if (!widget.flat) const BoxShadow(color: C.snow300, offset: Offset(0, 3)),
             if (selected) const BoxShadow(color: C.berry500, spreadRadius: 4),
           ],
         ),
@@ -290,12 +297,21 @@ class _PaperSwatchPainter extends CustomPainter {
     canvas.save();
     canvas.scale(1 / dpr);
     var rr = RRect.fromRectAndRadius(Offset.zero & size * dpr, Radius.circular(_radius * dpr));
-    if (gradientHues.containsKey(pattern) || pattern == 'wrapper') {
+    if (gradientHues.containsKey(pattern) || pattern == 'wrapper' || pattern == 'crystal') {
       // The whole run of colours on the swatch: the sheet's middle at its
       // middle, and its top and bottom (its edge) at the swatch's.
       canvas.translate(rr.width / 2, rr.height / 2);
       rr = rr.shift(Offset(-rr.width / 2, -rr.height / 2));
       canvas.drawRRect(rr, makePaperFill(color, pattern, rr.height / 2));
+      // The whole gem, its girdle at the swatch's sides.
+      if (pattern == 'crystal') {
+        canvas.save();
+        canvas.clipRRect(rr);
+        final r = (rr.width > rr.height ? rr.width : rr.height) / 2;
+        drawCrystalFacets(canvas, r, color);
+        if (twinkle case final tw?) drawCrystalFlares(canvas, r, tw);
+        canvas.restore();
+      }
     } else {
       canvas.drawRRect(rr, makePaperFill(color, pattern, 100 * dpr));
     }

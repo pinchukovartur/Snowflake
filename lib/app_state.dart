@@ -38,37 +38,42 @@ const firstWindowTutorial = 'first_window';
 /// for, and back to cutting.
 const firstCollectionTutorial = 'first_collection';
 
-/// The advent calendar's doors, 25 December to 1 January: behind each a new
+/// The advent calendar's doors, 18 to 25 December: behind each a new
 /// paper pattern or stencil, papers and stencils by turns. Each, till its
 /// door is opened, is not to be had (see [GameState.unlocked]).
 const adventRewards = <({bool paper, String id})>[
   (paper: true, id: 'snowfall'),
-  (paper: false, id: 'snowman'),
-  (paper: true, id: 'candy'),
-  (paper: false, id: 'mitten'),
+  (paper: false, id: 'elfhat'),
+  (paper: true, id: 'tartan'),
+  (paper: false, id: 'angel'),
   (paper: true, id: 'garland'),
   (paper: false, id: 'cane'),
-  (paper: true, id: 'tartan'),
+  (paper: true, id: 'candy'),
   (paper: false, id: 'ornament'),
 ];
 
-/// The sets of papers and stencils sold in the shop, for now the advent
-/// calendar's own, two papers and two stencils to each: [id] is the product's
+/// The sets of papers and stencils sold in the shop, mostly the advent
+/// calendar's own (chocolate, gift wrap and the gingerbread man only here;
+/// snowfall, tartan, the elf hat and the angel only in the calendar), papers and stencils: [id] is the product's
 /// id in Google Play (a one-time purchase), its name `offer_<id>` in the
 /// strings. What a set holds is the player's once it is bought, its doors in
 /// the calendar or not (see [GameState.unlocked]).
 const offers = <({String id, List<({bool paper, String id})> items})>[
-  (id: 'pack_snow_day', items: [(paper: true, id: 'snowfall'), (paper: true, id: 'candy'), (paper: false, id: 'snowman'), (paper: false, id: 'mitten')]),
-  (id: 'pack_holiday', items: [(paper: true, id: 'garland'), (paper: true, id: 'tartan'), (paper: false, id: 'cane'), (paper: false, id: 'ornament')]),
+  (id: 'pack_snow_day', items: [(paper: true, id: 'candy'), (paper: true, id: 'chocolate'), (paper: false, id: 'gingerman'), (paper: false, id: 'cane')]),
+  (id: 'pack_holiday', items: [(paper: true, id: 'garland'), (paper: true, id: 'wrapper'), (paper: false, id: 'snowman'), (paper: false, id: 'ornament')]),
 ];
+
+/// Whether paper pattern or stencil [id] is to be had only behind one of the
+/// advent calendar's doors, no set in the shop holding it.
+bool adventOnly(String id) => adventRewards.any((r) => r.id == id) && !offers.any((o) => o.items.any((r) => r.id == id));
 
 /// For testing the advent calendar: a tap opens any door, its day come or
 /// not (shown as ever: locked till then). Debug builds only.
 const adventAnyDay = true && kDebugMode;
 
-/// Door [i]'s day in the season [now] is in: 25 December on, the last on
-/// 1 January (January counting with the December before it).
-DateTime adventDay(int i, DateTime now) => DateTime(now.month == 1 ? now.year - 1 : now.year, 12, 25 + i);
+/// Door [i]'s day in the season [now] is in: 18 December on, the last on
+/// Christmas Day (January counting with the December before it).
+DateTime adventDay(int i, DateTime now) => DateTime(now.month == 1 ? now.year - 1 : now.year, 12, 18 + i);
 
 /// For testing the Halloween duel: a tap on the boss's flake knocks a cone
 /// off it, as if the next flake had been cut. Debug builds only: a release
@@ -339,11 +344,13 @@ class GameState extends ChangeNotifier {
   }
 
   /// Whether paper pattern or stencil [id] is the player's: all are but the
-  /// advent calendar's, each once its door is open or a set holding it is
-  /// bought.
+  /// advent calendar's and the shop's, each once its door is open or a set
+  /// holding it is bought.
   bool unlocked(String id) {
     final i = adventRewards.indexWhere((r) => r.id == id);
-    return i < 0 || adventOpened(i) || offers.any((o) => owns(o.id) && o.items.any((r) => r.id == id));
+    final sold = offers.any((o) => o.items.any((r) => r.id == id));
+    if (i < 0 && !sold) return true;
+    return (i >= 0 && adventOpened(i)) || offers.any((o) => owns(o.id) && o.items.any((r) => r.id == id));
   }
 
   /// Every tutorial marked seen at once (see [tutorialSkip]).

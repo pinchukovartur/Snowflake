@@ -14,9 +14,12 @@ import '../snowflake/geometry.dart';
 import '../snowflake/snowflake_view.dart';
 import '../sound.dart';
 import '../theme/tokens.dart';
+import '../widgets/design_scale.dart';
 import '../widgets/ds.dart';
+import '../widgets/event_title.dart';
 import '../widgets/paper_dialog.dart';
 import '../widgets/shop_dialog.dart';
+import '../widgets/where_to_get.dart';
 import '../widgets/snowfall.dart';
 import '../widgets/tutorial.dart';
 
@@ -78,25 +81,27 @@ const _stencils = [
   ('xstar', LucideIcons.sparkle, 'stencil_xstar'),
   ('gift', LucideIcons.gift, 'stencil_gift'),
   ('bell', LucideIcons.bell, 'stencil_bell'),
-  // The advent calendar's, each once its door is open; stand-in icons but
-  // for the cane.
-  ('snowman', LucideIcons.snowflake, 'stencil_snowman'),
-  ('mitten', LucideIcons.hand, 'stencil_mitten'),
+  // To be bought or found in the advent calendar (see [offers] and
+  // [adventRewards]), in the shop's order, the calendar's alone last;
+  // stand-in icons but for the cane.
+  ('gingerman', LucideIcons.cookie, 'stencil_gingerman'),
   ('cane', LucideIcons.candyCane, 'stencil_cane'),
+  ('snowman', LucideIcons.snowflake, 'stencil_snowman'),
   ('ornament', LucideIcons.circleDot, 'stencil_ornament'),
+  ('mitten', LucideIcons.hand, 'stencil_mitten'),
+  ('elfhat', LucideIcons.cone, 'stencil_elfhat'),
+  ('angel', LucideIcons.feather, 'stencil_angel'),
 ];
 
 /// The Halloween stencils, set apart in the list.
 const _halloween = {'bone', 'hat', 'bat', 'jack'};
 
-/// The Christmas stencils, set apart in the list too.
-const _christmas = {'tree', 'xstar', 'gift', 'bell'};
-
-/// The advent calendar's stencils, set apart in the list too.
-const _newYear = {'snowman', 'mitten', 'cane', 'ornament'};
+/// The Christmas and New Year stencils, set apart in the list too: the
+/// free ones, and those of the shop and the advent calendar.
+const _christmas = {'tree', 'xstar', 'gift', 'bell', 'gingerman', 'cane', 'snowman', 'mitten', 'ornament', 'elfhat', 'angel'};
 
 /// The seasonal stencil groups after the everyday ones, each on its own ground.
-const _stencilGroups = [(_halloween, Color(0xFFFF7A1A)), (_christmas, Color(0xFF2FB37E)), (_newYear, Color(0xFF3E61B8))];
+const _stencilGroups = [(_halloween, Color(0xFFFF7A1A)), (_christmas, Color(0xFF2FB37E))];
 
 /// Cuts on the board and the pieces each one dropped, in step, on paper
 /// folded [folds] times.
@@ -368,7 +373,8 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     // The flake's wedge reaches 0.48 of its box from the middle.
     final scale = (1 - settle) * (.9 + .1 * appear) + settle * radius / (size * .48);
     final at = Offset.lerp(Offset(w / 2, midY), apex, settle)!;
-    Widget view(List<Cut>? cuts) => SnowflakeView(cuts: cuts, preset: f.preset, folds: f.folds, color: f.color, pattern: f.pattern, unfold: fold, size: size);
+    // Folding down to the board's paper as it lies there (see [SnowflakePainter.turns]).
+    Widget view(List<Cut>? cuts) => SnowflakeView(cuts: cuts, preset: f.preset, folds: f.folds, color: f.color, pattern: f.pattern, unfold: fold, size: size, turns: 0);
     return Stack(children: [
       Positioned(
         left: at.dx - size / 2,
@@ -520,7 +526,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
       ? 'tutorial_unfold'
       : null;
 
-  void _addCut(Cut c) {
+  void _addCut(List<Cut> c) {
     if (_tutorialCut) {
       _finishTutorialStep(firstCutTutorial);
     } else if (_tutorialStencil) {
@@ -529,7 +535,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     }
     if (widget.game.vibration) HapticFeedback.lightImpact();
     if (widget.game.sfx) Sfx.cut(stencil: _tool != 'free');
-    final cuts = [..._cuts, c];
+    final cuts = [..._cuts, ...c];
     _step((cuts: cuts, drops: [..._drops, detachedPieces(cuts, _fallen, _folds)], folds: _folds));
   }
 
@@ -556,9 +562,10 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
   /// The paper dialog is up; the palette tool shows as on meanwhile.
   bool _paperOpen = false;
 
-  /// The shop, from stencil [id] still to be bought (on its demo flake from
-  /// the start); anything bought there shows at once on coming back.
-  void _openShop(String id) => showShop(context, widget.game, trying: (paper: false, id: id)).then((_) {
+  /// Where locked stencil [id] is to be had (see [showWhereToGet]): the shop,
+  /// on its demo flake from the start, or the advent calendar; anything
+  /// bought or opened there shows at once on coming back.
+  void _openWhereToGet(String id) => showWhereToGet(context, widget.game, (paper: false, id: id)).then((_) {
         if (mounted) setState(() {});
       });
 
@@ -582,8 +589,8 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
               // In the tutorial only those already open: nothing to buy yet.
               patterns: [for (final id in paperPatterns) if (!_tutorial || widget.game.unlocked(id)) id],
               locked: {for (final id in paperPatterns) if (!widget.game.unlocked(id)) id},
-              // Back from the shop, a set bought there shows open.
-              onLocked: (id) => showShop(ctx, widget.game, trying: (paper: true, id: id), colour: _paper.color).then((_) => setLocal(() {})),
+              // Back from the shop or the calendar, what was got there shows open.
+              onLocked: (id) => showWhereToGet(ctx, widget.game, (paper: true, id: id), colour: _paper.color).then((_) => setLocal(() {})),
               onChanged: set,
               preview: (p) => SnowflakeView(preset: 'classic', size: PaperDialog.previewSize, color: p.color, pattern: p.pattern),
               onClose: () => Navigator.pop(ctx),
@@ -731,9 +738,14 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                         child: Column(children: [
                                           for (final (i, group) in [
                                             [for (final t in _stencils) if (!_stencilGroups.any((g) => g.$1.contains(t.$1)) && (!_tutorial || widget.game.unlocked(t.$1))) t],
-                                            // Those still to be bought too, locked (see [GameState.unlocked]);
-                                            // not in the tutorial, where there is nothing to buy yet.
-                                            for (final (ids, _) in _stencilGroups) [for (final t in _stencils) if (ids.contains(t.$1) && (!_tutorial || widget.game.unlocked(t.$1))) t],
+                                            // Those still to be bought too, locked (see [GameState.unlocked]),
+                                            // after the rest of their group; not in the tutorial, where there
+                                            // is nothing to buy yet.
+                                            for (final (ids, _) in _stencilGroups) [
+                                              for (final t in _stencils) if (ids.contains(t.$1) && widget.game.unlocked(t.$1)) t,
+                                              if (!_tutorial)
+                                                for (final t in _stencils) if (ids.contains(t.$1) && !widget.game.unlocked(t.$1)) t,
+                                            ],
                                           ].indexed)
                                             if (group.isNotEmpty)
                                               Container(
@@ -754,7 +766,8 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                                               maxHeight: 48,
                                                               child: Locked(
                                                                 locked: !widget.game.unlocked(id),
-                                                                lockSize: 18,
+                                                                lockSize: 21.6,
+                                                                advent: adventOnly(id),
                                                                 child: RoundBtn(
                                                                 icon,
                                                                 label: tr(label),
@@ -770,7 +783,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                                                         : Variant.light,
                                                                 flat: true,
                                                                 // A locked one opens the shop, to be bought there.
-                                                                onTap: widget.game.unlocked(id) ? () => _pickStencil(id) : () => _openShop(id),
+                                                                onTap: widget.game.unlocked(id) ? () => _pickStencil(id) : () => _openWhereToGet(id),
                                                               ),
                                                               ),
                                                             ),
@@ -1234,7 +1247,7 @@ class _EventPanelState extends State<_EventPanel> {
     _startTimer();
     // The title is fitted to the display face; measured again once it has
     // loaded (asking for both weights here starts them loading).
-    GoogleFonts.pendingFonts([_titleStyle(true), _titleStyle(false)]).then((_) {
+    GoogleFonts.pendingFonts([eventTitleStyle(true), eventTitleStyle(false)]).then((_) {
       if (mounted) setState(() {});
     });
   }
@@ -1341,10 +1354,10 @@ class _EventPanelState extends State<_EventPanel> {
                               // else wrapping between words as usual, made smaller if the
                               // longest word would not fit on a line (never broken inside a
                               // word), or if two lines would not fit in the room.
-                              final style = _titleStyle(e.loud), scaler = MediaQuery.textScalerOf(ctx);
+                              final style = eventTitleStyle(e.loud), scaler = MediaQuery.textScalerOf(ctx);
                               final line = _lineFit(tr(e.title), style, c.maxWidth, titleRoom, scaler);
                               final size = line >= style.fontSize! ? line : math.min(_wordsFit(tr(e.title), style, c.maxWidth, scaler), _twoLinesFit(style, titleRoom, scaler));
-                              return _EventTitle(tr(e.title), loud: e.loud, size: size, ink: e.art?.ink ?? _EventTitle._defaultInk, fade: e.art?.inkFade);
+                              return EventTitle(tr(e.title), loud: e.loud, size: size, ink: e.art?.ink ?? EventTitle.defaultInk, fade: e.art?.inkFade);
                             },
                           ),
                         ),
@@ -1366,9 +1379,6 @@ class _EventPanelState extends State<_EventPanel> {
   }
 }
 
-/// An event title's face: heavier and bigger when [loud].
-TextStyle _titleStyle(bool loud) => loud ? display(17, weight: FontWeight.w900, height: 1.1) : display(16, height: 1.1);
-
 /// In an event panel, how far the title is set below its place under the
 /// flake, and the room kept clear between it and the panel's edge.
 const _titleDrop = 4.0, _titleMargin = 3.0;
@@ -1383,73 +1393,20 @@ double _twoLinesFit(TextStyle style, double height, TextScaler scaler) {
   return size;
 }
 
-/// An event's title, centred, [size] px: white, or its [ink] (purple unless
-/// given) on a white outline when [loud]; if [fade] is given, that runs
-/// from its first colour at the top to its second at the bottom instead.
-class _EventTitle extends StatelessWidget {
-  /// Extra room between words, as a share of the font size.
-  static const _wordGap = .25;
-
-  /// How thick the white outline of a loud title is, as a share of its size.
-  static const _outline = 3.5 / 17;
-
-  const _EventTitle(this.text, {required this.loud, required this.size, this.maxLines, this.ink = _defaultInk, this.fade});
-  final String text;
-  final Color ink;
-  final (Color, Color)? fade;
-  static const _defaultInk = Color(0xFF7B3FD1);
-  final bool loud;
-  final double size;
-  final int? maxLines;
-
-  @override
-  Widget build(BuildContext context) {
-    // Words set further apart than the face's own spacing, which runs them together.
-    final style = _titleStyle(loud).copyWith(fontSize: size, wordSpacing: size * _wordGap);
-    Text line(TextStyle s) => Text(text, textAlign: TextAlign.center, maxLines: maxLines, overflow: maxLines == null ? null : TextOverflow.ellipsis, style: s);
-    if (!loud) return line(style.copyWith(color: Colors.white));
-    // The outline drawn first underneath; both centred in the room given.
-    return Stack(alignment: Alignment.center, children: [
-      // The display face, but painted as a stroke (a style can't carry both a
-      // colour and a foreground paint).
-      line(TextStyle(
-        fontFamily: style.fontFamily,
-        fontSize: size,
-        fontWeight: FontWeight.w900,
-        height: 1.1,
-        wordSpacing: style.wordSpacing,
-        foreground: Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = size * _outline
-          ..strokeJoin = StrokeJoin.round
-          ..color = Colors.white,
-      )),
-      if (fade case (final top, final bottom))
-        ShaderMask(
-          blendMode: BlendMode.srcIn,
-          shaderCallback: (r) => LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [top, bottom]).createShader(r),
-          child: line(style.copyWith(color: Colors.white)),
-        )
-      else
-        line(style.copyWith(color: ink)),
-    ]);
-  }
-}
-
-/// The font size at which [text] in [style], set as [_EventTitle] sets it
+/// The font size at which [text] in [style], set as [EventTitle] sets it
 /// (its words spaced out, a white outline round it), fits on one line in
 /// [width] and [height], as the system's text [scaler] will enlarge it.
 /// Found in a few steps, Android scaling sizes unevenly.
 double _lineFit(String text, TextStyle style, double width, double height, TextScaler scaler) {
   double wide(double size) {
     final p = TextPainter(
-      text: TextSpan(text: text, style: style.copyWith(fontSize: size, wordSpacing: size * _EventTitle._wordGap)),
+      text: TextSpan(text: text, style: style.copyWith(fontSize: size, wordSpacing: size * EventTitle.wordGap)),
       textDirection: TextDirection.ltr,
       textScaler: scaler,
       maxLines: 1,
     )..layout();
     // With room for the outline either side.
-    final w = p.width + size * _EventTitle._outline;
+    final w = p.width + size * EventTitle.outline;
     p.dispose();
     return w;
   }
@@ -1660,6 +1617,27 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
   /// How far the room behind (see [_DuelArt]) runs on under the table's top.
   static const _roomBelowTable = 30.0;
 
+  /// The screen the window was laid out on, all of it in its units (see
+  /// [DesignScale]): its device pixels to the logical pixel (425 dpi), and
+  /// its width (1080 device pixels).
+  static const _designDpr = 425 / 160, _designWidth = 1080 / _designDpr;
+
+  /// How tall the scene (the table, Santa and the boss's flake across it,
+  /// the player's witch and the flakes before her) is on the design screen,
+  /// besides its insets: the whole of it, nothing stretching. A shorter
+  /// screen gets the window smaller till it fits (see [DesignScale]); a
+  /// taller one gets the scene in its middle, the room showing more above
+  /// and the floor more below.
+  static const _sceneHeight = 840.0;
+
+  /// How wide the player's witch is: most of the design screen's width, a
+  /// little less at Christmas, with Santa across the table.
+  static const _witch = .9 * _designWidth, _witchAtChristmas = .7 * _designWidth;
+
+  /// The size of the witch's pictures (her and her hand), and of the room's
+  /// (see [_DuelArt]), in their own pixels.
+  static const _playerSize = Size(801, 544), _roomSize = Size(1345, 974);
+
   /// The glow behind the flakes cut growing and shrinking, round and round,
   /// by [_pulseScale] of its size either way.
   late final _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 2000))..repeat();
@@ -1774,7 +1752,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  _EventTitle(tr('duel_won_title'), loud: true, size: 36, maxLines: 1, ink: widget.art.ink, fade: widget.art.inkFade),
+                  EventTitle(tr('duel_won_title'), loud: true, size: 36, maxLines: 1, ink: widget.art.ink, fade: widget.art.inkFade),
                   const SizedBox(height: 8),
                   Text(tr('duel_won_subtitle'), textAlign: TextAlign.center, style: display(20, color: Colors.white, shadows: drop(3))),
                   const SizedBox(height: 28),
@@ -1913,26 +1891,55 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                   ),
                 ),
               ),
-              _EventTitle('$_hits/$n', loud: true, size: 28, maxLines: 1, ink: widget.art.ink),
+              EventTitle('$_hits/$n', loud: true, size: 28, maxLines: 1, ink: widget.art.ink),
             ]),
           );
         },
       );
 
   /// One picture of the room behind (see [_DuelArt]), [tableTop] down the
-  /// screen being the table's top.
-  Widget _roomLayer(String asset, double tableTop) => Positioned(
+  /// screen being the table's top, [padTop] the screen's inset there: a
+  /// pixel of it to a pixel of the design screen (see [_designDpr]), so in
+  /// step with the rest of the window, its top middle at the screen's and
+  /// what overruns cut off, as on a screen of the scene's own height (see
+  /// [_sceneHeight]). A screen wider than it, or taller (the scene lower,
+  /// more room above it), gets it enlarged, about the line along the table,
+  /// to fill that rather than leave gaps.
+  Widget _roomLayer(String asset, double tableTop, double padTop) => Positioned(
         left: 0,
         right: 0,
         top: 0,
         height: tableTop + _roomBelowTable,
         child: IgnorePointer(
-          child: Image.asset(asset, fit: BoxFit.none, alignment: Alignment.topCenter, scale: MediaQuery.devicePixelRatioOf(context)),
+          child: ClipRect(
+            child: LayoutBuilder(builder: (_, c) {
+              final w = _roomSize.width / _designDpr, h = _roomSize.height / _designDpr;
+              // How much of it shows down to the table on a screen no taller
+              // than the scene; and how much bigger to make it here.
+              final shown = padTop + _tableTop + _roomBelowTable;
+              final k = math.max(1.0, math.max(c.maxWidth / w, c.maxHeight / shown));
+              return Stack(children: [
+                Positioned(
+                  left: (c.maxWidth - w * k) / 2,
+                  top: c.maxHeight - shown * k,
+                  width: w * k,
+                  height: h * k,
+                  child: Image.asset(asset, fit: BoxFit.fill),
+                ),
+              ]);
+            }),
+          ),
         ),
       );
 
+  /// The window laid out as on the screen it was designed on, scaled to
+  /// this one (see [DesignScale]): the same size in device pixels on any
+  /// screen 1080 across, smaller if the screen is too short or narrow for it.
+  /// Wider, the table and what is under it run on out to its sides.
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => DesignScale(designDpr: _designDpr, width: _designWidth, height: _sceneHeight, child: Builder(builder: _window));
+
+  Widget _window(BuildContext context) {
     final boss = widget.boss;
     final pad = MediaQuery.paddingOf(context);
     Widget bossFlake(Set<int> cones, double size) => SnowflakeView(
@@ -1945,15 +1952,18 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
         );
     final santa = widget.art.santa;
     // The table's top, down the screen, and Santa's above it, his mittens on its edge.
-    final tableTop = pad.top + _tableTop, santaTop = tableTop - _BlockSanta.tableAt;
+    // On a screen taller than the scene, how far it is moved down to stand
+    // in the middle (see [_sceneHeight]); and so the table's foot up.
+    final drop = math.max(0.0, (MediaQuery.sizeOf(context).height - pad.vertical - _sceneHeight) / 2);
+    final tableTop = pad.top + drop + _tableTop, santaTop = tableTop - _BlockSanta.tableAt, tableFoot = pad.bottom + drop + _tableFoot;
+    final witch = santa ? _witchAtChristmas : _witch;
     return ColoredBox(
       color: widget.art.bg,
       child: Stack(key: _rootKey, children: [
         // Furthest back: the room, from the top of the screen down to just
         // past the table's top; its window's sky behind it, snow falling
-        // between the two. Each at its own size, a pixel of it to a pixel of
-        // the screen, its top middle at the screen's; what overruns is cut off.
-        if (widget.art.roomSky case final sky?) _roomLayer(sky, tableTop),
+        // between the two (see [_roomLayer]).
+        if (widget.art.roomSky case final sky?) _roomLayer(sky, tableTop, pad.top),
         if (_snow case final snow?)
           Positioned(
             left: 0,
@@ -1962,14 +1972,14 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
             height: tableTop + _roomBelowTable,
             child: ClipRect(child: RepaintBoundary(child: Snowfall(ticker: snow, hazeHeight: 0, hazeFade: 1, drift: () => Offset.zero))),
           ),
-        if (widget.art.room case final room?) _roomLayer(room, tableTop),
+        if (widget.art.room case final room?) _roomLayer(room, tableTop, pad.top),
         // Behind it all: Santa, the table over his body, his mittens on it.
         if (santa) Positioned(left: 0, right: 0, top: santaTop, height: _BlockSanta.height, child: const IgnorePointer(child: _BlockSanta())),
         if (widget.art.table case final table?)
-          Positioned(left: 0, right: 0, top: tableTop, bottom: pad.bottom + _tableFoot, child: IgnorePointer(child: _Table(table))),
+          Positioned(left: 0, right: 0, top: tableTop, bottom: tableFoot, child: IgnorePointer(child: _Table(table))),
         // Its legs, from under its near edge down off the screen, behind the player.
         if (widget.art.table case final table?)
-          Positioned(left: 0, right: 0, bottom: 0, height: pad.bottom + _tableFoot, child: IgnorePointer(child: CustomPaint(painter: _TableLegsPainter(table)))),
+          Positioned(left: 0, right: 0, bottom: 0, height: tableFoot, child: IgnorePointer(child: CustomPaint(painter: _TableLegsPainter(table)))),
         if (santa) Positioned(left: 0, right: 0, top: santaTop, height: _BlockSanta.height, child: const IgnorePointer(child: _BlockSanta(hands: true))),
         SafeArea(
           bottom: false,
@@ -1985,8 +1995,10 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(screenPad, 2, screenPad, 0),
-              child: _EventTitle(tr(widget.art.title), loud: true, size: 40, maxLines: 1, ink: widget.art.ink, fade: widget.art.inkFade),
+              child: EventTitle(tr(widget.art.title), loud: true, size: 40, maxLines: 1, ink: widget.art.ink, fade: widget.art.inkFade),
             ),
+            // Down with the table (see [drop]).
+            SizedBox(height: drop),
             // The boss and its flake, its cones its life.
             SizedBox(
               height: 300,
@@ -2065,7 +2077,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
               }),
             ),
             const Spacer(),
-            _EventTitle(tr('pick_flake'), loud: true, size: 24, maxLines: 2, ink: widget.art.ink),
+            EventTitle(tr('pick_flake'), loud: true, size: 24, maxLines: 2, ink: widget.art.ink),
             const SizedBox(height: 8),
             // The flakes, the one in the middle picked with a tap, the others
             // brought there by a swipe or a tap.
@@ -2146,20 +2158,24 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
               ),
             ),
             // Room for the witch's hat under the flakes.
-            SizedBox(height: pad.bottom + (santa ? 150 : 190)),
+            SizedBox(height: pad.bottom + drop + (santa ? 150 : 190)),
           ]),
         ),
         // The player's witch, at the foot of the screen, over the carousel
-        // (taking no touches): 90% of the screen's width, in the middle (70%
-        // at Christmas, with Santa across the table: its head up over the
-        // table's near edge).
+        // (taking no touches), in the middle (smaller at Christmas, with Santa
+        // across the table: its head up over the table's near edge). Up with
+        // the table's foot (see [drop]), her body running on down to the
+        // screen's foot below her picture.
         Positioned(
           left: 0,
           right: 0,
           bottom: 0,
           child: IgnorePointer(
-            child: FractionallySizedBox(
-              widthFactor: santa ? .7 : .9,
+            child: Center(
+              heightFactor: 1,
+              child: SizedBox(
+              width: witch,
+              height: witch * _playerSize.height / _playerSize.width + drop,
               child: Stack(children: [
               // The hands, the one picture (the right hand) and its mirror for the
               // left, each turning a little about its shoulder (at the picture's
@@ -2178,8 +2194,18 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                     child: Image.asset(widget.art.hand, fit: BoxFit.fitWidth),
                   ),
                 ),
-              Image.asset(widget.art.player, fit: BoxFit.fitWidth),
+              // Her picture's last row drawn on down, its pixels' colours
+              // straight below them.
+              Positioned.fill(
+                child: Image.asset(
+                  widget.art.player,
+                  fit: BoxFit.fill,
+                  scale: _playerSize.width / witch,
+                  centerSlice: Rect.fromLTWH(0, (_playerSize.height - 1) * witch / _playerSize.width, witch, witch / _playerSize.width),
+                ),
+              ),
               ]),
+            ),
             ),
           ),
         ),
@@ -2389,7 +2415,8 @@ class _Table extends StatelessWidget {
 
 /// A table's two legs, square wooden posts a little in from either side,
 /// running from the top of the box down and slanting outwards, in the
-/// table's colour in shade.
+/// table's colour in shade: a band darker still up under the top, in its
+/// shadow, edged sharp.
 class _TableLegsPainter extends CustomPainter {
   const _TableLegsPainter(this.color);
   final Color color;
@@ -2399,14 +2426,24 @@ class _TableLegsPainter extends CustomPainter {
   /// boards (see [_TablePainter.plank]).
   static const _inset = .06, _slant = .35;
 
+  /// How dark the legs' band of shadow under the top is (towards black, as
+  /// their shade lower down is .42), and how deep it is.
+  static const _underTop = .55, _shadow = 28.0;
+
   @override
   void paint(Canvas canvas, Size size) {
     const w = _TablePainter.plank;
     final h = size.height, out = h * _slant;
-    final shade = Paint()..color = Color.lerp(color, Colors.black, .42)!;
     final left = size.width * _inset, right = size.width * (1 - _inset) - w;
-    canvas.drawPath(Path()..addPolygon([Offset(left, 0), Offset(left + w, 0), Offset(left + w - out, h), Offset(left - out, h)], true), shade);
-    canvas.drawPath(Path()..addPolygon([Offset(right, 0), Offset(right + w, 0), Offset(right + w + out, h), Offset(right + out, h)], true), shade);
+    final legs = Path()
+      ..addPolygon([Offset(left, 0), Offset(left + w, 0), Offset(left + w - out, h), Offset(left - out, h)], true)
+      ..addPolygon([Offset(right, 0), Offset(right + w, 0), Offset(right + w + out, h), Offset(right + out, h)], true);
+    canvas.drawPath(legs, Paint()..color = Color.lerp(color, Colors.black, .42)!);
+    // The band of shadow under the top, over them, kept to it.
+    canvas.save();
+    canvas.clipRect(Rect.fromLTWH(0, 0, size.width, _shadow));
+    canvas.drawPath(legs, Paint()..color = Color.lerp(color, Colors.black, _underTop)!);
+    canvas.restore();
   }
 
   @override
