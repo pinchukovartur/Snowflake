@@ -10,6 +10,11 @@ import 'app_state.dart';
 /// A release never has it, whatever this says.
 const fakePurchases = true && kDebugMode;
 
+/// For testing the settings: their "restore purchases" button shown even
+/// with no store to reach (an emulator), where a tap does nothing. Debug
+/// builds only, as [fakePurchases].
+const showRestoreAlways = true && kDebugMode;
+
 /// The shop: the [offers] as Google Play has them (their prices), buying
 /// them, and what was bought before coming back (on this device or another)
 /// through restoring, which it asks for at launch. Each one bought or

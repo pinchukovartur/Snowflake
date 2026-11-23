@@ -294,8 +294,15 @@ class GameState extends ChangeNotifier {
   /// as it is. Not stored.
   int? adventCheatDay;
 
+  /// Takes the calendar to day [i] (see [adventCheatDay]). Back in time,
+  /// the doors of the days after it shut again, what was behind them taken
+  /// back (unless a set bought holds it), as if never opened.
   void setAdventCheatDay(int? i) {
     adventCheatDay = i;
+    if (i != null && _adventOpened.any((k) => k > i)) {
+      _adventOpened.removeWhere((k) => k > i);
+      _prefs.setStringList(_kAdvent, [for (final k in _adventOpened) '$k']);
+    }
     notifyListeners();
   }
 

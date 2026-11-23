@@ -2,10 +2,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../l10n.dart';
 import '../app_state.dart';
+import '../shop.dart';
 import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
 import '../widgets/advent.dart';
@@ -268,9 +270,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       context,
       builder: (ctx) {
         return ListenableBuilder(
-          listenable: widget.game,
+          listenable: Listenable.merge([widget.game, Shop.instance]),
           builder: (ctx, _) {
-            final g = widget.game;
+            final g = widget.game, shop = Shop.instance;
             return DsDialog(
               title: tr('settings'),
               onClose: () => Navigator.pop(ctx),
@@ -288,6 +290,15 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     checked: g.vibration,
                     onChanged: (v) => g.setSetting(vibration: v),
                   ),
+                  // Purchases made before (reinstalled, or on another
+                  // device) asked of the store again: they are at every
+                  // launch too, so this is only in case they didn't come.
+                  // Only where the store can be reached (or for testing, see
+                  // [showRestoreAlways]).
+                  if (shop.available || showRestoreAlways) ...[
+                    const SizedBox(height: 24),
+                    Btn(tr('restore_purchases'), variant: Variant.light, size: BtnSize.s, block: true, onTap: shop.restore),
+                  ],
                 ],
               ),
             );
@@ -568,6 +579,10 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   /// Brings the windows to full size (from the overview, if in it) with
   /// what stands in front of the door in the middle between the top bar and
   /// the buttons.
+  /// The decor thawed or frozen by the cheat (see [decorCheat]), whatever
+  /// the day; null for as the day has it.
+  bool? _thawCheat;
+
   void _goToDecor() {
     if (_frame.isEmpty) return;
     _closePicker();
@@ -826,14 +841,49 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         child: AnimatedBuilder(
                           animation: _view,
                           builder: (_, child) => Transform.translate(offset: _decorShift, child: child),
-                          child: ClipPath(
-                            clipper: _OutlineClipper(d.outline),
+                          child: Stack(clipBehavior: Clip.none, fit: StackFit.expand, children: [
+                          // Taps only inside its outline, the panes round it
+                          // keeping theirs; drawn whole, not cut to it.
+                          _TapWithin(
+                            outline: d.outline,
                             child: GestureDetector(
                               behavior: HitTestBehavior.opaque,
-                              onTap: _goToDecor,
-                              child: RepaintBoundary(child: Image.asset(d.image, fit: BoxFit.fill, filterQuality: FilterQuality.medium)),
+                              onTap: () {
+                                if (decorCheat && d.thawed != null) setState(() => _thawCheat = !(_thawCheat ?? d.thawedOn(DateTime.now())));
+                                _goToDecor();
+                              },
+                              // Frozen or thawed (the two pictures near enough
+                              // the same shape: each fitted in, on the floor),
+                              // the one fading into the other.
+                              child: RepaintBoundary(
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 600),
+                                  child: (_thawCheat ?? d.thawedOn(DateTime.now()))
+                                      ? Image.asset(key: const ValueKey(true), d.thawed!, fit: BoxFit.contain, alignment: Alignment.bottomCenter, filterQuality: FilterQuality.medium)
+                                      : Image.asset(
+                                          key: const ValueKey(false),
+                                          d.image,
+                                          fit: BoxFit.contain,
+                                          alignment: Alignment.bottomCenter,
+                                          filterQuality: FilterQuality.medium,
+                                        ),
+                                ),
+                              ),
                             ),
                           ),
+                          // Thawed, its lights blinking on it: over it, not
+                          // kept to its outline, so their glow is never cut
+                          // off at its edges; taking no touches.
+                          if (d.lights.isNotEmpty)
+                            IgnorePointer(
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 600),
+                                child: (_thawCheat ?? d.thawedOn(DateTime.now()))
+                                    ? DecorLights(key: const ValueKey(true), aspect: d.thawedAspect, lights: d.lights)
+                                    : const SizedBox.shrink(),
+                              ),
+                            ),
+                          ]),
                         ),
                       ),
                   ]),
@@ -1034,15 +1084,25 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 }
 
 /// Clips to [outline] in the box clipped, so taps outside it fall through.
-class _OutlineClipper extends CustomClipper<Path> {
-  const _OutlineClipper(this.outline);
+/// Its [child] drawn as ever, but taking touches only inside [outline] (of
+/// its box): those outside fall through to what is under it.
+class _TapWithin extends SingleChildRenderObjectWidget {
+  const _TapWithin({required this.outline, super.child});
   final Path Function(Size box) outline;
 
   @override
-  Path getClip(Size size) => outline(size);
+  RenderObject createRenderObject(BuildContext context) => _RenderTapWithin(outline);
 
   @override
-  bool shouldReclip(_OutlineClipper oldClipper) => oldClipper.outline != outline;
+  void updateRenderObject(BuildContext context, _RenderTapWithin renderObject) => renderObject.outline = outline;
+}
+
+class _RenderTapWithin extends RenderProxyBox {
+  _RenderTapWithin(this.outline);
+  Path Function(Size box) outline;
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) => outline(size).contains(position) && super.hitTest(result, position: position);
 }
 
 /// One pane of the home window: the flake hanging in it, clear glass when

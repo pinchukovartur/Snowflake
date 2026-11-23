@@ -141,8 +141,6 @@
   <!-- Advent calendar -->
   <string name="advent">Advent calendar</string>
   <string name="advent_note">From 18 to 25 December a new door opens every day</string>
-  <string name="advent_paper">Paper</string>
-  <string name="advent_stencil">Stencil</string>
   <string name="pattern_snowfall">Snowfall</string>
   <string name="pattern_candy">Candy</string>
   <string name="pattern_garland">Garland</string>

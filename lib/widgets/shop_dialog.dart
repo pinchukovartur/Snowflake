@@ -134,6 +134,9 @@ class _ShopViewState extends State<_ShopView> {
       if (widget.game.owns(o.id)) o,
   ];
 
+  /// How far the sets fade out at the scroll's top and bottom edges.
+  static const _scrollFade = 24.0;
+
   /// How long each of [_colors] is shown before the next.
   static const _turn = Duration(seconds: 5);
 
@@ -174,6 +177,8 @@ class _ShopViewState extends State<_ShopView> {
   Widget build(BuildContext context) {
     final game = widget.game, shop = Shop.instance;
     final paper = _paper, stencil = _stencil;
+    // The screen's inset at its foot, as the dialog stops short of it.
+    final footInset = MediaQueryData.fromView(View.of(context)).padding.bottom;
     return ListenableBuilder(
       listenable: Listenable.merge([game, shop]),
       // No card behind it: the sets straight on the scrim; up top, as on a
@@ -246,14 +251,33 @@ class _ShopViewState extends State<_ShopView> {
             ],
           ),
           const SizedBox(height: 16),
-          // The sets down at the foot, by the buttons there; scrolling if the
-          // screen is too short for them.
+          // The sets down at the foot, scrolling if the screen is too short
+          // for them: fading out at the top rather than cut off there, and
+          // running on down under the screen's inset at its foot, to its
+          // very edge (the dialog stops short of it, see [showDsDialog]).
           Expanded(
             child: LayoutBuilder(
-              builder: (_, box) => SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
+              builder: (_, box) => OverflowBox(
+                alignment: Alignment.topCenter,
+                maxHeight: box.maxHeight + footInset,
+                child: ShaderMask(
+              blendMode: BlendMode.dstIn,
+              shaderCallback: (r) {
+                final f = r.height <= 0 ? 0.0 : (_scrollFade / r.height).clamp(0.0, 1.0);
+                return LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: const [Color(0x00000000), Color(0xFF000000)],
+                  stops: [0, f],
+                ).createShader(r);
+              },
+              child: SingleChildScrollView(
+                // Room at the top as deep as the fade, so scrolled right up
+                // the first set shows whole; at the foot, clear of the
+                // screen's inset and as far from it as ever.
+                padding: EdgeInsets.fromLTRB(24, _scrollFade, 24, footInset + 24),
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: box.maxHeight),
+                  constraints: BoxConstraints(minHeight: math.max(0, box.maxHeight - _scrollFade - 24)),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
@@ -273,16 +297,11 @@ class _ShopViewState extends State<_ShopView> {
                   ),
                 ),
               ),
+                ),
+              ),
             ),
           ),
-          if (shop.available) ...[
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Btn(tr('restore_purchases'), variant: Variant.light, size: BtnSize.s, block: true, onTap: shop.restore),
-            ),
-          ],
-          const SizedBox(height: 24),
+          // Restoring purchases is in the settings (see the home screen's).
         ],
       ),
     );

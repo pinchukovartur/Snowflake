@@ -141,8 +141,6 @@
   <!-- Advent calendar -->
   <string name="advent">Адвент-календарь</string>
   <string name="advent_note">С 18 по 25 декабря каждый день открывается новая дверца</string>
-  <string name="advent_paper">Бумага</string>
-  <string name="advent_stencil">Трафарет</string>
   <string name="pattern_snowfall">Снегопад</string>
   <string name="pattern_candy">Леденец</string>
   <string name="pattern_garland">Гирлянда</string>
