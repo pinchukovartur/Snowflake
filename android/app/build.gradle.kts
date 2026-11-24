@@ -65,3 +65,9 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // ironSource (LevelPlay): the advertising ID and App Set ID, as its README asks.
+    implementation("com.google.android.gms:play-services-appset:16.0.2")
+    implementation("com.google.android.gms:play-services-ads-identifier:18.0.1")
+}

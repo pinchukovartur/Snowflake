@@ -334,6 +334,9 @@ class GameState extends ChangeNotifier {
 
   bool owns(String offer) => _owned.contains(offer);
 
+  /// Whether any offer is the player's: then no interstitials (see the shop).
+  bool get boughtAny => _owned.isNotEmpty;
+
   /// Offer [offer] is the player's: bought, or restored from the store.
   void grant(String offer) {
     if (!_owned.add(offer)) return;

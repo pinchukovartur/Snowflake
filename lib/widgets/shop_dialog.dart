@@ -281,6 +281,8 @@ class _ShopViewState extends State<_ShopView> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
+                      _NoAdsNote(off: game.boughtAny),
+                      const SizedBox(height: 16),
                       for (final (i, o) in _offers.indexed) ...[
                         if (i > 0) const SizedBox(height: 16),
                         _OfferCard(game: game, offer: o, tried: {?paper, ?stencil}, onTry: _try, colour: _colors[_colour]),
@@ -302,6 +304,34 @@ class _ShopViewState extends State<_ShopView> {
             ),
           ),
           // Restoring purchases is in the settings (see the home screen's).
+        ],
+      ),
+    );
+  }
+}
+
+/// The shop's promise, over the sets: any purchase turns off the ads between
+/// flakes (gold, to catch the eye); once bought, that they are off (mint).
+class _NoAdsNote extends StatelessWidget {
+  const _NoAdsNote({required this.off});
+  final bool off;
+
+  @override
+  Widget build(BuildContext context) {
+    final (fill, edge, ink) = off ? (C.mint100, C.mint500, C.mint700) : (C.sun100, C.sun500, C.night800);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: fill,
+        borderRadius: BorderRadius.circular(R.m),
+        border: Border.all(color: edge, width: 2),
+      ),
+      child: Row(
+        children: [
+          Icon(off ? LucideIcons.check : LucideIcons.ban, size: 22, color: off ? C.mint700 : C.berry600),
+          const SizedBox(width: 10),
+          Expanded(child: Text(tr(off ? 'shop_ads_off' : 'shop_no_ads'), style: body(14, color: ink, weight: FontWeight.w700, height: 1.2))),
         ],
       ),
     );

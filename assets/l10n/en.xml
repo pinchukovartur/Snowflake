@@ -161,6 +161,8 @@
   <string name="offer_owned">OWNED!</string>
   <string name="shop_unavailable">Not available</string>
   <string name="restore_purchases">Restore purchases</string>
+  <string name="shop_no_ads">Any purchase turns off ads between flakes</string>
+  <string name="shop_ads_off">Ads between flakes are off. Thank you!</string>
   <string name="reset_purchases">Reset purchases</string>
   <string name="purchase_failed">The purchase didn't go through. Try again later.</string>
 </resources>

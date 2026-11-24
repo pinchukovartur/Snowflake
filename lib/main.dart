@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'ads.dart';
 import 'app_state.dart';
 import 'l10n.dart';
 import 'screens/cut_screen.dart';
@@ -33,6 +36,10 @@ Future<void> main() async {
   final game = GameState(prefs);
   // Prices and purchases made before come in when the store answers.
   Shop.instance.init(game);
+  // Ads come up in the background; nothing waits on them. Any purchase
+  // turns interstitials off, as the shop says.
+  Ads.instance.noInterstitials = () => game.boughtAny;
+  unawaited(Ads.instance.init());
   runApp(SnowflakeApp(game: game));
 }
 
@@ -141,6 +148,22 @@ class _GameShellState extends State<GameShell> {
         _screen = to;
       });
 
+  /// "Done" on the reveal: an interstitial, if one is due (see
+  /// [Ads.maybeShowInterstitial]), then a new flake.
+  Future<void> _revealDone() async {
+    if (_leavingReveal) return;
+    _leavingReveal = true;
+    try {
+      await Ads.instance.maybeShowInterstitial();
+    } finally {
+      _leavingReveal = false;
+    }
+    if (mounted && _screen == Screen.reveal) _newFlake();
+  }
+
+  /// Set while "done" waits on an interstitial, so a second tap does nothing.
+  bool _leavingReveal = false;
+
   void _back() {
     switch (_screen) {
       case Screen.home:
@@ -218,7 +241,7 @@ class _GameShellState extends State<GameShell> {
           folds: _folds,
           paper: _paper,
           saved: _game.lastSaved,
-          onDone: _newFlake,
+          onDone: _revealDone,
           onBack: () => _go(Screen.cut),
           // Stays on the card: the player may still go back and change the flake.
           // Checked against the collection, so unfolding the same flake again

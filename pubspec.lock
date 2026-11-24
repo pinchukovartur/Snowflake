@@ -589,6 +589,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+  unity_levelplay_mediation:
+    dependency: "direct main"
+    description:
+      name: unity_levelplay_mediation
+      sha256: "2868d79a383893fec382eb75dd42d5cda5201c1e2335a24f49fc77f9ac50d637"
+      url: "https://pub.dev"
+    source: hosted
+    version: "9.5.0"
   url_launcher_linux:
     dependency: transitive
     description:
