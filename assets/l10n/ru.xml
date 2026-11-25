@@ -47,7 +47,9 @@
   <string name="redo">Вернуть</string>
   <string name="unfold">Раскрыть</string>
   <string name="duel_won_title">Поздравляем!</string>
+  <string name="event_completed">Ивент завершён!</string>
   <string name="duel_won_subtitle">Снежинка босса теперь ваша!</string>
+  <string name="duel_won_subtitle_santa">Санта дарит вам свою снежинку!</string>
   <string name="duel_title">Победите Пса</string>
   <string name="pick_flake">Выберите снежинку</string>
   <string name="event_repeat">Повторить снежинку</string>
@@ -145,8 +147,11 @@
   <string name="pattern_candy">Леденец</string>
   <string name="pattern_garland">Гирлянда</string>
   <string name="pattern_tartan">Шотландка</string>
+  <string name="pattern_frost">Блестящая сетка</string>
   <string name="stencil_snowman">Снеговик</string>
   <string name="stencil_mitten">Варежка</string>
+  <string name="stencil_skate">Конёк</string>
+  <string name="stencil_deer">Олень</string>
   <string name="stencil_cane">Карамельная трость</string>
   <string name="stencil_ornament">Ёлочный шар</string>
 
@@ -161,7 +166,7 @@
   <string name="offer_owned">КУПЛЕНО!</string>
   <string name="shop_unavailable">Недоступно</string>
   <string name="restore_purchases">Восстановить покупки</string>
-  <string name="shop_no_ads">Любая покупка отключает рекламу между снежинками</string>
+  <string name="shop_no_ads">Любая покупка отключает рекламу между снежинками!</string>
   <string name="shop_ads_off">Реклама между снежинками отключена. Спасибо!</string>
   <string name="reset_purchases">Сбросить покупки</string>
   <string name="purchase_failed">Покупка не прошла. Попробуйте позже.</string>

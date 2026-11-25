@@ -10,6 +10,7 @@ import '../theme/tokens.dart';
 import 'ds.dart';
 import 'event_title.dart';
 import 'glint.dart';
+import 'item_name.dart';
 import 'lock_icon.dart';
 import 'paper_dialog.dart';
 
@@ -18,7 +19,7 @@ const _red = Color(0xFFC0283B), _gold = Color(0xFFFFD34D);
 
 /// The colour each advent or shop paper is shown in behind its door or in
 /// its set, if not the shop's turn of colours.
-const _paperShown = {'snowfall': Color(0xFF3E61B8), 'candy': Color(0xFFE0405E), 'chocolate': Color(0xFF713600), 'garland': Color(0xFF1E6B4F), 'tartan': Color(0xFF8E1F3A)};
+const _paperShown = {'snowfall': Color(0xFF3E61B8), 'candy': Color(0xFFE0405E), 'frost': Color(0xFF0047AB), 'tartan': Color(0xFF8E1F3A)};
 
 /// The home screen's way into the advent calendar: a little blue door (the
 /// calendar house's blue) with a red frame and a gift on it, and the count
@@ -156,28 +157,38 @@ class _House extends StatelessWidget {
           // As the shop's sets are titled.
           EventTitle(tr('advent'), loud: true, size: 34, maxLines: 1, fade: _titleFade),
           const SizedBox(height: 10),
-          // The roof, wider than the front, its eaves out either side.
-          SizedBox(width: w, height: w * .34, child: const CustomPaint(painter: _RoofPainter())),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: w * .05),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 22),
-              color: _front,
-              child: Column(children: [
-                Text(tr('advent_note'), textAlign: TextAlign.center, style: body(15, weight: FontWeight.w700, color: Colors.white, height: 1.25)),
-                const SizedBox(height: 16),
-                for (var row = 0; row < 2; row++) ...[
-                  if (row > 0) const SizedBox(height: 12),
-                  Row(children: [
-                    for (var col = 0; col < 4; col++) ...[
-                      if (col > 0) const SizedBox(width: 10),
-                      Expanded(child: _Door(game: game, index: row * 4 + col)),
+          // The roof, wider than the front, its eaves out either side, and
+          // on the right eave, a cross to close it.
+          Stack(children: [
+            Column(children: [
+              SizedBox(width: w, height: w * .34, child: CustomPaint(painter: _RoofPainter(Size(w, w * .34)))),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: w * .05),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(14, 8, 14, 22),
+                  color: _front,
+                  child: Column(children: [
+                    Text(tr('advent_note'), textAlign: TextAlign.center, style: body(15, weight: FontWeight.w700, color: Colors.white, height: 1.25)),
+                    const SizedBox(height: 16),
+                    for (var row = 0; row < 2; row++) ...[
+                      if (row > 0) const SizedBox(height: 12),
+                      Row(children: [
+                        for (var col = 0; col < 4; col++) ...[
+                          if (col > 0) const SizedBox(width: 10),
+                          Expanded(child: _Door(game: game, index: row * 4 + col)),
+                        ],
+                      ]),
                     ],
                   ]),
-                ],
-              ]),
+                ),
+              ),
+            ]),
+            Positioned(
+              top: w * .34 * .8 - 20,
+              right: 2,
+              child: RoundBtn(LucideIcons.x, label: tr('close'), variant: Variant.primary, size: BtnSize.s, onTap: () => Navigator.pop(context)),
             ),
-          ),
+          ]),
           // The drift it stands in.
           Container(
             width: w,
@@ -196,7 +207,10 @@ class _House extends StatelessWidget {
 /// a thick snowy roof running out past the front either side, its snow
 /// shaded along the underside.
 class _RoofPainter extends CustomPainter {
-  const _RoofPainter();
+  const _RoofPainter(this.box);
+
+  /// The box it is painted in, for [hitTest].
+  final Size box;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -232,8 +246,13 @@ class _RoofPainter extends CustomPainter {
     );
   }
 
+  /// Only on the roof and under it: a tap in the corners beside it falls
+  /// through to the scrim, which closes the calendar.
   @override
-  bool shouldRepaint(_RoofPainter old) => false;
+  bool hitTest(Offset p) => p.dy >= box.height * .86 * (p.dx / box.width - .5).abs() / .5;
+
+  @override
+  bool shouldRepaint(_RoofPainter old) => old.box != box;
 }
 
 /// One of the calendar's doors: a blue card outlined in dashes, its day on it
@@ -422,8 +441,11 @@ class _CutLine extends CustomPainter {
 /// rest of its set (no [frame] of its own) on [background]. A paper is shown
 /// in [colour], or its own (see [_paperShown]).
 class RewardTile extends StatelessWidget {
-  const RewardTile({super.key, required this.reward, this.frame = _red, this.background = C.paper, this.colour});
+  const RewardTile({super.key, required this.reward, this.frame = _red, this.background = C.paper, this.colour, this.ink = C.night800});
   final ({bool paper, String id}) reward;
+
+  /// Its name's colour: light on a dark ground.
+  final Color ink;
   final Color? frame;
   final Color background;
   final Color? colour;
@@ -455,9 +477,8 @@ class RewardTile extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          FittedBox(
-            child: Text(tr(reward.paper ? 'pattern_$id' : 'stencil_$id'), style: display(12, color: C.night800)),
-          ),
+          // In two lines' room, a long name wrapping (see [ItemName]).
+          ItemName(tr(reward.paper ? 'pattern_$id' : 'stencil_$id'), size: 12, color: ink),
         ],
       ),
     );

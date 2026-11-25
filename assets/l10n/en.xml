@@ -47,7 +47,9 @@
   <string name="redo">Redo</string>
   <string name="unfold">Unfold</string>
   <string name="duel_won_title">Congratulations!</string>
+  <string name="event_completed">Event completed!</string>
   <string name="duel_won_subtitle">The boss's snowflake is yours now!</string>
+  <string name="duel_won_subtitle_santa">Santa gives you his snowflake!</string>
   <string name="duel_title">Defeat the Dog</string>
   <string name="pick_flake">Pick a snowflake</string>
   <string name="event_repeat">Repeat the snowflake</string>
@@ -145,8 +147,11 @@
   <string name="pattern_candy">Candy</string>
   <string name="pattern_garland">Garland</string>
   <string name="pattern_tartan">Tartan</string>
+  <string name="pattern_frost">Sparkle lattice</string>
   <string name="stencil_snowman">Snowman</string>
   <string name="stencil_mitten">Mitten</string>
+  <string name="stencil_skate">Ice skate</string>
+  <string name="stencil_deer">Reindeer</string>
   <string name="stencil_cane">Cane</string>
   <string name="stencil_ornament">Bauble</string>
 
@@ -161,8 +166,8 @@
   <string name="offer_owned">OWNED!</string>
   <string name="shop_unavailable">Not available</string>
   <string name="restore_purchases">Restore purchases</string>
-  <string name="shop_no_ads">Any purchase turns off ads between flakes</string>
-  <string name="shop_ads_off">Ads between flakes are off. Thank you!</string>
+  <string name="shop_no_ads">Any purchase turns off ads!</string>
+  <string name="shop_ads_off">Ads are off. Thank you!</string>
   <string name="reset_purchases">Reset purchases</string>
   <string name="purchase_failed">The purchase didn't go through. Try again later.</string>
 </resources>

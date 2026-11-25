@@ -548,9 +548,10 @@ const paperPatterns = [
   // The advent calendar's (see [adventRewards]).
   'snowfall',
   'candy',
-  'garland',
+  'frost',
   'tartan',
   // The shop's alone (see [offers]).
+  'garland',
   'chocolate',
 ];
 
@@ -569,22 +570,26 @@ const textureAssets = {
 final paperTextures = <String, ui.Image>{};
 
 /// Whether paper with [pattern] shimmers over time: glitter's glints
-/// twinkling, a hologram's sheen drifting, crystal's flares flashing.
-bool shimmers(String pattern) => pattern == 'sparkle' || pattern == 'holo' || pattern == 'crystal';
+/// twinkling (the sparkle lattice's along its lines), a hologram's sheen
+/// drifting, crystal's flares flashing.
+bool shimmers(String pattern) => pattern == 'sparkle' || pattern == 'frost' || pattern == 'holo' || pattern == 'crystal';
 
 /// Whether paper with [pattern] has light flashing on its sheet as it
-/// shimmers, laid over the paper, segment by segment: glitter's glints,
-/// crystal's flares (see [drawSheetGlints]).
-bool sheetGlints(String pattern) => pattern == 'sparkle' || pattern == 'crystal';
+/// shimmers, laid over the paper, segment by segment: glitter's glints (the
+/// sparkle lattice's too), crystal's flares (see [drawSheetGlints]).
+bool sheetGlints(String pattern) => pattern == 'sparkle' || pattern == 'frost' || pattern == 'crystal';
 
 /// The light flashing on paper with [pattern] at [time] seconds (see
 /// [sheetGlints]), in sheet terms (centre at the origin, radius [r]), over
 /// [area] of it.
-void drawSheetGlints(Canvas canvas, String pattern, Rect area, Color color, double r, double time) {
+///
+/// Crystal's flares are not cut by the paper's edges and holes: each shows
+/// whole, or not at all if [keep] (given its centre) says no.
+void drawSheetGlints(Canvas canvas, String pattern, Rect area, Color color, double r, double time, {bool Function(Offset)? keep}) {
   if (pattern == 'crystal') {
-    drawCrystalFlares(canvas, r, time);
+    drawCrystalFlares(canvas, r, time, keep: keep);
   } else {
-    drawGlints(canvas, area, color, r, time);
+    drawGlints(canvas, area, color, r, time, onLines: pattern == 'frost');
   }
 }
 
@@ -664,6 +669,515 @@ List<Cut> stencilParts(String tool, double cx, double cy, double r) {
 /// Stencils cut in more than one piece, each piece's outline at radius 1
 /// about the origin (y down), all on the same scale.
 const Map<String, List<List<Offset>>> _stencilParts = {
+  // A deer's head, from assets/stencils/stencil_deer_head.svg: its two
+  // antlers, two eyes and nose, each a hole of its own.
+  'deer': [
+    [
+      Offset(0.197, -0.029),
+      Offset(0.204, -0.060),
+      Offset(0.214, -0.096),
+      Offset(0.226, -0.136),
+      Offset(0.241, -0.179),
+      Offset(0.257, -0.224),
+      Offset(0.273, -0.269),
+      Offset(0.289, -0.315),
+      Offset(0.305, -0.359),
+      Offset(0.319, -0.401),
+      Offset(0.331, -0.440),
+      Offset(0.311, -0.468),
+      Offset(0.273, -0.495),
+      Offset(0.226, -0.522),
+      Offset(0.177, -0.550),
+      Offset(0.149, -0.578),
+      Offset(0.137, -0.610),
+      Offset(0.139, -0.641),
+      Offset(0.153, -0.665),
+      Offset(0.176, -0.676),
+      Offset(0.207, -0.670),
+      Offset(0.250, -0.644),
+      Offset(0.284, -0.615),
+      Offset(0.318, -0.586),
+      Offset(0.357, -0.559),
+      Offset(0.464, -0.859),
+      Offset(0.483, -0.897),
+      Offset(0.510, -0.929),
+      Offset(0.544, -0.949),
+      Offset(0.584, -0.950),
+      Offset(0.619, -0.934),
+      Offset(0.635, -0.910),
+      Offset(0.634, -0.877),
+      Offset(0.621, -0.836),
+      Offset(0.554, -0.649),
+      Offset(0.597, -0.657),
+      Offset(0.645, -0.659),
+      Offset(0.692, -0.657),
+      Offset(0.729, -0.648),
+      Offset(0.755, -0.631),
+      Offset(0.770, -0.611),
+      Offset(0.775, -0.588),
+      Offset(0.770, -0.565),
+      Offset(0.754, -0.546),
+      Offset(0.729, -0.531),
+      Offset(0.693, -0.525),
+      Offset(0.505, -0.519),
+      Offset(0.402, -0.236),
+      Offset(0.445, -0.240),
+      Offset(0.488, -0.242),
+      Offset(0.530, -0.240),
+      Offset(0.570, -0.230),
+      Offset(0.596, -0.213),
+      Offset(0.610, -0.191),
+      Offset(0.610, -0.167),
+      Offset(0.596, -0.145),
+      Offset(0.568, -0.127),
+      Offset(0.526, -0.117),
+      Offset(0.357, -0.108),
+      Offset(0.328, -0.009),
+      Offset(0.314, 0.023),
+      Offset(0.293, 0.045),
+      Offset(0.270, 0.056),
+      Offset(0.246, 0.057),
+      Offset(0.223, 0.048),
+      Offset(0.206, 0.031),
+      Offset(0.197, 0.005),
+    ],
+    [
+      Offset(-0.197, -0.029),
+      Offset(-0.204, -0.060),
+      Offset(-0.214, -0.096),
+      Offset(-0.226, -0.136),
+      Offset(-0.241, -0.179),
+      Offset(-0.257, -0.224),
+      Offset(-0.273, -0.269),
+      Offset(-0.289, -0.315),
+      Offset(-0.305, -0.359),
+      Offset(-0.319, -0.401),
+      Offset(-0.331, -0.440),
+      Offset(-0.311, -0.468),
+      Offset(-0.273, -0.495),
+      Offset(-0.226, -0.522),
+      Offset(-0.177, -0.550),
+      Offset(-0.149, -0.578),
+      Offset(-0.137, -0.610),
+      Offset(-0.139, -0.641),
+      Offset(-0.153, -0.665),
+      Offset(-0.176, -0.676),
+      Offset(-0.207, -0.670),
+      Offset(-0.250, -0.644),
+      Offset(-0.284, -0.615),
+      Offset(-0.318, -0.586),
+      Offset(-0.357, -0.559),
+      Offset(-0.464, -0.859),
+      Offset(-0.483, -0.897),
+      Offset(-0.510, -0.929),
+      Offset(-0.544, -0.949),
+      Offset(-0.584, -0.950),
+      Offset(-0.619, -0.934),
+      Offset(-0.635, -0.910),
+      Offset(-0.634, -0.877),
+      Offset(-0.621, -0.836),
+      Offset(-0.554, -0.649),
+      Offset(-0.597, -0.657),
+      Offset(-0.645, -0.659),
+      Offset(-0.692, -0.657),
+      Offset(-0.729, -0.648),
+      Offset(-0.755, -0.631),
+      Offset(-0.770, -0.611),
+      Offset(-0.775, -0.588),
+      Offset(-0.770, -0.565),
+      Offset(-0.754, -0.546),
+      Offset(-0.729, -0.531),
+      Offset(-0.693, -0.525),
+      Offset(-0.505, -0.519),
+      Offset(-0.402, -0.236),
+      Offset(-0.445, -0.240),
+      Offset(-0.488, -0.242),
+      Offset(-0.530, -0.240),
+      Offset(-0.570, -0.230),
+      Offset(-0.596, -0.213),
+      Offset(-0.610, -0.191),
+      Offset(-0.610, -0.167),
+      Offset(-0.596, -0.145),
+      Offset(-0.568, -0.127),
+      Offset(-0.526, -0.117),
+      Offset(-0.357, -0.108),
+      Offset(-0.328, -0.009),
+      Offset(-0.314, 0.023),
+      Offset(-0.293, 0.045),
+      Offset(-0.270, 0.056),
+      Offset(-0.246, 0.057),
+      Offset(-0.223, 0.048),
+      Offset(-0.206, 0.031),
+      Offset(-0.197, 0.005),
+    ],
+    [
+      Offset(0.269, 0.312),
+      Offset(0.266, 0.288),
+      Offset(0.259, 0.264),
+      Offset(0.247, 0.244),
+      Offset(0.231, 0.229),
+      Offset(0.213, 0.220),
+      Offset(0.193, 0.216),
+      Offset(0.173, 0.220),
+      Offset(0.155, 0.229),
+      Offset(0.139, 0.244),
+      Offset(0.127, 0.264),
+      Offset(0.120, 0.288),
+      Offset(0.117, 0.312),
+      Offset(0.120, 0.337),
+      Offset(0.127, 0.360),
+      Offset(0.139, 0.380),
+      Offset(0.155, 0.396),
+      Offset(0.173, 0.405),
+      Offset(0.193, 0.409),
+      Offset(0.213, 0.405),
+      Offset(0.231, 0.396),
+      Offset(0.247, 0.380),
+      Offset(0.259, 0.360),
+      Offset(0.266, 0.337),
+    ],
+    [
+      Offset(-0.115, 0.312),
+      Offset(-0.118, 0.288),
+      Offset(-0.126, 0.264),
+      Offset(-0.138, 0.244),
+      Offset(-0.153, 0.229),
+      Offset(-0.172, 0.220),
+      Offset(-0.191, 0.216),
+      Offset(-0.211, 0.220),
+      Offset(-0.229, 0.229),
+      Offset(-0.245, 0.244),
+      Offset(-0.257, 0.264),
+      Offset(-0.265, 0.288),
+      Offset(-0.267, 0.312),
+      Offset(-0.265, 0.337),
+      Offset(-0.257, 0.360),
+      Offset(-0.245, 0.380),
+      Offset(-0.229, 0.396),
+      Offset(-0.211, 0.405),
+      Offset(-0.191, 0.409),
+      Offset(-0.172, 0.405),
+      Offset(-0.153, 0.396),
+      Offset(-0.138, 0.380),
+      Offset(-0.126, 0.360),
+      Offset(-0.118, 0.337),
+    ],
+    [
+      Offset(0.254, 0.743),
+      Offset(0.249, 0.702),
+      Offset(0.235, 0.663),
+      Offset(0.211, 0.627),
+      Offset(0.180, 0.596),
+      Offset(0.141, 0.570),
+      Offset(0.098, 0.551),
+      Offset(0.050, 0.539),
+      Offset(0.001, 0.535),
+      Offset(-0.049, 0.539),
+      Offset(-0.096, 0.551),
+      Offset(-0.139, 0.570),
+      Offset(-0.178, 0.596),
+      Offset(-0.210, 0.627),
+      Offset(-0.233, 0.663),
+      Offset(-0.247, 0.702),
+      Offset(-0.252, 0.743),
+      Offset(-0.247, 0.783),
+      Offset(-0.233, 0.822),
+      Offset(-0.210, 0.858),
+      Offset(-0.178, 0.889),
+      Offset(-0.139, 0.915),
+      Offset(-0.096, 0.934),
+      Offset(-0.049, 0.946),
+      Offset(0.001, 0.950),
+      Offset(0.050, 0.946),
+      Offset(0.098, 0.934),
+      Offset(0.141, 0.915),
+      Offset(0.180, 0.889),
+      Offset(0.211, 0.858),
+      Offset(0.235, 0.822),
+      Offset(0.249, 0.783),
+    ],
+  ],
+  // An ice skate, from assets/stencils/stencil_ice_skate.svg: the boot
+  // leaning back, its sole, and the blade curling up at the toe, a strip of
+  // paper left between each.
+  'skate': [
+    [
+      Offset(-0.566, -0.701),
+      Offset(-0.068, -0.945),
+      Offset(-0.050, -0.950),
+      Offset(-0.036, -0.944),
+      Offset(-0.025, -0.926),
+      Offset(0.107, -0.594),
+      Offset(0.145, -0.580),
+      Offset(0.180, -0.564),
+      Offset(0.213, -0.546),
+      Offset(0.242, -0.524),
+      Offset(0.268, -0.500),
+      Offset(0.292, -0.472),
+      Offset(0.314, -0.442),
+      Offset(0.333, -0.409),
+      Offset(0.350, -0.372),
+      Offset(0.328, -0.350),
+      Offset(0.305, -0.326),
+      Offset(0.281, -0.302),
+      Offset(0.256, -0.277),
+      Offset(0.229, -0.252),
+      Offset(0.202, -0.226),
+      Offset(0.173, -0.200),
+      Offset(0.144, -0.174),
+      Offset(0.114, -0.148),
+      Offset(0.083, -0.122),
+      Offset(0.051, -0.097),
+      Offset(0.019, -0.071),
+      Offset(-0.014, -0.046),
+      Offset(-0.047, -0.021),
+      Offset(-0.080, 0.003),
+      Offset(-0.114, 0.026),
+      Offset(-0.149, 0.049),
+      Offset(-0.183, 0.071),
+      Offset(-0.218, 0.092),
+      Offset(-0.253, 0.112),
+      Offset(-0.288, 0.130),
+      Offset(-0.322, 0.148),
+      Offset(-0.357, 0.164),
+      Offset(-0.400, 0.182),
+      Offset(-0.442, 0.199),
+      Offset(-0.483, 0.214),
+      Offset(-0.524, 0.226),
+      Offset(-0.563, 0.236),
+      Offset(-0.601, 0.244),
+      Offset(-0.639, 0.248),
+      Offset(-0.675, 0.249),
+      Offset(-0.709, 0.247),
+      Offset(-0.743, 0.241),
+      Offset(-0.754, 0.200),
+      Offset(-0.759, 0.162),
+      Offset(-0.758, 0.126),
+      Offset(-0.752, 0.093),
+      Offset(-0.740, 0.062),
+      Offset(-0.724, 0.034),
+      Offset(-0.704, 0.009),
+      Offset(-0.681, -0.014),
+      Offset(-0.654, -0.033),
+      Offset(-0.624, -0.050),
+      Offset(-0.592, -0.063),
+      Offset(-0.561, -0.077),
+      Offset(-0.534, -0.096),
+      Offset(-0.511, -0.120),
+      Offset(-0.491, -0.149),
+      Offset(-0.476, -0.182),
+      Offset(-0.464, -0.218),
+      Offset(-0.455, -0.258),
+      Offset(-0.451, -0.300),
+      Offset(-0.450, -0.344),
+      Offset(-0.453, -0.391),
+      Offset(-0.459, -0.431),
+      Offset(-0.468, -0.470),
+      Offset(-0.479, -0.509),
+      Offset(-0.494, -0.546),
+      Offset(-0.511, -0.581),
+      Offset(-0.529, -0.613),
+      Offset(-0.549, -0.641),
+      Offset(-0.571, -0.666),
+      Offset(-0.579, -0.679),
+      Offset(-0.577, -0.691),
+    ],
+    [
+      Offset(-0.719, 0.280),
+      Offset(-0.677, 0.280),
+      Offset(-0.636, 0.278),
+      Offset(-0.597, 0.274),
+      Offset(-0.559, 0.268),
+      Offset(-0.522, 0.261),
+      Offset(-0.486, 0.251),
+      Offset(-0.449, 0.239),
+      Offset(-0.413, 0.226),
+      Offset(-0.377, 0.211),
+      Offset(-0.341, 0.195),
+      Offset(-0.307, 0.178),
+      Offset(-0.273, 0.161),
+      Offset(-0.239, 0.142),
+      Offset(-0.205, 0.122),
+      Offset(-0.171, 0.102),
+      Offset(-0.137, 0.080),
+      Offset(-0.104, 0.058),
+      Offset(-0.070, 0.035),
+      Offset(-0.037, 0.011),
+      Offset(-0.004, -0.013),
+      Offset(0.028, -0.038),
+      Offset(0.060, -0.063),
+      Offset(0.092, -0.088),
+      Offset(0.123, -0.114),
+      Offset(0.153, -0.140),
+      Offset(0.183, -0.166),
+      Offset(0.212, -0.192),
+      Offset(0.240, -0.218),
+      Offset(0.268, -0.244),
+      Offset(0.294, -0.270),
+      Offset(0.320, -0.296),
+      Offset(0.344, -0.321),
+      Offset(0.368, -0.347),
+      Offset(0.539, -0.178),
+      Offset(0.549, -0.162),
+      Offset(0.547, -0.147),
+      Offset(0.535, -0.133),
+      Offset(0.154, 0.141),
+      Offset(0.074, 0.079),
+      Offset(0.039, 0.105),
+      Offset(0.004, 0.131),
+      Offset(-0.031, 0.156),
+      Offset(-0.066, 0.181),
+      Offset(-0.102, 0.204),
+      Offset(-0.138, 0.227),
+      Offset(-0.175, 0.248),
+      Offset(-0.211, 0.269),
+      Offset(-0.247, 0.288),
+      Offset(-0.283, 0.307),
+      Offset(-0.320, 0.323),
+      Offset(-0.356, 0.339),
+      Offset(-0.391, 0.353),
+      Offset(-0.427, 0.365),
+      Offset(-0.462, 0.376),
+      Offset(-0.497, 0.385),
+      Offset(-0.531, 0.393),
+      Offset(-0.565, 0.398),
+      Offset(-0.598, 0.402),
+      Offset(-0.631, 0.404),
+      Offset(-0.663, 0.403),
+      Offset(-0.694, 0.401),
+      Offset(-0.724, 0.396),
+    ],
+    [
+      Offset(-0.724, 0.477),
+      Offset(-0.689, 0.469),
+      Offset(-0.654, 0.468),
+      Offset(-0.622, 0.472),
+      Offset(-0.591, 0.483),
+      Offset(-0.563, 0.498),
+      Offset(-0.539, 0.518),
+      Offset(-0.518, 0.542),
+      Offset(-0.502, 0.570),
+      Offset(-0.490, 0.600),
+      Offset(-0.484, 0.634),
+      Offset(-0.484, 0.670),
+      Offset(-0.496, 0.706),
+      Offset(-0.526, 0.729),
+      Offset(-0.569, 0.737),
+      Offset(-0.597, 0.730),
+      Offset(-0.614, 0.712),
+      Offset(-0.617, 0.681),
+      Offset(-0.617, 0.650),
+      Offset(-0.625, 0.626),
+      Offset(-0.639, 0.609),
+      Offset(-0.658, 0.599),
+      Offset(-0.679, 0.596),
+      Offset(-0.701, 0.600),
+      Offset(-0.722, 0.612),
+      Offset(-0.740, 0.630),
+      Offset(-0.753, 0.656),
+      Offset(-0.759, 0.689),
+      Offset(-0.759, 0.726),
+      Offset(-0.753, 0.757),
+      Offset(-0.740, 0.782),
+      Offset(-0.723, 0.801),
+      Offset(-0.700, 0.814),
+      Offset(-0.673, 0.821),
+      Offset(-0.641, 0.824),
+      Offset(-0.607, 0.821),
+      Offset(-0.569, 0.813),
+      Offset(-0.528, 0.799),
+      Offset(-0.485, 0.782),
+      Offset(-0.273, 0.679),
+      Offset(-0.310, 0.488),
+      Offset(-0.309, 0.458),
+      Offset(-0.297, 0.435),
+      Offset(-0.276, 0.419),
+      Offset(-0.251, 0.411),
+      Offset(-0.225, 0.414),
+      Offset(-0.203, 0.427),
+      Offset(-0.187, 0.453),
+      Offset(-0.144, 0.619),
+      Offset(0.422, 0.335),
+      Offset(0.327, 0.195),
+      Offset(0.313, 0.166),
+      Offset(0.313, 0.141),
+      Offset(0.324, 0.119),
+      Offset(0.342, 0.105),
+      Offset(0.365, 0.100),
+      Offset(0.389, 0.107),
+      Offset(0.413, 0.127),
+      Offset(0.538, 0.277),
+      Offset(0.803, 0.146),
+      Offset(0.835, 0.138),
+      Offset(0.862, 0.145),
+      Offset(0.881, 0.163),
+      Offset(0.889, 0.189),
+      Offset(0.883, 0.219),
+      Offset(0.860, 0.250),
+      Offset(0.830, 0.266),
+      Offset(0.798, 0.282),
+      Offset(0.767, 0.298),
+      Offset(0.735, 0.314),
+      Offset(0.702, 0.331),
+      Offset(0.670, 0.347),
+      Offset(0.637, 0.364),
+      Offset(0.603, 0.381),
+      Offset(0.569, 0.398),
+      Offset(0.535, 0.415),
+      Offset(0.501, 0.432),
+      Offset(0.466, 0.450),
+      Offset(0.432, 0.467),
+      Offset(0.397, 0.485),
+      Offset(0.362, 0.502),
+      Offset(0.326, 0.520),
+      Offset(0.291, 0.537),
+      Offset(0.255, 0.555),
+      Offset(0.219, 0.573),
+      Offset(0.184, 0.590),
+      Offset(0.148, 0.608),
+      Offset(0.112, 0.625),
+      Offset(0.076, 0.643),
+      Offset(0.040, 0.660),
+      Offset(0.004, 0.678),
+      Offset(-0.032, 0.695),
+      Offset(-0.068, 0.712),
+      Offset(-0.103, 0.730),
+      Offset(-0.139, 0.747),
+      Offset(-0.174, 0.763),
+      Offset(-0.210, 0.780),
+      Offset(-0.245, 0.797),
+      Offset(-0.280, 0.813),
+      Offset(-0.315, 0.829),
+      Offset(-0.349, 0.845),
+      Offset(-0.384, 0.861),
+      Offset(-0.418, 0.877),
+      Offset(-0.451, 0.892),
+      Offset(-0.485, 0.908),
+      Offset(-0.518, 0.923),
+      Offset(-0.556, 0.937),
+      Offset(-0.593, 0.946),
+      Offset(-0.629, 0.950),
+      Offset(-0.664, 0.949),
+      Offset(-0.698, 0.944),
+      Offset(-0.730, 0.934),
+      Offset(-0.760, 0.920),
+      Offset(-0.787, 0.902),
+      Offset(-0.812, 0.880),
+      Offset(-0.834, 0.855),
+      Offset(-0.853, 0.826),
+      Offset(-0.869, 0.794),
+      Offset(-0.882, 0.753),
+      Offset(-0.889, 0.714),
+      Offset(-0.889, 0.676),
+      Offset(-0.884, 0.641),
+      Offset(-0.873, 0.608),
+      Offset(-0.857, 0.578),
+      Offset(-0.837, 0.551),
+      Offset(-0.813, 0.527),
+      Offset(-0.786, 0.506),
+      Offset(-0.756, 0.490),
+    ],
+  ],
   // A bell, from assets/stencils/stencil_bell.svg: its knob on top, the dome
   // flaring out to its rim, and under it, a strip of paper left between, its
   // clapper.
@@ -1756,7 +2270,7 @@ Paint makePaperFill(Color color, String pattern, double unitPx, {double dpr = 1}
   }
   // Scattered patterns get big tiles, so they don't visibly repeat.
   final t = switch (pattern) {
-    'sparkle' => sparkleTile(unitPx),
+    'sparkle' || 'frost' => sparkleTile(unitPx),
     'bubbles' => sparkleTile(unitPx) * 2.5 * 1.3,
     'gingerbread' => sparkleTile(unitPx),
     // Snowfall's flakes a tenth bigger than the garland's tile.
@@ -1816,10 +2330,53 @@ const gingerbreadColor = Color(0xFFC46A30);
 const gingerbreadCrumbs = [ui.Color.fromARGB(255, 165, 91, 41), ui.Color.fromARGB(255, 126, 58, 14)];
 
 /// The gold of gift wrap's strings and stars.
-const wrapperGold = Color(0xFFF2C14E);
+const wrapperGold = ui.Color.fromARGB(255, 255, 206, 92);
+
+/// The sparkle lattice's lines (its paper's colour as it is, lines of
+/// glitter across it, see [frostLine], and spots of light on it, see
+/// [drawFrostGlints]): how wide its glitter lies along each, as a share
+/// of the tile; how many dots of it to a tile.
+const _frostLineWidth = .03, _frostDots = 450;
+
+/// How far out past [_frostLineWidth] a line's last stray glitter lies,
+/// as a multiple of it (see [frostLine]).
+const _frostLineSpread = 1.4;
+
+/// A point on the sparkle lattice's lines in a tile [t] across, from three
+/// shares: [u] along a line, [which] picks one of the two slanting across
+/// it, [off] how far to one side of it: most near the middle, fewer and
+/// fewer out to either side (cubed), so a line has no hard edge.
+(double, double) frostLine(double u, double which, double off, double t) {
+  final side = math.pow(2 * off - 1, 3) * _frostLineSpread * _frostLineWidth * t;
+  return which < .5 ? (u * t + side, u * t - side) : (u * t + side, (1 - u) * t + side);
+}
+
+/// Light on the sparkle lattice over [area]: two soft round spots, a big one high
+/// on the left and a smaller one low on the right.
+void drawFrostGlints(Canvas canvas, Rect area, {BlendMode blend = BlendMode.srcOver}) {
+  for (final (x, y, r, a) in const [(.3, .28, .26, .42), (.72, .74, .17, .32)]) {
+    final c = Offset(area.left + area.width * x, area.top + area.height * y);
+    final radius = area.shortestSide * r;
+    canvas.drawCircle(
+      c,
+      radius,
+      Paint()
+        ..blendMode = blend
+        ..shader = ui.Gradient.radial(c, radius, [Color.fromRGBO(255, 255, 255, a), Color.fromRGBO(255, 255, 255, a * .45), const Color(0x00FFFFFF)], [0, .45, 1]),
+    );
+  }
+}
+
+/// Light on paper with [pattern] over [area], if it has any (see
+/// [glassGlints]): glass's streaks or the sparkle lattice's spots.
+void drawLightOn(Canvas canvas, String pattern, Rect area) => pattern == 'frost' ? drawFrostGlints(canvas, area) : drawGlassGlints(canvas, area);
+
+/// Whether paper with [pattern] has light glinting on it as glass does (see
+/// [drawGlassGlints]): glass, and the sparkle lattice.
+bool glassGlints(String pattern) => pattern == 'glass' || pattern == 'frost';
 
 /// Gift wrap's gold's outline: the gold, darker, on paper of any colour.
-const wrapperOutline = Color(0xFF8A5A00);
+const wrapperOutline = ui.Color.fromARGB(255, 176, 115, 0);
 
 /// How far out from the middle of the sheet gift wrap starts to darken
 /// (see [wrapperEdge]), as a share of its radius: 0 at once, 1 not at all.
@@ -1891,7 +2448,7 @@ final List<({Offset at, double r, double phase, double period})> _glints = () {
 /// laid out in, [unitPx] its radius), each flashing up and dying away on its
 /// own beat at [time] seconds. White, or a cool silver on near-white paper,
 /// where white would not show.
-void drawGlints(Canvas canvas, Rect area, Color color, double unitPx, double time) {
+void drawGlints(Canvas canvas, Rect area, Color color, double unitPx, double time, {bool onLines = false}) {
   final t = sparkleTile(unitPx);
   final light = HSLColor.fromColor(color).lightness > .85;
   final base = light ? const Color(0xFF8A9BB8) : const Color(0xFFFFFFFF);
@@ -1907,7 +2464,10 @@ void drawGlints(Canvas canvas, Rect area, Color color, double unitPx, double tim
       }
 
       for (final g in _glints) {
-        final at = Offset((g.at.dx + next()) % 1 * t, (g.at.dy + next()) % 1 * t);
+        final u = (g.at.dx + next()) % 1, v = (g.at.dy + next()) % 1;
+        // On the sparkle lattice, only on its lines (see [frostLine]).
+        final (ax, ay) = onLines ? frostLine(u, v, next(), t) : (u * t, v * t);
+        final at = Offset(ax, ay);
         final phase = g.phase + next();
         // Mostly dark, with a brief flash once a cycle.
         final w = math.sin(2 * math.pi * (time / g.period + phase));
@@ -1929,6 +2489,15 @@ void toSheet(Canvas canvas, int pos, int folds) {
   canvas.rotate(-pos * math.pi / folds - sheetTurn(folds));
 }
 
+/// Where point [p] of the sheet lies in the wedge's own frame, for the
+/// segment at position [pos] of [folds]: the way [toSheet] turns the canvas.
+Offset fromSheet(Offset p, int pos, int folds) {
+  final a = -pos * math.pi / folds - sheetTurn(folds);
+  final c = math.cos(a), s = math.sin(a);
+  final q = Offset(p.dx * c - p.dy * s, p.dx * s + p.dy * c);
+  return pos.isOdd ? Offset(-q.dx, q.dy) : q;
+}
+
 /// How far the sheet's pattern is turned back within it, for paper folded
 /// [folds] times, so it lies level on the open flake as it rests (turned
 /// [sheetTurn] itself: half a segment, and [restTurns] segments more; see
@@ -1943,12 +2512,28 @@ const restTurns = 2;
 /// [cuts], [half] and segment [pos] of [folds]), kept to the paper.
 void drawWedgeGlints(Canvas canvas, double s, List<Cut> cuts, double half, Color color, double time, {int pos = 0, int folds = 1, String pattern = 'sparkle'}) {
   final bounds = Rect.fromCircle(center: Offset.zero, radius: s * 1.3);
-  canvas.saveLayer(bounds, Paint());
-  canvas.save();
-  canvas.clipPath(Path()
+  final wedge = Path()
     ..moveTo(0, 0)
     ..arcTo(Rect.fromCircle(center: Offset.zero, radius: s), -math.pi / 2 - half, 2 * half, false)
-    ..close());
+    ..close();
+  if (pattern == 'crystal') {
+    // Crystal's flares whole, those whose centres are on the paper.
+    final paths = [
+      for (final c in cuts)
+        if (c.length >= 3) cutPath(c, s)..fillType = PathFillType.nonZero,
+    ];
+    canvas.save();
+    toSheet(canvas, pos, folds);
+    drawSheetGlints(canvas, pattern, bounds, color, s, time, keep: (at) {
+      final q = fromSheet(at, pos, folds);
+      return wedge.contains(q) && !paths.any((p) => p.contains(q));
+    });
+    canvas.restore();
+    return;
+  }
+  canvas.saveLayer(bounds, Paint());
+  canvas.save();
+  canvas.clipPath(wedge);
   toSheet(canvas, pos, folds);
   drawSheetGlints(canvas, pattern, bounds, color, s, time);
   canvas.restore();
@@ -2035,7 +2620,7 @@ ui.Image _tile(Color color, String pattern, double t) {
       final p = Paint()..color = inkLight;
       x.drawRect(Rect.fromLTWH(0, 0, t / 2, t / 2), p);
       x.drawRect(Rect.fromLTWH(t / 2, t / 2, t / 2, t / 2), p);
-    case 'sparkle':
+    case 'sparkle' || 'frost':
       // Glitter: a dense scatter of tiny dots in the paper's own colour and
       // shades around it (only darker ones on near-white paper). Its glints twinkle on a layer of
       // their own (see [drawGlints]), where it is animated; still, a few white
@@ -2048,11 +2633,27 @@ ui.Image _tile(Color color, String pattern, double t) {
       final dots = light ? [color, shade(-.1), shade(-.18), shade(-.26), shade(-.34)] : [color, shade(-.14), shade(-.07), shade(.12), shade(.22)];
       var seed = 7;
       double rnd() => (seed = (seed * 16807) % 2147483647) / 2147483647;
-      for (var i = 0; i < _sparkleDots; i++) {
+      // The sparkle lattice's glitter lies only along its lines (see [frostLine]),
+      // a soft white glow under them, and shines more: white one dot in eight.
+      final frost = pattern == 'frost';
+      if (frost) {
+        // Blurred, so it fades out at its sides.
+        final glow = Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = t * _frostLineWidth * 2
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, t * _frostLineWidth)
+          ..color = const Color(0x2EFFFFFF);
+        for (final o in [-t, 0.0, t]) {
+          x.drawLine(Offset(o, 0), Offset(o + t, t), glow);
+          x.drawLine(Offset(o, t), Offset(o + t, 0), glow);
+        }
+      }
+      for (var i = 0; i < (frost ? _frostDots : _sparkleDots); i++) {
         // White glints are rare: one dot in twenty-five.
         final pick = rnd();
-        final p = Paint()..color = pick < .04 ? const Color(0xEEFFFFFF) : dots[(pick * dots.length).floor() % dots.length];
-        final cx = rnd() * t, cy = rnd() * t, rr = math.max(.6, t * (.004 + rnd() * .009));
+        final p = Paint()..color = pick < (frost ? .12 : .04) ? const Color(0xEEFFFFFF) : dots[(pick * dots.length).floor() % dots.length];
+        final (cx, cy) = frost ? frostLine(rnd(), rnd(), rnd(), t) : (rnd() * t, rnd() * t);
+        final rr = math.max(.6, t * (.004 + rnd() * .009));
         // Dots over an edge come in again on the far side, so tiles meet seamlessly.
         for (final dx in [-t, 0.0, t]) {
           for (final dy in [-t, 0.0, t]) {
@@ -2577,11 +3178,12 @@ void drawCrystalFacets(Canvas canvas, double r, Color color) {
 /// of nothing and dying away, its rays turning a little as it does (from
 /// level, clockwise: see [_flareTurn]). Only
 /// those lit are drawn, a couple at a time at most.
-void drawCrystalFlares(Canvas canvas, double r, double time) {
+void drawCrystalFlares(Canvas canvas, double r, double time, {bool Function(Offset)? keep}) {
   final ray = Paint();
   for (final (at, size, phase) in _crystalFlares) {
     final u = (time / _flareRound + phase) % 1;
     if (u >= _flareLit) continue;
+    if (keep != null && !keep(at * r)) continue;
     final lit = math.sin(math.pi * u / _flareLit);
     canvas.save();
     canvas.translate(at.dx * r, at.dy * r);
@@ -2730,10 +3332,10 @@ void drawWedge(Canvas canvas, double s, List<Cut> cuts, double half, Paint fill,
   canvas.restore();
   // Unturned by the segment's place on the sheet: light on glass keeps to
   // the screen.
-  if (pattern == 'glass' && sheen) {
+  if (pattern != null && glassGlints(pattern) && sheen) {
     canvas.save();
     canvas.clipPath(wedge);
-    drawGlassGlints(canvas, Rect.fromCircle(center: Offset.zero, radius: s));
+    drawLightOn(canvas, pattern, Rect.fromCircle(center: Offset.zero, radius: s));
     canvas.restore();
   }
   // Gift wrap's gold, over its paper.

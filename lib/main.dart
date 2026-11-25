@@ -33,6 +33,8 @@ Future<void> main() async {
     systemNavigationBarColor: Colors.transparent,
     systemNavigationBarIconBrightness: Brightness.light,
   ));
+  // Event prizes in the collection restored as the game has them now.
+  SavedFlake.prizes = eventPrize;
   final game = GameState(prefs);
   // Prices and purchases made before come in when the store answers.
   Shop.instance.init(game);

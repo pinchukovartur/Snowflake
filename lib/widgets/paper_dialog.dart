@@ -7,6 +7,7 @@ import '../snowflake/geometry.dart';
 import '../snowflake/snowflake_view.dart';
 import '../theme/tokens.dart';
 import 'ds.dart';
+import 'item_name.dart';
 import 'lock_icon.dart';
 
 /// The paper dialog: a flake in [paper] up top ([preview], [previewSize]
@@ -91,8 +92,8 @@ class PaperDialog extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  for (final (row, ids) in _patternRows(patterns).indexed) ...[
-                    if (row > 0) const SizedBox(height: 14),
+                  for (final (row, ids) in _patternRows(patterns, locked).indexed) ...[
+                    if (row > 0) const SizedBox(height: 15),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -120,12 +121,9 @@ class PaperDialog extends StatelessWidget {
                                               if (shut) Positioned.fill(child: _LockedCorner(advent: adventOnly(id))),
                                             ]),
                                             const SizedBox(height: 8),
-                                            // One full-size line tall, so a long name shrunk to
-                                            // fit sits centred on it rather than riding up.
-                                            SizedBox(
-                                              height: 13 * 1.2,
-                                              child: FittedBox(child: Text(tr('pattern_$id'), style: display(13, color: C.night800, height: 1.2))),
-                                            ),
+                                            // One line's room, a second spilling into the gap
+                                            // below (see [ItemName.spill]).
+                                            ItemName(tr('pattern_$id'), size: 13, spill: true),
                                           ],
                                         ),
                                       ),
@@ -147,19 +145,30 @@ class PaperDialog extends StatelessWidget {
 }
 
 /// The pattern picker's rows of [patterns], four to a row: those every
-/// player has first, then those sold in the shop's [offers], then those only
-/// the advent calendar gives ([adventRewards]); each lot in [patterns]'
-/// order.
-List<List<String>> _patternRows(List<String> patterns) {
-  int lot(String id) => offers.any((o) => o.items.any((r) => r.id == id))
+/// player has first, then those sold in the shop's [offers], in the shop's
+/// order, then those only the advent calendar gives ([adventRewards]); the
+/// rest in [patterns]' order. The player's own all before any still
+/// [locked], as with stencils: one got moves up with the rest of them.
+List<List<String>> _patternRows(List<String> patterns, Set<String> locked) {
+  final sold = [for (final o in offers) for (final r in o.items) if (r.paper) r.id];
+  int lot(String id) => sold.contains(id)
       ? 1
       : adventRewards.any((r) => r.id == id)
           ? 2
           : 0;
+  final ordered = [
+    for (final p in patterns)
+      if (lot(p) == 0) p,
+    for (final id in sold)
+      if (patterns.contains(id)) id,
+    for (final p in patterns)
+      if (lot(p) == 2) p,
+  ];
   final sorted = [
-    for (final l in const [0, 1, 2])
-      for (final p in patterns)
-        if (lot(p) == l) p,
+    for (final p in ordered)
+      if (!locked.contains(p)) p,
+    for (final p in ordered)
+      if (locked.contains(p)) p,
   ];
   return [for (var i = 0; i < sorted.length; i += 4) sorted.sublist(i, (i + 4).clamp(0, sorted.length))];
 }
@@ -316,19 +325,19 @@ class _PaperSwatchPainter extends CustomPainter {
       canvas.drawRRect(rr, makePaperFill(color, pattern, 100 * dpr));
     }
     final tw = twinkle;
-    if (tw != null && pattern == 'sparkle') {
+    if (tw != null && (pattern == 'sparkle' || pattern == 'frost')) {
       canvas.clipRRect(rr);
-      drawGlints(canvas, rr.outerRect, color, 100 * dpr, tw);
+      drawGlints(canvas, rr.outerRect, color, 100 * dpr, tw, onLines: pattern == 'frost');
     }
     if (pattern == 'holo') {
       canvas.clipRRect(rr);
       drawHoloSheen(canvas, rr.outerRect, 100 * dpr, time: tw ?? 0);
     }
-    // Glass glinting.
-    if (pattern == 'glass') {
+    // Glass glinting, and frosted glass.
+    if (glassGlints(pattern)) {
       canvas.save();
       canvas.clipRRect(rr);
-      drawGlassGlints(canvas, rr.outerRect);
+      drawLightOn(canvas, pattern, rr.outerRect);
       canvas.restore();
     }
     // Gift wrap's gold, over its paper.

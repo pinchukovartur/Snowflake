@@ -21,6 +21,7 @@ import '../widgets/paper_dialog.dart';
 import '../widgets/shop_dialog.dart';
 import '../widgets/where_to_get.dart';
 import '../widgets/snowfall.dart';
+import '../widgets/sparks.dart';
 import '../widgets/tutorial.dart';
 
 /// Height of the tool row laid over the foot of the board (a small round
@@ -81,6 +82,7 @@ const _stencils = [
   ('xstar', LucideIcons.sparkle, 'stencil_xstar'),
   ('gift', LucideIcons.gift, 'stencil_gift'),
   ('bell', LucideIcons.bell, 'stencil_bell'),
+  ('mitten', LucideIcons.hand, 'stencil_mitten'),
   // To be bought or found in the advent calendar (see [offers] and
   // [adventRewards]), in the shop's order, the calendar's alone last;
   // stand-in icons but for the cane.
@@ -88,17 +90,21 @@ const _stencils = [
   ('cane', LucideIcons.candyCane, 'stencil_cane'),
   ('snowman', LucideIcons.snowflake, 'stencil_snowman'),
   ('ornament', LucideIcons.circleDot, 'stencil_ornament'),
-  ('mitten', LucideIcons.hand, 'stencil_mitten'),
+  ('skate', LucideIcons.footprints, 'stencil_skate'),
   ('elfhat', LucideIcons.cone, 'stencil_elfhat'),
   ('angel', LucideIcons.feather, 'stencil_angel'),
+  ('deer', LucideIcons.rabbit, 'stencil_deer'),
 ];
+
+/// Stencils switched off for now: kept in [_stencils], but not in the list.
+const _stencilsOff = {'gift'};
 
 /// The Halloween stencils, set apart in the list.
 const _halloween = {'bone', 'hat', 'bat', 'jack'};
 
 /// The Christmas and New Year stencils, set apart in the list too: the
 /// free ones, and those of the shop and the advent calendar.
-const _christmas = {'tree', 'xstar', 'gift', 'bell', 'gingerman', 'cane', 'snowman', 'mitten', 'ornament', 'elfhat', 'angel'};
+const _christmas = {'tree', 'xstar', 'gift', 'bell', 'gingerman', 'cane', 'skate', 'snowman', 'mitten', 'ornament', 'elfhat', 'angel', 'deer'};
 
 /// The seasonal stencil groups after the everyday ones, each on its own ground.
 const _stencilGroups = [(_halloween, Color(0xFFFF7A1A)), (_christmas, Color(0xFF2FB37E))];
@@ -539,6 +545,14 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     _step((cuts: cuts, drops: [..._drops, detachedPieces(cuts, _fallen, _folds)], folds: _folds));
   }
 
+  /// Cuts the event's flake out just as it is (see [eventCheat]), as one
+  /// step, on fresh paper folded as it is.
+  void _cheatCut() {
+    final f = _s._event!.flake;
+    final cuts = snowflakePresets[f.preset] ?? const <Cut>[];
+    _step((cuts: cuts, drops: [detachedPieces(cuts, const [], f.folds)], folds: f.folds));
+  }
+
   void _reset() => _step((cuts: const [], drops: const [], folds: _folds));
 
   /// Cuts made for one wedge don't fit another, so refolding starts the paper
@@ -737,14 +751,14 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                         padding: const EdgeInsets.all(_stencilsPad),
                                         child: Column(children: [
                                           for (final (i, group) in [
-                                            [for (final t in _stencils) if (!_stencilGroups.any((g) => g.$1.contains(t.$1)) && (!_tutorial || widget.game.unlocked(t.$1))) t],
+                                            [for (final t in _stencils) if (!_stencilsOff.contains(t.$1) && !_stencilGroups.any((g) => g.$1.contains(t.$1)) && (!_tutorial || widget.game.unlocked(t.$1))) t],
                                             // Those still to be bought too, locked (see [GameState.unlocked]),
                                             // after the rest of their group; not in the tutorial, where there
                                             // is nothing to buy yet.
                                             for (final (ids, _) in _stencilGroups) [
-                                              for (final t in _stencils) if (ids.contains(t.$1) && widget.game.unlocked(t.$1)) t,
+                                              for (final t in _stencils) if (ids.contains(t.$1) && !_stencilsOff.contains(t.$1) && widget.game.unlocked(t.$1)) t,
                                               if (!_tutorial)
-                                                for (final t in _stencils) if (ids.contains(t.$1) && !widget.game.unlocked(t.$1)) t,
+                                                for (final t in _stencils) if (ids.contains(t.$1) && !_stencilsOff.contains(t.$1) && !widget.game.unlocked(t.$1)) t,
                                             ],
                                           ].indexed)
                                             if (group.isNotEmpty)
@@ -1016,6 +1030,14 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                     bottom: 12,
                     child: Btn('Skip', size: BtnSize.s, variant: Variant.orange, onTap: _skipTutorial),
                   ),
+                // Testing: the event's flake cut out perfectly (see [eventCheat]),
+                // right of the tool row.
+                if (eventCheat && _eventOn)
+                  Positioned(
+                    right: screenPad,
+                    bottom: 12,
+                    child: RoundBtn(LucideIcons.wandSparkles, label: 'Cheat', size: BtnSize.s, variant: Variant.orange, onTap: _cheatCut),
+                  ),
               ],
             ),
           ),
@@ -1141,21 +1163,38 @@ const List<_Event> _allEvents = [
     art: (title: 'duel_christmas_title', player: 'assets/Christmas/Christmas_Event_Fight_Player.png', hand: 'assets/Christmas/Christmas_Event_Fight_Player_Hand.png', boss: null, bg: Color(0xFF513C5E), ink: Color(0xFFC70F0E), glow: Color(0xFFFFD34D), bossGlow: Color(0xFFFFF2A6), table: Color(0xFFBC723E), still: true, santa: true, inkFade: (Color.fromARGB(255, 255, 164, 154), Color(0xFFD11011)), barFade: (Color(0xFFFFE36B), Color(0xFFF7A600)), room: 'assets/Christmas/Christmas_Event_Main_Bg.png', roomSky: 'assets/Christmas/Christmas_Event_Main_Bg_Window.png'),
     // One for each of the boss flake's twelve cones.
     flakes: [
-      (preset: 'christmass_2', folds: 4, color: Color(0xFFE0405E), pattern: 'plain'),
-      (preset: 'christmass_3', folds: 6, color: Color(0xFF2FB37E), pattern: 'plain'),
+      (preset: 'christmass_2', folds: 4, color: Color(0xFFFFFFFF), pattern: 'analogous'),
+      (preset: 'christmass_3', folds: 6, color: Color(0xFF713600), pattern: 'plain'),
       (preset: 'christmass_1', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
-      (preset: 'christmass_4', folds: 6, color: Color(0xFFFFE08A), pattern: 'plain'),
-      (preset: 'christmass_5', folds: 6, color: Color(0xFFC4ECFF), pattern: 'plain'),
-      (preset: 'christmass_6', folds: 4, color: Color(0xFF1E6B4F), pattern: 'plain'),
-      (preset: 'christmass_7', folds: 6, color: Color(0xFF8E1F3A), pattern: 'plain'),
-      (preset: 'christmass_8', folds: 6, color: Color(0xFF0047AB), pattern: 'plain'),
+      (preset: 'christmass_4', folds: 6, color: Color(0xFF2FB37E), pattern: 'crystal'),
+      (preset: 'christmass_5', folds: 6, color: Color(0xFFC4ECFF), pattern: 'knit'),
+      (preset: 'christmass_6', folds: 4, color: Color(0xFF8E1F3A), pattern: 'glass'),
+      (preset: 'christmass_7', folds: 6, color: Color(0xFFFFE08A), pattern: 'sparkle'),
+      (preset: 'christmass_8', folds: 6, color: Color(0xFF2FB37E), pattern: 'plain'),
       (preset: 'christmass_9', folds: 6, color: Color(0xFFFFFFFF), pattern: 'gingerbread'),
-      (preset: 'rhombi', folds: 6, color: Color(0xFF9DFFAA), pattern: 'plain'),
-      (preset: 'ghosts', folds: 6, color: Color(0xFFDCD2FF), pattern: 'plain'),
-      (preset: 'cats', folds: 6, color: Color(0xFF00275F), pattern: 'plain'),
+      (preset: 'christmass_10', folds: 4, color: Color(0xFF8A5CD6), pattern: 'stripes'),
+      (preset: 'christmass_11', folds: 6, color: Color(0xFF9AA3B5), pattern: 'analogous'),
+      (preset: 'christmass_12', folds: 6, color: Color(0xFFFFC7D0), pattern: 'knit'),
     ],
   ),
 ];
+
+/// Duels with the player's witch switched off for now: her pictures kept
+/// (see [_DuelArt]), but not shown.
+const _witchOff = {'christmas'};
+
+/// The event prize [preset] (an event's boss flake, see [SavedFlake.prize])
+/// as the game has it now, or null if no event has it.
+SavedFlake? eventPrize(String preset) {
+  for (final e in _allEvents) {
+    final b = e.boss;
+    if (b == null || b.preset != preset) continue;
+    final cuts = snowflakePresets[preset];
+    if (cuts == null) return null;
+    return SavedFlake(cuts: cuts, folds: b.folds, color: b.color, pattern: b.pattern, prize: preset);
+  }
+  return null;
+}
 
 /// Events switched off for now: kept in [_allEvents], but not on offer.
 const _eventsOff = {'halloween'};
@@ -1170,8 +1209,8 @@ final _events = [
 /// the player's figure and hand at the foot, the [boss] above; the window's
 /// [bg], the [ink] of its titles and progress bar, the [glow] round flakes
 /// already cut and the [bossGlow] round the boss's flake (no [boss]
-/// picture, none drawn). With [santa], Santa drawn in blocks (see
-/// [_BlockSanta]) holds the flake before him; with a [table], a table of that colour across the window,
+/// picture, none drawn). With [santa], Santa (see [_Santa]) holds the flake
+/// before him; with a [table], a table of that colour across the window,
 /// the boss's flake and the player's to pick on it. [still]: the boss's flake
 /// doesn't bob, nor its glow swell, and the flake just cut doesn't fly at it,
 /// its blow landing all the same, the flake staying in its place.
@@ -1592,7 +1631,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
   late final _blow = AnimationController(vsync: this, duration: const Duration(milliseconds: 900));
 
   /// The witch's hands swaying gently to and fro, round and round.
-  late final _sway = AnimationController(vsync: this, duration: const Duration(milliseconds: 3000))..repeat();
+  late final _sway = AnimationController(vsync: this, duration: const Duration(milliseconds: 3000));
 
   /// The boss's flake bobbing up and down, round and round, [_bobHeight]
   /// either way; kept at rest, still at its middle, for a still duel (see
@@ -1606,6 +1645,9 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
 
   /// How much lower than its place Santa holds the duel's flake.
   static const _santaFlakeDrop = 18.0;
+
+  /// How far up the table's shadow reaches over what is behind it.
+  static const _tableShadow = 28.0;
 
   /// How far above the screen's foot (less its inset) a duel's table ends:
   /// the player's figure's head up over its near edge.
@@ -1651,10 +1693,12 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
     super.initState();
     if (widget.art.roomSky != null) _snow = AnimationController(vsync: this, duration: const Duration(hours: 1))..forward();
     if (!widget.art.still) _bob.repeat();
+    // Her hands sway only where she is (see [_witchOff]).
+    if (!_witchOff.contains(widget.id)) _sway.repeat();
     final g = widget.game;
     _hits = widget.flakes.where((f) => g.duelHits(widget.id).contains(f.preset)).length;
     _before = math.min(g.duelSeen(widget.id), _hits);
-    g.setDuelSeen(widget.id, _hits);
+    _markSeen();
     final fresh = g.duelFresh;
     _fresh = fresh?.duel == widget.id ? widget.flakes.indexWhere((f) => f.preset == fresh!.preset) : -1;
     if (fresh?.duel == widget.id) g.duelFresh = null;
@@ -1680,6 +1724,19 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
       });
     }
   }
+
+  /// The duel's name, big.
+  Widget _duelTitle() => EventTitle(tr(widget.art.title), loud: true, size: 40, maxLines: 1, ink: widget.art.ink, fade: widget.art.inkFade);
+
+  /// Whether the duel is over: won, and the win already seen through, its
+  /// prize taken (see [_showVictory]), by the time the window opened. Only
+  /// then does it show so, the next time round.
+  late final bool _over = _hits == widget.flakes.length && _before == _hits;
+
+  /// Marks the cut flakes seen (see [GameState.setDuelSeen]), all but the
+  /// last of them while the win is still to be seen through: till then it
+  /// plays again on the way back in.
+  void _markSeen() => widget.game.setDuelSeen(widget.id, _hits < widget.flakes.length || _over ? _hits : _hits - 1);
 
   /// A blow lands: the cones it knocks off start to fall; with the last of
   /// them, the duel is won (see [_showVictory]).
@@ -1717,9 +1774,15 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
       );
 
   /// How far the boss's glow reaches round its flake, as a share of the
-  /// flake's size: 81% of the green one's round the carousel's flakes (226
-  /// round 170).
+  /// flake's size; the same round the carousel's flakes not cut yet.
   static const _bossGlowReach = 226 / 170 * .81;
+
+  /// How big the glow round a flake in the carousel cut already is.
+  static const _cutGlow = 226 * .8;
+
+  /// How opaque the boss's glow is round a flake in the carousel not cut
+  /// yet: as faint in its middle as the boss's is near its rim.
+  static const _waitingGlow = .35;
 
   /// How far the boss's glow grows and shrinks either way, as a share of its
   /// size.
@@ -1730,7 +1793,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
   /// window both.
   void _showVictory() {
     final b = widget.boss;
-    widget.game.keep(SavedFlake(cuts: snowflakePresets[b.preset] ?? const [], folds: b.folds, color: b.color, pattern: b.pattern));
+    widget.game.keep(SavedFlake(cuts: snowflakePresets[b.preset] ?? const [], folds: b.folds, color: b.color, pattern: b.pattern, prize: b.preset));
     showGeneralDialog(
       context: context,
       barrierColor: const Color(0xB3101A3F),
@@ -1743,7 +1806,9 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
         type: MaterialType.transparency,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
+          // Closed, the duel is over (see [_over]).
           onTap: () {
+            widget.game.setDuelSeen(widget.id, widget.flakes.length);
             Navigator.pop(ctx);
             Navigator.pop(context);
           },
@@ -1754,7 +1819,8 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   EventTitle(tr('duel_won_title'), loud: true, size: 36, maxLines: 1, ink: widget.art.ink, fade: widget.art.inkFade),
                   const SizedBox(height: 8),
-                  Text(tr('duel_won_subtitle'), textAlign: TextAlign.center, style: display(20, color: Colors.white, shadows: drop(3))),
+                  // From Santa, a gift.
+                  Text(tr(widget.art.santa ? 'duel_won_subtitle_santa' : 'duel_won_subtitle'), textAlign: TextAlign.center, style: display(20, color: Colors.white, shadows: drop(3))),
                   const SizedBox(height: 28),
                   FlakeShadow(size: 280, child: SnowflakeView(preset: b.preset, folds: b.folds, color: b.color, pattern: b.pattern, size: 280)),
                 ]),
@@ -1801,7 +1867,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
       _fresh = next;
       _before = _hits;
       _hits++;
-      g.setDuelSeen(widget.id, _hits);
+      _markSeen();
       _cheating = true;
     });
     _carousel.animateToPage(next, duration: const Duration(milliseconds: 300), curve: Curves.easeOutCubic).then((_) async {
@@ -1877,18 +1943,31 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
               boxShadow: const [BoxShadow(color: Color(0x33101A3F), offset: Offset(0, 3))],
             ),
             child: Stack(alignment: Alignment.center, children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: FractionallySizedBox(
-                  widthFactor: n == 0 ? 0 : done / n,
-                  heightFactor: 1,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: fill == null ? widget.art.ink : null,
-                      gradient: fill == null ? null : LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [fill.$1, fill.$2]),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                  ),
+              // A pill as tall as the inside, its rounded front end at the
+              // count, coming out from under the white rim at the left (its
+              // back end there, hidden): kept to the inside, so even a little
+              // of it shows rounded only where it should be.
+              Positioned.fill(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: LayoutBuilder(builder: (_, box) {
+                    final h = box.maxHeight;
+                    return Stack(clipBehavior: Clip.none, children: [
+                      Positioned(
+                        left: -h,
+                        top: 0,
+                        bottom: 0,
+                        width: h + (n == 0 ? 0 : done / n) * box.maxWidth,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: fill == null ? widget.art.ink : null,
+                            gradient: fill == null ? null : LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [fill.$1, fill.$2]),
+                            borderRadius: BorderRadius.circular(h / 2),
+                          ),
+                        ),
+                      ),
+                    ]);
+                  }),
                 ),
               ),
               EventTitle('$_hits/$n', loud: true, size: 28, maxLines: 1, ink: widget.art.ink),
@@ -1951,11 +2030,11 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
           segments: cones,
         );
     final santa = widget.art.santa;
-    // The table's top, down the screen, and Santa's above it, his mittens on its edge.
+    // The table's top, down the screen, and Santa's above it, the table over his belt.
     // On a screen taller than the scene, how far it is moved down to stand
     // in the middle (see [_sceneHeight]); and so the table's foot up.
     final drop = math.max(0.0, (MediaQuery.sizeOf(context).height - pad.vertical - _sceneHeight) / 2);
-    final tableTop = pad.top + drop + _tableTop, santaTop = tableTop - _BlockSanta.tableAt, tableFoot = pad.bottom + drop + _tableFoot;
+    final tableTop = pad.top + drop + _tableTop, santaTop = tableTop - _Santa.tableAt, tableFoot = pad.bottom + drop + _tableFoot;
     final witch = santa ? _witchAtChristmas : _witch;
     return ColoredBox(
       color: widget.art.bg,
@@ -1973,14 +2052,30 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
             child: ClipRect(child: RepaintBoundary(child: Snowfall(ticker: snow, hazeHeight: 0, hazeFade: 1, drift: () => Offset.zero))),
           ),
         if (widget.art.room case final room?) _roomLayer(room, tableTop, pad.top),
-        // Behind it all: Santa, the table over his body, his mittens on it.
-        if (santa) Positioned(left: 0, right: 0, top: santaTop, height: _BlockSanta.height, child: const IgnorePointer(child: _BlockSanta())),
+        // Behind it all: Santa, the table over his lower half.
+        if (santa) Positioned(left: 0, right: 0, top: santaTop, height: _Santa.height, child: const IgnorePointer(child: _Santa())),
+        // A light shadow the table casts back up over Santa and the room,
+        // darkest at its edge.
+        if (widget.art.table != null)
+          Positioned(
+            left: 0,
+            right: 0,
+            top: tableTop - _tableShadow,
+            height: _tableShadow,
+            child: const IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0x00000000), Color(0x40000000)]),
+                ),
+              ),
+            ),
+          ),
         if (widget.art.table case final table?)
           Positioned(left: 0, right: 0, top: tableTop, bottom: tableFoot, child: IgnorePointer(child: _Table(table))),
-        // Its legs, from under its near edge down off the screen, behind the player.
+        // Its front, under its near edge right across and down off the screen,
+        // behind the player.
         if (widget.art.table case final table?)
-          Positioned(left: 0, right: 0, bottom: 0, height: tableFoot, child: IgnorePointer(child: CustomPaint(painter: _TableLegsPainter(table)))),
-        if (santa) Positioned(left: 0, right: 0, top: santaTop, height: _BlockSanta.height, child: const IgnorePointer(child: _BlockSanta(hands: true))),
+          Positioned(left: 0, right: 0, bottom: 0, height: tableFoot, child: IgnorePointer(child: CustomPaint(painter: _TableFrontPainter(table)))),
         SafeArea(
           bottom: false,
           child: Column(children: [
@@ -1990,12 +2085,15 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
             TopBar(
               left: BarBtn(LucideIcons.arrowLeft, label: tr('back'), onTap: () => Navigator.pop(context)),
               title: tr(widget.art.title),
-              heading: _progressBar(),
+              // Once the duel is over (see [_over]), the duel's name in its place.
+              heading: _over ? _duelTitle() : _progressBar(),
               right: const SizedBox(width: 44),
             ),
+            // Gone up top once the duel is over (its room kept, so the rest
+            // stays put).
             Padding(
               padding: const EdgeInsets.fromLTRB(screenPad, 2, screenPad, 0),
-              child: EventTitle(tr(widget.art.title), loud: true, size: 40, maxLines: 1, ink: widget.art.ink, fade: widget.art.inkFade),
+              child: Visibility.maintain(visible: !_over, child: _duelTitle()),
             ),
             // Down with the table (see [drop]).
             SizedBox(height: drop),
@@ -2007,6 +2105,20 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                 final size = math.min(204.0, c.maxWidth * .5) * (santa ? .9 : 1);
                 // Its glow free to spill out past the bottom.
                 return Stack(clipBehavior: Clip.none, children: [
+                  // The duel over (see [_over]): said, in white, below where the
+                  // boss's flake was.
+                  if (_over)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Align(
+                          alignment: const Alignment(0, .75),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: screenPad),
+                            child: Text(tr('event_completed'), textAlign: TextAlign.center, maxLines: 2, style: display(34, color: Colors.white, height: 1.1).copyWith(fontStyle: FontStyle.italic)),
+                          ),
+                        ),
+                      ),
+                    ),
                   // The boss in the middle; its flake held before it, low and a
                   // little to the right, like a shield.
                   if (widget.art.boss case final boss?)
@@ -2038,6 +2150,16 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                         right: -size * (_bossGlowReach - 1) / 2,
                         bottom: -size * (_bossGlowReach - 1) / 2,
                         child: IgnorePointer(child: _bossGlowDisc()),
+                      ),
+                      // Little stars flying off it, going with its glow.
+                      Positioned.fill(
+                        child: IgnorePointer(
+                          child: AnimatedBuilder(
+                            animation: _blow,
+                            builder: (_, sparks) => Opacity(opacity: _hits < widget.flakes.length ? 1 : (_before < _hits ? 1 - _blow.value : 0), child: sparks),
+                            child: Center(child: Sparks(color: widget.art.bossGlow, size: size)),
+                          ),
+                        ),
                       ),
                       GestureDetector(
                         key: _bossKey,
@@ -2121,32 +2243,63 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                         },
                         child: Center(
                           child: Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
-                            // Cut already (still to be cut again, for no harm): a
-                            // soft green glow behind it, a disc fading out at its rim
-                            // (a gradient, as cheap as a fill, not a blur), gently
-                            // growing and shrinking, round and round.
-                            if (cut)
-                              AnimatedBuilder(
-                                animation: Listenable.merge([_fly, _pulse]),
-                                builder: (_, glow) => Opacity(
-                                  opacity: fresh && !_fly.isCompleted ? ((_fly.value - _home) / (1 - _home)).clamp(0.0, 1.0) : 1,
-                                  child: Transform.scale(
-                                    scale: 1 + _pulseScale * math.sin(_pulse.value * 2 * math.pi),
-                                    child: glow,
-                                  ),
-                                ),
-                                child: Container(
-                                  width: 226,
-                                  height: 226,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    gradient: RadialGradient(
-                                      colors: [widget.art.glow, widget.art.glow, widget.art.glow.withValues(alpha: 0)],
-                                      stops: const [0, .5, 1],
+                            // Its glow behind it, a disc fading out at its rim (a
+                            // gradient, as cheap as a fill, not a blur). Cut already
+                            // (still to be cut again, for no harm): soft, in the glow's
+                            // colour, gently growing and shrinking, round and round,
+                            // little stars flying off it. Not cut yet: the boss's glow,
+                            // as big round it as round the boss's flake, but still and
+                            // faint (see [_waitingGlow]). Just cut, the one fades into
+                            // the other as the flake comes home.
+                            AnimatedBuilder(
+                              animation: Listenable.merge([_fly, _pulse]),
+                              builder: (_, _) {
+                                final lit = !cut ? 0.0 : fresh && !_fly.isCompleted ? ((_fly.value - _home) / (1 - _home)).clamp(0.0, 1.0) : 1.0;
+                                return Stack(clipBehavior: Clip.none, alignment: Alignment.center, children: [
+                                  // Keyed, so the stars keep flying as the others come and go.
+                                  if (lit < 1)
+                                    Opacity(
+                                      key: const ValueKey('waiting'),
+                                      opacity: 1 - lit,
+                                      child: Container(
+                                        width: 170 * _bossGlowReach,
+                                        height: 170 * _bossGlowReach,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          gradient: RadialGradient(
+                                            colors: [
+                                              widget.art.bossGlow.withValues(alpha: _waitingGlow),
+                                              widget.art.bossGlow.withValues(alpha: _waitingGlow),
+                                              widget.art.bossGlow.withValues(alpha: 0),
+                                            ],
+                                            stops: const [0, .5, 1],
+                                          ),
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              ),
+                                  if (lit > 0)
+                                    Opacity(
+                                      key: const ValueKey('cut'),
+                                      opacity: lit,
+                                      child: Transform.scale(
+                                        scale: 1 + _pulseScale * math.sin(_pulse.value * 2 * math.pi),
+                                        child: Container(
+                                          width: _cutGlow,
+                                          height: _cutGlow,
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            gradient: RadialGradient(
+                                              colors: [widget.art.glow, widget.art.glow, widget.art.glow.withValues(alpha: 0)],
+                                              stops: const [0, .5, 1],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  if (lit > 0) Opacity(key: const ValueKey('sparks'), opacity: lit, child: Sparks(color: widget.art.glow, size: 170)),
+                                ]);
+                              },
+                            ),
                             _ShadowedFlake(f, size: 170),
                           ]),
                         ),
@@ -2165,8 +2318,10 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
         // (taking no touches), in the middle (smaller at Christmas, with Santa
         // across the table: its head up over the table's near edge). Up with
         // the table's foot (see [drop]), her body running on down to the
-        // screen's foot below her picture.
-        Positioned(
+        // screen's foot below her picture. Not in a duel she is off in (see
+        // [_witchOff]), her room kept.
+        if (!_witchOff.contains(widget.id))
+          Positioned(
           left: 0,
           right: 0,
           bottom: 0,
@@ -2303,104 +2458,23 @@ class _WeighingReadout extends StatelessWidget {
   }
 }
 
-/// Santa, drawn in blocks on a grid of [_cell] squares, 40 across and
-/// [height] / [_cell] down, centred: his hat at the top, his face under it,
-/// his arms reaching out and down to the table (its top at [tableAt]), where
-/// his mittens rest. Drawn in two goes: all of him but his
-/// mittens behind the table, and with [hands] the mittens alone, over it.
-class _BlockSanta extends StatelessWidget {
-  const _BlockSanta({this.hands = false});
-  final bool hands;
+/// Santa (his picture, [_asset]) behind the table, waving, scissors in hand,
+/// [width] across and centred: the table (its top [tableAt] down from his)
+/// hiding his lower half.
+class _Santa extends StatelessWidget {
+  const _Santa();
 
-  static const _cell = 6.4;
-  static const height = 22 * _cell;
+  static const _asset = 'assets/Christmas/Christmas_Event_Santa.png';
 
-  /// How far down from his top the table starts: under his arms, his mittens
-  /// on its edge.
-  static const tableAt = 18 * _cell;
+  /// His size on the screen, as the picture's (995 × 823 px).
+  static const width = 240.0, height = width * 823 / 995;
 
-  @override
-  Widget build(BuildContext context) => CustomPaint(painter: _BlockSantaPainter(hands), size: Size.infinite);
-}
-
-class _BlockSantaPainter extends CustomPainter {
-  const _BlockSantaPainter(this.hands);
-  final bool hands;
-
-  static const _red = Color(0xFFD42F3A), _redDark = Color(0xFFA81F2B);
-  static const _white = Color(0xFFF6F8FC), _whiteShade = Color(0xFFD5DCEA);
-  static const _skin = Color(0xFFF5C9A6), _cheek = Color(0xFFF0948A), _nose = Color(0xFFE5776A);
-  static const _eye = Color(0xFF1B2A5B), _mitten = Color(0xFF1E6B4F), _mittenDark = Color(0xFF14503A);
-
-  /// Blocks as (colour, left column, top row, right column, bottom row), the
-  /// right and bottom ones not included; on the left side only for those
-  /// mirrored to the right (see [_both]).
-  static const _body = <(Color, int, int, int, int)>[
-    // Body, behind the beard (its lower part behind the flake and the table).
-    (_red, 11, 13, 29, 22),
-    (_redDark, 11, 13, 12, 22),
-    (_redDark, 28, 13, 29, 22),
-    // The hat, its tip drooping to the right, with its bobble.
-    (_red, 15, 2, 25, 6),
-    (_red, 16, 1, 24, 2),
-    (_red, 19, 0, 26, 1),
-    (_red, 25, 1, 28, 2),
-    (_redDark, 15, 5, 25, 6),
-    (_white, 27, 1, 30, 4),
-    (_whiteShade, 27, 3, 30, 4),
-    (_white, 13, 6, 27, 8),
-    (_whiteShade, 13, 7, 27, 8),
-    // The face.
-    (_skin, 15, 8, 25, 12),
-    (_eye, 17, 9, 18, 10),
-    (_eye, 22, 9, 23, 10),
-    (_cheek, 16, 10, 17, 11),
-    (_cheek, 23, 10, 24, 11),
-    (_nose, 19, 10, 21, 11),
-    // Beard and moustache.
-    (_white, 14, 12, 26, 14),
-    (_white, 15, 14, 25, 15),
-    (_whiteShade, 16, 15, 24, 16),
-    (_whiteShade, 18, 16, 22, 17),
-    (_white, 16, 11, 24, 12),
-    (_white, 15, 12, 17, 13),
-    (_white, 23, 12, 25, 13),
-  ];
-
-  /// The sleeves, out and down from his shoulders: the left, and mirrored.
-  static const _sleeves = <(Color, int, int, int, int)>[
-    (_red, 7, 14, 12, 17),
-    (_red, 4, 16, 9, 18),
-    (_redDark, 4, 17, 9, 18),
-  ];
-
-  /// The fur cuffs and the mittens, thumbs in, on the table's edge.
-  static const _mittens = <(Color, int, int, int, int)>[
-    (_white, 3, 17, 10, 18),
-    (_mitten, 3, 18, 9, 21),
-    (_mitten, 9, 18, 10, 20),
-    (_mittenDark, 3, 20, 9, 21),
-  ];
-
-  /// [blocks] and their mirror images across the middle.
-  static Iterable<(Color, int, int, int, int)> _both(List<(Color, int, int, int, int)> blocks) => [
-        ...blocks,
-        for (final (c, l, t, r, b) in blocks) (c, 40 - r, t, 40 - l, b),
-      ];
+  /// How far down from his top the table starts: across his tummy, his
+  /// hands up over it, clear of the duel's name.
+  static const tableAt = height * .72;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    const u = _BlockSanta._cell;
-    final left = size.width / 2 - 20 * u;
-    final paint = Paint();
-    // A hair's overlap, so no seams show between blocks.
-    for (final (c, l, t, r, b) in hands ? _both(_mittens) : [..._body, ..._both(_sleeves)]) {
-      canvas.drawRect(Rect.fromLTRB(left + l * u - .3, t * u - .3, left + r * u + .3, b * u + .3), paint..color = c);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_BlockSantaPainter old) => old.hands != hands;
+  Widget build(BuildContext context) => Center(child: Image.asset(_asset, width: width, height: height, fit: BoxFit.contain));
 }
 
 /// A duel's table, of [color], across the window: a lighter top edge, a dark
@@ -2413,41 +2487,25 @@ class _Table extends StatelessWidget {
   Widget build(BuildContext context) => CustomPaint(painter: _TablePainter(color), size: Size.infinite);
 }
 
-/// A table's two legs, square wooden posts a little in from either side,
-/// running from the top of the box down and slanting outwards, in the
-/// table's colour in shade: a band darker still up under the top, in its
+/// What is under a table's top: a solid front right across its box, in the
+/// table's colour in shade, a band darker still up under the top, in its
 /// shadow, edged sharp.
-class _TableLegsPainter extends CustomPainter {
-  const _TableLegsPainter(this.color);
+class _TableFrontPainter extends CustomPainter {
+  const _TableFrontPainter(this.color);
   final Color color;
 
-  /// How far in from the side a leg's top is, as a share of the width; how
-  /// far out it slants for each unit down. As wide as one of the top's
-  /// boards (see [_TablePainter.plank]).
-  static const _inset = .06, _slant = .35;
-
-  /// How dark the legs' band of shadow under the top is (towards black, as
-  /// their shade lower down is .42), and how deep it is.
+  /// How dark the band of shadow under the top is (towards black, as the
+  /// shade lower down is .42), and how deep it is.
   static const _underTop = .55, _shadow = 28.0;
 
   @override
   void paint(Canvas canvas, Size size) {
-    const w = _TablePainter.plank;
-    final h = size.height, out = h * _slant;
-    final left = size.width * _inset, right = size.width * (1 - _inset) - w;
-    final legs = Path()
-      ..addPolygon([Offset(left, 0), Offset(left + w, 0), Offset(left + w - out, h), Offset(left - out, h)], true)
-      ..addPolygon([Offset(right, 0), Offset(right + w, 0), Offset(right + w + out, h), Offset(right + out, h)], true);
-    canvas.drawPath(legs, Paint()..color = Color.lerp(color, Colors.black, .42)!);
-    // The band of shadow under the top, over them, kept to it.
-    canvas.save();
-    canvas.clipRect(Rect.fromLTWH(0, 0, size.width, _shadow));
-    canvas.drawPath(legs, Paint()..color = Color.lerp(color, Colors.black, _underTop)!);
-    canvas.restore();
+    canvas.drawRect(Offset.zero & size, Paint()..color = Color.lerp(color, Colors.black, .42)!);
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, math.min(_shadow, size.height)), Paint()..color = Color.lerp(color, Colors.black, _underTop)!);
   }
 
   @override
-  bool shouldRepaint(_TableLegsPainter old) => old.color != color;
+  bool shouldRepaint(_TableFrontPainter old) => old.color != color;
 }
 
 class _TablePainter extends CustomPainter {
@@ -2462,7 +2520,7 @@ class _TablePainter extends CustomPainter {
     final grain = Paint()
       ..color = edge.withValues(alpha: .25)
       ..strokeWidth = 2;
-    for (var y = 48.0; y < h - _front; y += plank) {
+    for (var y = 48.0; y < h - _front; y += _plank) {
       canvas.drawLine(Offset(0, y), Offset(w, y), grain);
     }
     // Its near edge, the player's side: the top's rim catching the light,
@@ -2475,7 +2533,7 @@ class _TablePainter extends CustomPainter {
   static const _front = 22.0, _rim = 4.0;
 
   /// How wide each of the top's boards is, between the grain lines.
-  static const plank = 56.0;
+  static const _plank = 56.0;
 
   @override
   bool shouldRepaint(_TablePainter old) => old.color != color;

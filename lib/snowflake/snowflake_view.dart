@@ -492,7 +492,10 @@ class SnowflakePainter extends CustomPainter {
             canvas.save();
             canvas.rotate(i * step);
             if (i.isOdd) canvas.scale(-1, 1);
-            canvas.clipPath(clip);
+            // Crystal's flares whole, those whose centres are on this
+            // segment's paper; the rest kept to it.
+            final crystal = pattern == 'crystal';
+            if (!crystal) canvas.clipPath(clip);
             toSheet(canvas, i - turns, folds);
             // Only where this segment lies on the sheet.
             final corners = [Offset.zero, Offset(-r * math.sin(h), -r * math.cos(h)), Offset(r * math.sin(h), -r * math.cos(h)), Offset(0, -r)];
@@ -503,7 +506,7 @@ class SnowflakePainter extends CustomPainter {
             for (final q in onSheet) {
               area = area.expandToInclude(Rect.fromPoints(q, q));
             }
-            drawSheetGlints(canvas, pattern, area.inflate(r * .05), color, r, tw);
+            drawSheetGlints(canvas, pattern, area.inflate(r * .05), color, r, tw, keep: crystal ? (at) => clip.contains(fromSheet(at, i - turns, folds)) : null);
             canvas.restore();
           }
         }
@@ -525,6 +528,15 @@ class SnowflakePainter extends CustomPainter {
       canvas.saveLayer(bounds, Paint());
       body();
       canvas.restore();
+      // The sparkle lattice's spots of light, kept to the flake.
+      if (glassGlints(pattern)) {
+        canvas.saveLayer(bounds, Paint());
+        drawFrostGlints(canvas, Rect.fromCircle(center: Offset(s / 2, s / 2), radius: s * .5));
+        canvas.saveLayer(bounds, Paint()..blendMode = BlendMode.dstIn);
+        body();
+        canvas.restore();
+        canvas.restore();
+      }
     }
   }
 

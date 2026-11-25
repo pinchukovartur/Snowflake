@@ -38,8 +38,8 @@ Future<void> loadSvgFlakes() async {
 /// The cuts a wedge template's drawing makes: its filled shapes cut away, or,
 /// if there is a group named "paper", only the paper drawn in it left (less
 /// any shapes outside it). The template (its group, or anything in its
-/// fill), unfilled shapes, and anything defined rather than drawn are left
-/// out.
+/// fill), unfilled shapes, shapes filled with a pattern or gradient (a
+/// reference picture), and anything defined rather than drawn are left out.
 List<Cut> flakeFromSvg(String svg) {
   Path? paper;
   var cuts = Path();
@@ -64,7 +64,9 @@ List<Cut> flakeFromSvg(String svg) {
     }
     final names = groups.map((g) => g.name.toLowerCase());
     if (names.contains('template') || groups.any((g) => const {'defs', 'clipPath', 'mask', 'symbol', 'pattern'}.contains(g.tag))) continue;
-    if (fill == 'none' || fill == 'transparent' || fill == _templateFill) continue;
+    // Filled with a pattern or gradient: a picture traced over (an editor's
+    // reference image), not a cut.
+    if (fill == 'none' || fill == 'transparent' || fill == _templateFill || fill.startsWith('url(')) continue;
     final shape = _shape(tag, attrs, size);
     if (shape == null) continue;
     final placed = shape.transform(_times(_toWedge(), m));

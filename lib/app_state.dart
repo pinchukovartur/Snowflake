@@ -43,24 +43,26 @@ const firstCollectionTutorial = 'first_collection';
 /// door is opened, is not to be had (see [GameState.unlocked]).
 const adventRewards = <({bool paper, String id})>[
   (paper: true, id: 'snowfall'),
-  (paper: false, id: 'elfhat'),
+  (paper: false, id: 'skate'),
   (paper: true, id: 'tartan'),
+  (paper: false, id: 'elfhat'),
+  (paper: true, id: 'frost'),
   (paper: false, id: 'angel'),
-  (paper: true, id: 'garland'),
-  (paper: false, id: 'cane'),
   (paper: true, id: 'candy'),
-  (paper: false, id: 'ornament'),
+  (paper: false, id: 'deer'),
 ];
 
-/// The sets of papers and stencils sold in the shop, mostly the advent
-/// calendar's own (chocolate, gift wrap and the gingerbread man only here;
-/// snowfall, tartan, the elf hat and the angel only in the calendar), papers and stencils: [id] is the product's
-/// id in Google Play (a one-time purchase), its name `offer_<id>` in the
+/// The sets of papers and stencils sold in the shop, some of them the
+/// advent calendar's too (chocolate, the garland, the gingerbread man and
+/// the cane only here; snowfall, tartan, the skate, the elf hat, the angel
+/// and the deer only in the calendar; candy and the sparkle lattice in
+/// both): [id] is the product's id in Google Play (a one-time purchase),
+/// its name `offer_<id>` in the
 /// strings. What a set holds is the player's once it is bought, its doors in
 /// the calendar or not (see [GameState.unlocked]).
 const offers = <({String id, List<({bool paper, String id})> items})>[
   (id: 'pack_snow_day', items: [(paper: true, id: 'candy'), (paper: true, id: 'chocolate'), (paper: false, id: 'gingerman'), (paper: false, id: 'cane')]),
-  (id: 'pack_holiday', items: [(paper: true, id: 'garland'), (paper: true, id: 'wrapper'), (paper: false, id: 'snowman'), (paper: false, id: 'ornament')]),
+  (id: 'pack_holiday', items: [(paper: true, id: 'garland'), (paper: true, id: 'frost'), (paper: false, id: 'snowman'), (paper: false, id: 'ornament')]),
 ];
 
 /// Whether paper pattern or stencil [id] is to be had only behind one of the
@@ -85,6 +87,10 @@ const duelCheat = true && kDebugMode;
 /// builds only, as [duelCheat].
 const tutorialSkip = true && kDebugMode;
 
+/// For testing events: a button beside the tools cutting the event's flake
+/// out just as it is. Debug builds only, as [duelCheat].
+const eventCheat = true && kDebugMode;
+
 /// For testing what falls off a flake: the cut board shows how the last cut
 /// weighed the paper's pieces (see [lastWeighing]), those that fell in red
 /// and the one that stayed in green. Debug builds only, as [duelCheat].
@@ -96,12 +102,26 @@ typedef DuelHit = ({String duel, String preset});
 
 /// A flake the player cut and kept.
 class SavedFlake {
-  const SavedFlake({required this.cuts, this.folds = 6, this.color, this.pattern = 'plain', this.fav = false});
+  const SavedFlake({required this.cuts, this.folds = 6, this.color, this.pattern = 'plain', this.fav = false, this.prize, this.ownPaper = false});
   final List<Cut> cuts;
   final int folds;
   final Color? color;
   final String pattern;
   final bool fav;
+
+  /// The event prize this flake is (the boss flake's preset, see
+  /// [prizes]), if it is one: restored as the game has it now, so it
+  /// changes with it.
+  final String? prize;
+
+  /// Whether the player has put a prize on other paper (see
+  /// [GameState.recolor]): its colour and pattern then theirs, kept.
+  final bool ownPaper;
+
+  /// The event prize [prize] as the game has it now, or null if it has no
+  /// such prize (any more). Set at launch, before the collection is
+  /// restored.
+  static SavedFlake? Function(String prize)? prizes;
 
   Map<String, Object?> toJson() => {
         'cuts': [for (final c in cuts) [for (final p in c) [_r(p.dx), _r(p.dy)]]],
@@ -109,19 +129,41 @@ class SavedFlake {
         if (color != null) 'color': color!.toARGB32(),
         'pattern': pattern,
         'fav': fav,
+        if (prize != null) 'prize': prize,
+        if (ownPaper) 'ownPaper': true,
       };
 
   /// Null for a record without cuts: one of the built-in presets that used to
-  /// be kept in the collection.
+  /// be kept in the collection. A prize comes back as the game has it now
+  /// (see [prizes]), on the player's own paper if they chose it; its cuts as
+  /// stored only if the game has it no more.
   static SavedFlake? fromJson(Map<String, Object?> j) {
     final cuts = j['cuts'] as List?;
     if (cuts == null) return null;
+    final prize = j['prize'] as String?, ownPaper = j['ownPaper'] as bool? ?? false;
+    final color = j['color'] == null ? null : Color(j['color'] as int);
+    final pattern = j['pattern'] as String? ?? 'plain';
+    final fav = j['fav'] as bool? ?? false;
+    final now = prize == null ? null : prizes?.call(prize);
+    if (now != null) {
+      return SavedFlake(
+        cuts: now.cuts,
+        folds: now.folds,
+        color: ownPaper ? color : now.color,
+        pattern: ownPaper ? pattern : now.pattern,
+        fav: fav,
+        prize: prize,
+        ownPaper: ownPaper,
+      );
+    }
     return SavedFlake(
       cuts: [for (final c in cuts) [for (final p in c as List) Offset(((p as List)[0] as num).toDouble(), (p[1] as num).toDouble())]],
       folds: j['folds'] as int? ?? 6,
-      color: j['color'] == null ? null : Color(j['color'] as int),
-      pattern: j['pattern'] as String? ?? 'plain',
-      fav: j['fav'] as bool? ?? false,
+      color: color,
+      pattern: pattern,
+      fav: fav,
+      prize: prize,
+      ownPaper: ownPaper,
     );
   }
 
@@ -462,7 +504,7 @@ class GameState extends ChangeNotifier {
   SavedFlake recolor(SavedFlake f, Paper paper) {
     final i = saved.indexWhere((s) => identical(s, f));
     if (i < 0) return f;
-    final n = SavedFlake(cuts: f.cuts, folds: f.folds, color: paper.color, pattern: paper.pattern, fav: f.fav);
+    final n = SavedFlake(cuts: f.cuts, folds: f.folds, color: paper.color, pattern: paper.pattern, fav: f.fav, prize: f.prize, ownPaper: f.prize != null);
     saved[i] = n;
     for (final e in window.entries.toList()) {
       if (identical(e.value, f)) window[e.key] = n;
