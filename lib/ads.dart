@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'dart:math' as math;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -24,8 +25,14 @@ class AdKeys {
   bool get isSet => appKey.isNotEmpty;
 }
 
-// TODO: fill in from the LevelPlay dashboard (Apps → Snowflake → Ad units).
-const _androidKeys = AdKeys(appKey: '', rewarded: '', interstitial: '', banner: '');
+// From the LevelPlay dashboard (Apps → Snowflakes → Ad units). Only the
+// interstitial is used in the game, so the other units are left empty.
+const _androidKeys = AdKeys(
+  appKey: '29e04b3dd',
+  rewarded: '',
+  interstitial: 'z156z75y9kapp6vg',
+  banner: '',
+);
 const _iosKeys = AdKeys(appKey: '', rewarded: '', interstitial: '', banner: '');
 
 /// ironSource ads: rewarded video, interstitials between screens and a banner.
@@ -66,13 +73,18 @@ class Ads with LevelPlayInitListener {
 
   @override
   void onInitSuccess(LevelPlayConfiguration configuration) {
+    debugPrint('Ads: init ok');
     if (keys.rewarded.isNotEmpty) {
-      _rewarded = LevelPlayRewardedAd(adUnitId: keys.rewarded)
+      final ad = _rewarded = LevelPlayRewardedAd(adUnitId: keys.rewarded);
+      _rewardedListener.retry.load = ad.loadAd;
+      ad
         ..setListener(_rewardedListener)
         ..loadAd();
     }
     if (keys.interstitial.isNotEmpty) {
-      _interstitial = LevelPlayInterstitialAd(adUnitId: keys.interstitial)
+      final ad = _interstitial = LevelPlayInterstitialAd(adUnitId: keys.interstitial);
+      _interstitialListener.retry.load = ad.loadAd;
+      ad
         ..setListener(_interstitialListener)
         ..loadAd();
     }
@@ -114,7 +126,30 @@ class Ads with LevelPlayInitListener {
   }
 }
 
+/// Loads an ad unit again after a failed load: 30 s on, then twice as long
+/// each time it fails again, up to 5 minutes; back to 30 s once one loads.
+/// Without it, one load with no ad to give would leave the unit empty for
+/// the rest of the session.
+class _Retry {
+  VoidCallback? load;
+  int _fails = 0;
+  Timer? _timer;
+
+  void failed() {
+    _timer?.cancel();
+    final wait = math.min(30 << _fails, 300);
+    _fails = math.min(_fails + 1, 4);
+    _timer = Timer(Duration(seconds: wait), () => load?.call());
+  }
+
+  void loaded() {
+    _timer?.cancel();
+    _fails = 0;
+  }
+}
+
 class _RewardedListener with LevelPlayRewardedAdListener {
+  final retry = _Retry();
   Completer<bool>? _done;
   VoidCallback? _onEnd;
   bool _earned = false;
@@ -159,10 +194,13 @@ class _RewardedListener with LevelPlayRewardedAdListener {
   void onAdDisplayFailed(LevelPlayAdError error, LevelPlayAdInfo adInfo) => _finish(false);
 
   @override
-  void onAdLoadFailed(LevelPlayAdError error) => debugPrint('Ads: rewarded load failed: $error');
+  void onAdLoadFailed(LevelPlayAdError error) {
+    debugPrint('Ads: rewarded load failed: $error');
+    retry.failed();
+  }
 
   @override
-  void onAdLoaded(LevelPlayAdInfo adInfo) {}
+  void onAdLoaded(LevelPlayAdInfo adInfo) => retry.loaded();
 
   @override
   void onAdClicked(LevelPlayAdInfo adInfo) {}
@@ -172,6 +210,7 @@ class _RewardedListener with LevelPlayRewardedAdListener {
 }
 
 class _InterstitialListener with LevelPlayInterstitialAdListener {
+  final retry = _Retry();
   Completer<void>? _done;
   VoidCallback? _onEnd;
 
@@ -195,13 +234,19 @@ class _InterstitialListener with LevelPlayInterstitialAdListener {
   void onAdDisplayFailed(LevelPlayAdError error, LevelPlayAdInfo adInfo) => _finish();
 
   @override
-  void onAdLoadFailed(LevelPlayAdError error) => debugPrint('Ads: interstitial load failed: $error');
+  void onAdLoadFailed(LevelPlayAdError error) {
+    debugPrint('Ads: interstitial load failed: $error');
+    retry.failed();
+  }
 
   @override
-  void onAdLoaded(LevelPlayAdInfo adInfo) {}
+  void onAdLoaded(LevelPlayAdInfo adInfo) {
+    debugPrint('Ads: interstitial loaded');
+    retry.loaded();
+  }
 
   @override
-  void onAdDisplayed(LevelPlayAdInfo adInfo) {}
+  void onAdDisplayed(LevelPlayAdInfo adInfo) => debugPrint('Ads: interstitial shown');
 
   @override
   void onAdClicked(LevelPlayAdInfo adInfo) {}

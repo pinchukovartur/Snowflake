@@ -39,7 +39,7 @@
 
 Об игре
 
-• Без рекламы.
+• Реклама только между снежинками. После любой покупки её нет.
 • Без подписок: только два новогодних набора разовой покупкой.
 • Без регистрации и чатов.
 • Без таймеров и проигрышей.
@@ -87,7 +87,7 @@ Finished snowflakes are saved to the collection on your device. You can look thr
 
 About the game
 
-• No ads.
+• Ads only between snowflakes. Any purchase turns them off.
 • No subscriptions: just two festive sets as one-time purchases.
 • No sign-up and no chats.
 • No timers and no losing.
