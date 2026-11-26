@@ -12,6 +12,15 @@ typedef Cut = List<Offset>;
 
 List<Cut> _p(List<List<List<double>>> raw) => [for (final c in raw) [for (final p in c) Offset(p[0], p[1])]];
 
+/// Presets cut in steps (see [flakeStagesFromSvg]): the cuts after each
+/// step, the last the whole flake.
+final snowflakeStages = <String, List<List<Cut>>>{};
+
+/// The parts of a flake's paper that stay white whatever colour the rest is
+/// (Santa's beard), in wedge units: kept with its cuts, so drawn wherever
+/// they are (see [drawWedge]).
+final whiteParts = Expando<Path>('white parts');
+
 final Map<String, List<Cut>> snowflakePresets = {
   'classic': _p([
     [[0.3, -0.42], [0.06, -0.52], [0.3, -0.64]],
@@ -3330,6 +3339,15 @@ void drawWedge(Canvas canvas, double s, List<Cut> cuts, double half, Paint fill,
   if (pattern == 'holo' && sheen) drawHoloSheen(canvas, bounds, s, time: sheenTime);
   if (pattern == 'crystal') drawCrystalFacets(canvas, s, fill.color);
   canvas.restore();
+  final white = whiteParts[cuts];
+  if (white != null) {
+    canvas.save();
+    canvas.clipPath(wedge);
+    canvas.clipPath(white.transform(Float64List.fromList([s, 0, 0, 0, 0, s, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1])));
+    toSheet(canvas, pos, folds);
+    canvas.drawRect(bounds, makePaperFill(const Color(0xFFFFFFFF), pattern ?? 'plain', s, dpr: dpr));
+    canvas.restore();
+  }
   // Unturned by the segment's place on the sheet: light on glass keeps to
   // the screen.
   if (pattern != null && glassGlints(pattern) && sheen) {

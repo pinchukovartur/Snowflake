@@ -25,15 +25,44 @@ Future<void> loadPaperTextures() async {
   }
 }
 
-/// Adds every flake in [_folder] to [snowflakePresets].
+/// A drawing named for a flake and ending in this is no flake of its own:
+/// what is drawn in it is where that flake's paper stays white (see
+/// [whiteParts]).
+const _whiteSuffix = '_fixedColors';
+
+/// Adds every flake in [_folder] to [snowflakePresets], and to
+/// [snowflakeStages] those drawn in numbered steps; and their white parts
+/// (see [_whiteSuffix]) to the whole flake, those cut in steps turning white
+/// in a step of their own after the last cut.
 Future<void> loadSvgFlakes() async {
   final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+  final whites = <String, String>{};
   for (final asset in manifest.listAssets()) {
     if (!asset.startsWith(_folder) || !asset.endsWith('.svg')) continue;
     final name = asset.substring(_folder.length, asset.length - 4);
-    snowflakePresets[name] = flakeFromSvg(await rootBundle.loadString(asset));
+    final svg = await rootBundle.loadString(asset);
+    if (name.endsWith(_whiteSuffix)) {
+      whites[name.substring(0, name.length - _whiteSuffix.length)] = svg;
+      continue;
+    }
+    snowflakePresets[name] = flakeFromSvg(svg);
+    final stages = flakeStagesFromSvg(svg);
+    if (stages.isNotEmpty) snowflakeStages[name] = stages;
+  }
+  for (final MapEntry(key: name, value: svg) in whites.entries) {
+    final white = whitePartsFromSvg(svg), preset = snowflakePresets[name], stages = snowflakeStages[name];
+    if (preset != null) whiteParts[preset] = white;
+    if (stages != null) {
+      final whitened = [...stages.last];
+      whiteParts[whitened] = white;
+      snowflakeStages[name] = [...stages, whitened];
+    }
   }
 }
+
+/// The white parts a drawing marks: all it draws (its template aside), in
+/// wedge units.
+Path whitePartsFromSvg(String svg) => _read(svg).$2;
 
 /// The cuts a wedge template's drawing makes: its filled shapes cut away, or,
 /// if there is a group named "paper", only the paper drawn in it left (less
@@ -41,8 +70,38 @@ Future<void> loadSvgFlakes() async {
 /// fill), unfilled shapes, shapes filled with a pattern or gradient (a
 /// reference picture), and anything defined rather than drawn are left out.
 List<Cut> flakeFromSvg(String svg) {
+  final (paper, cuts, _) = _read(svg);
+  return cutsLeaving(Path.combine(PathOperation.difference, paper ?? _all, cuts));
+}
+
+/// The flake cut in steps, if its drawing has them: groups named by number
+/// (1, 2, …; an export's "_1" as well), each a step's shapes. The cuts after
+/// each step in turn, all the steps before it made too; empty without
+/// steps. Shapes in no step are cut with the last.
+List<List<Cut>> flakeStagesFromSvg(String svg) {
+  final (paper, cuts, steps) = _read(svg);
+  if (steps.isEmpty) return const [];
+  final order = steps.keys.toList()..sort();
+  final stages = <List<Cut>>[];
+  var made = Path();
+  for (final n in order.take(order.length - 1)) {
+    made = Path.combine(PathOperation.union, made, steps[n]!);
+    stages.add(cutsLeaving(Path.combine(PathOperation.difference, paper ?? _all, made)));
+  }
+  // The last: every cut, those in no step too.
+  stages.add(cutsLeaving(Path.combine(PathOperation.difference, paper ?? _all, cuts)));
+  return stages;
+}
+
+/// Room well past the wedge on every side: all paper, with no "paper" group.
+final _all = Path()..addRect(const Rect.fromLTRB(-2, -2, 2, 1));
+
+/// A drawing's paper (a "paper" group's, if any), all its cuts, and its
+/// numbered steps' cuts (see [flakeStagesFromSvg]).
+(Path?, Path, Map<int, Path>) _read(String svg) {
   Path? paper;
   var cuts = Path();
+  final steps = <int, Path>{};
   final size = _viewBox(svg);
   // Open groups, with what each brings: its transform, its name, and the
   // fill it passes down.
@@ -64,20 +123,63 @@ List<Cut> flakeFromSvg(String svg) {
     }
     final names = groups.map((g) => g.name.toLowerCase());
     if (names.contains('template') || groups.any((g) => const {'defs', 'clipPath', 'mask', 'symbol', 'pattern'}.contains(g.tag))) continue;
+    // In a step: its own name a number, or else the innermost group's.
+    final step = _stepOf(name) ?? groups.reversed.map((g) => _stepOf(g.name)).nonNulls.firstOrNull;
     // Filled with a pattern or gradient: a picture traced over (an editor's
-    // reference image), not a cut.
-    if (fill == 'none' || fill == 'transparent' || fill == _templateFill || fill.startsWith('url(')) continue;
-    final shape = _shape(tag, attrs, size);
+    // reference image), not a cut. Unfilled, not either, but for a line in
+    // a step: cut as wide as it is drawn.
+    final unfilled = fill == 'none' || fill == 'transparent';
+    if (fill == _templateFill || fill.startsWith('url(')) continue;
+    if (unfilled && step == null) continue;
+    final shape = unfilled ? _stroked(tag, attrs, size) : _shape(tag, attrs, size);
     if (shape == null) continue;
     final placed = shape.transform(_times(_toWedge(), m));
     if (names.contains('paper')) {
       paper = paper == null ? placed : Path.combine(PathOperation.union, paper, placed);
     } else {
       cuts = Path.combine(PathOperation.union, cuts, placed);
+      if (step != null) steps[step] = Path.combine(PathOperation.union, steps[step] ?? Path(), placed);
     }
   }
-  final all = Path()..addRect(const Rect.fromLTRB(-2, -2, 2, 1));
-  return cutsLeaving(Path.combine(PathOperation.difference, paper ?? all, cuts));
+  return (paper, cuts, steps);
+}
+
+/// The step a shape or group named [name] is, if it is named by a number
+/// (an export's "_1" as well as "1").
+int? _stepOf(String name) => int.tryParse(RegExp(r'^_?(\d+)$').firstMatch(name)?[1] ?? '');
+
+/// The area a line drawn by an unfilled shape covers, in SVG units: its
+/// stroke as wide as drawn, rounded at its joins and, if drawn so, its
+/// ends; null if it has no stroke.
+Path? _stroked(String tag, String a, Size size) {
+  final colour = (_style(a, 'stroke') ?? _attr(a, 'stroke'))?.toLowerCase();
+  if (colour == null || colour == 'none' || colour == 'transparent') return null;
+  final line = _shape(tag, a, size);
+  if (line == null) return null;
+  final w = _number(_style(a, 'stroke-width') ?? _attr(a, 'stroke-width')) ?? 1;
+  final round = (_style(a, 'stroke-linecap') ?? _attr(a, 'stroke-linecap')) == 'round';
+  if (!(w > 0)) return null;
+  // Along the line in short steps: a band across each, and a disc at each
+  // point where they meet (at its ends too, if its caps are round), joined
+  // into one.
+  var area = Path();
+  void add(Path piece) => area = Path.combine(PathOperation.union, area, piece);
+  for (final metric in line.computeMetrics()) {
+    if (!(metric.length > 0)) continue;
+    final n = math.max(1, (metric.length / w).ceil());
+    Offset at(int k) => metric.getTangentForOffset(metric.length * k / n)!.position;
+    for (var k = 0; k < n; k++) {
+      final p = at(k), q = at(k + 1), d = q - p;
+      if (d.distance == 0) continue;
+      final side = Offset(-d.dy, d.dx) / d.distance * (w / 2);
+      add(Path()..addPolygon([p + side, q + side, q - side, p - side], true));
+    }
+    for (var k = 0; k <= n; k++) {
+      if (!round && (k == 0 || k == n) && !metric.isClosed) continue;
+      add(Path()..addOval(Rect.fromCircle(center: at(k), radius: w / 2)));
+    }
+  }
+  return area;
 }
 
 /// The drawing's own size, from its view box or else its width and height.

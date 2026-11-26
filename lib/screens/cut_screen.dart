@@ -1108,7 +1108,8 @@ typedef _EventFlake = ({String preset, int folds, Color color, String pattern});
 /// [image] across the whole panel. A [loud] title is heavier, purple outlined
 /// in white. Tapping the panel opens the event's window to pick a flake in
 /// An event with a [boss] is a duel (see [_DuelWindow]): each of its flakes
-/// cut takes a cone off the boss's flake.
+/// cut takes a cone off the boss's flake, or, one drawn in steps (see
+/// [snowflakeStages]), cuts it a step further.
 const List<_Event> _allEvents = [
   (
     id: 'repeat',
@@ -1159,7 +1160,7 @@ const List<_Event> _allEvents = [
     title: 'event_christmas',
     image: 'assets/Christmas/Christmas_Event_Ico.png',
     loud: true,
-    boss: (preset: 'classic', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
+    boss: (preset: 'christmass_boss', folds: 4, color: Color(0xFFE0405E), pattern: 'plain'),
     art: (title: 'duel_christmas_title', player: 'assets/Christmas/Christmas_Event_Fight_Player.png', hand: 'assets/Christmas/Christmas_Event_Fight_Player_Hand.png', boss: null, bg: Color(0xFF513C5E), ink: Color(0xFFC70F0E), glow: Color(0xFFFFD34D), bossGlow: Color(0xFFFFF2A6), table: Color(0xFFBC723E), still: true, santa: true, inkFade: (Color.fromARGB(255, 255, 164, 154), Color(0xFFD11011)), barFade: (Color(0xFFFFE36B), Color(0xFFF7A600)), room: 'assets/Christmas/Christmas_Event_Main_Bg.png', roomSky: 'assets/Christmas/Christmas_Event_Main_Bg_Window.png'),
     // One for each of the boss flake's twelve cones.
     flakes: [
@@ -1583,7 +1584,8 @@ class _RepeatWindow extends _EventWindow {
 }
 
 /// A duel's window (the Halloween event's), on plain lilac: the boss and
-/// its flake at the top, a cone gone for each of the event's flakes cut;
+/// its flake at the top, a cone gone for each of the event's flakes cut (or,
+/// a flake cut in steps, see [snowflakeStages], cut a step further);
 /// below, the flakes in a carousel (those cut glowing), the one in the middle
 /// picked with a tap; the player's witch at the foot. Cones knocked off since
 /// it was last open fade away as it opens, the boss's flake over a dark
@@ -1644,7 +1646,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
   AnimationController? _snow;
 
   /// How much lower than its place Santa holds the duel's flake.
-  static const _santaFlakeDrop = 18.0;
+  static const _santaFlakeDrop = 40.0;
 
   /// How far up the table's shadow reaches over what is behind it.
   static const _tableShadow = 28.0;
@@ -1728,6 +1730,12 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
   /// The duel's name, big.
   Widget _duelTitle() => EventTitle(tr(widget.art.title), loud: true, size: 40, maxLines: 1, ink: widget.art.ink, fade: widget.art.inkFade);
 
+  /// How much of the boss's glow (and its stars) shows: all of it while
+  /// cones are left, fading with the last of them, gone once they are; all
+  /// of it, always, round a flake cut in steps (see [snowflakeStages]),
+  /// whole to the end.
+  double get _bossShown => snowflakeStages.containsKey(widget.boss.preset) || _hits < widget.flakes.length ? 1 : (_before < _hits ? 1 - _blow.value : 0);
+
   /// Whether the duel is over: won, and the win already seen through, its
   /// prize taken (see [_showVictory]), by the time the window opened. Only
   /// then does it show so, the next time round.
@@ -1749,13 +1757,13 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
     }
   }
 
-  /// The dark purple glow round the boss's flake, filling its box: growing
+  /// The glow round the boss's flake ([_DuelArt.bossGlow]), filling its box: growing
   /// and shrinking in step with the flake bobbing, biggest as it rises
-  /// highest; fading out with the last cone, and gone once that has.
+  /// highest; as much of it as [_bossShown].
   Widget _bossGlowDisc() => AnimatedBuilder(
         animation: Listenable.merge([_bob, _blow]),
         builder: (_, glow) => Opacity(
-          opacity: _hits < widget.flakes.length ? 1 : (_before < _hits ? 1 - _blow.value : 0),
+          opacity: _bossShown,
           child: Transform.scale(
             // The bob's offset is down at +sin: the glow swells as it goes up.
             scale: 1 - _bossGlowSwell * math.sin(_bob.value * 2 * math.pi),
@@ -1822,7 +1830,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                   // From Santa, a gift.
                   Text(tr(widget.art.santa ? 'duel_won_subtitle_santa' : 'duel_won_subtitle'), textAlign: TextAlign.center, style: display(20, color: Colors.white, shadows: drop(3))),
                   const SizedBox(height: 28),
-                  FlakeShadow(size: 280, child: SnowflakeView(preset: b.preset, folds: b.folds, color: b.color, pattern: b.pattern, size: 280)),
+                  FlakeShadow(size: 320, child: SnowflakeView(preset: b.preset, folds: b.folds, color: b.color, pattern: b.pattern, size: 320)),
                 ]),
               ),
             ),
@@ -2021,14 +2029,16 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
   Widget _window(BuildContext context) {
     final boss = widget.boss;
     final pad = MediaQuery.paddingOf(context);
-    Widget bossFlake(Set<int> cones, double size) => SnowflakeView(
-          preset: boss.preset,
-          folds: boss.folds,
-          color: boss.color,
-          pattern: boss.pattern,
-          size: size,
-          segments: cones,
-        );
+    // Cut in steps (see [snowflakeStages]): whole, cut as far as [hits]
+    // have got it; else its cones, those left after [hits].
+    final stages = snowflakeStages[boss.preset];
+    Widget bossFlake(int hits, double size) {
+      if (stages != null) {
+        final stage = (hits * stages.length / widget.flakes.length).ceil();
+        return SnowflakeView(cuts: stage == 0 ? const [] : stages[stage - 1], folds: boss.folds, color: boss.color, pattern: boss.pattern, size: size);
+      }
+      return SnowflakeView(preset: boss.preset, folds: boss.folds, color: boss.color, pattern: boss.pattern, size: size, segments: _cones(hits));
+    }
     final santa = widget.art.santa;
     // The table's top, down the screen, and Santa's above it, the table over his belt.
     // On a screen taller than the scene, how far it is moved down to stand
@@ -2086,14 +2096,25 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
               left: BarBtn(LucideIcons.arrowLeft, label: tr('back'), onTap: () => Navigator.pop(context)),
               title: tr(widget.art.title),
               // Once the duel is over (see [_over]), the duel's name in its place.
-              heading: _over ? _duelTitle() : _progressBar(),
-              right: const SizedBox(width: 44),
+              heading: _over ? FittedBox(fit: BoxFit.scaleDown, child: _duelTitle()) : _progressBar(),
+              // Testing: the duel afresh (see [duelReset]), its window closed
+              // to open again from the start.
+              right: duelReset
+                  ? BarBtn(LucideIcons.rotateCcw, label: 'Reset', onTap: () {
+                      widget.game.resetDuel(widget.id);
+                      Navigator.pop(context);
+                    })
+                  : const SizedBox(width: 44),
             ),
-            // Gone up top once the duel is over (its room kept, so the rest
-            // stays put).
+            // Gone up top once the duel is over, its room kept (so the rest
+            // stays put) for saying so: in white, or on a light window in the
+            // title's ink.
             Padding(
               padding: const EdgeInsets.fromLTRB(screenPad, 2, screenPad, 0),
-              child: Visibility.maintain(visible: !_over, child: _duelTitle()),
+              child: Stack(alignment: Alignment.center, children: [
+                Visibility.maintain(visible: !_over, child: _duelTitle()),
+                if (_over) FittedBox(fit: BoxFit.scaleDown, child: Text(tr('event_completed'), maxLines: 1, style: display(34, color: widget.art.bg.computeLuminance() > .5 ? widget.art.ink : Colors.white, height: 1.1).copyWith(fontStyle: FontStyle.italic))),
+              ]),
             ),
             // Down with the table (see [drop]).
             SizedBox(height: drop),
@@ -2101,24 +2122,10 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
             SizedBox(
               height: 300,
               child: LayoutBuilder(builder: (_, c) {
-                // A tenth smaller at Christmas, with Santa holding it.
-                final size = math.min(204.0, c.maxWidth * .5) * (santa ? .9 : 1);
+                // A tenth bigger at Christmas, Santa holding it out.
+                final size = math.min(204.0, c.maxWidth * .5) * (santa ? 1.1 : 1);
                 // Its glow free to spill out past the bottom.
                 return Stack(clipBehavior: Clip.none, children: [
-                  // The duel over (see [_over]): said, in white, below where the
-                  // boss's flake was.
-                  if (_over)
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: Align(
-                          alignment: const Alignment(0, .75),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: screenPad),
-                            child: Text(tr('event_completed'), textAlign: TextAlign.center, maxLines: 2, style: display(34, color: Colors.white, height: 1.1).copyWith(fontStyle: FontStyle.italic)),
-                          ),
-                        ),
-                      ),
-                    ),
                   // The boss in the middle; its flake held before it, low and a
                   // little to the right, like a shield.
                   if (widget.art.boss case final boss?)
@@ -2156,7 +2163,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                         child: IgnorePointer(
                           child: AnimatedBuilder(
                             animation: _blow,
-                            builder: (_, sparks) => Opacity(opacity: _hits < widget.flakes.length ? 1 : (_before < _hits ? 1 - _blow.value : 0), child: sparks),
+                            builder: (_, sparks) => Opacity(opacity: _bossShown, child: sparks),
                             child: Center(child: Sparks(color: widget.art.bossGlow, size: size)),
                           ),
                         ),
@@ -2178,12 +2185,15 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                                 child: Transform.scale(
                                   scale: 1 + .05 * kick,
                                   child: Stack(children: [
-                                    bossFlake(_cones(_hits), size),
-                                    // The cones just knocked off, fading.
+                                    bossFlake(_hits, size),
+                                    // Cut in steps: as it was, fading to show the new
+                                    // cuts. Else the cones just knocked off, fading.
                                     if (_hits > _before)
                                       Opacity(
                                         opacity: 1 - _blow.value,
-                                        child: bossFlake({for (final i in _order.sublist(_before, _hits)) i}, size),
+                                        child: stages != null
+                                            ? bossFlake(_before, size)
+                                            : SnowflakeView(preset: boss.preset, folds: boss.folds, color: boss.color, pattern: boss.pattern, size: size, segments: {for (final i in _order.sublist(_before, _hits)) i}),
                                       ),
                                   ]),
                                 ),

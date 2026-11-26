@@ -82,6 +82,10 @@ DateTime adventDay(int i, DateTime now) => DateTime(now.month == 1 ? now.year - 
 /// never has it, whatever this says.
 const duelCheat = true && kDebugMode;
 
+/// For testing duels: a button right of a duel's title starting it afresh,
+/// none of its flakes done. Debug builds only, as [duelCheat].
+const duelReset = true && kDebugMode;
+
 /// For testing: a "Skip" button on the first launch's cut board, marking
 /// all the tutorials seen at once (see [GameState.skipTutorials]). Debug
 /// builds only, as [duelCheat].
@@ -322,6 +326,15 @@ class GameState extends ChangeNotifier {
     if (!hits.add(hit.preset)) return;
     duelFresh = hit;
     _prefs.setStringList(_kDuel(hit.duel), [...hits]);
+    notifyListeners();
+  }
+
+  /// Duel [duel] started afresh, none of its flakes done (see [duelReset]).
+  void resetDuel(String duel) {
+    _duelHits[duel] = {};
+    _duelSeen.remove(duel);
+    if (duelFresh?.duel == duel) duelFresh = null;
+    _prefs.remove(_kDuel(duel));
     notifyListeners();
   }
 
