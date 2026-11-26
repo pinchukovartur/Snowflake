@@ -46,7 +46,7 @@ const adventRewards = <({bool paper, String id})>[
   (paper: false, id: 'skate'),
   (paper: true, id: 'tartan'),
   (paper: false, id: 'elfhat'),
-  (paper: true, id: 'frost'),
+  (paper: true, id: 'lights'),
   (paper: false, id: 'angel'),
   (paper: true, id: 'candy'),
   (paper: false, id: 'deer'),
@@ -54,11 +54,10 @@ const adventRewards = <({bool paper, String id})>[
 
 /// The sets of papers and stencils sold in the shop, some of them the
 /// advent calendar's too (chocolate, the garland, the gingerbread man and
-/// the cane only here; snowfall, tartan, the skate, the elf hat, the angel
-/// and the deer only in the calendar; candy and the sparkle lattice in
+/// the cane only here; snowfall, tartan, the lights under glass, the skate,
+/// the elf hat, the angel and the deer only in the calendar; candy in
 /// both): [id] is the product's id in Google Play (a one-time purchase),
-/// its name `offer_<id>` in the
-/// strings. What a set holds is the player's once it is bought, its doors in
+/// its name `offer_<id>` in the strings. What a set holds is the player's once it is bought, its doors in
 /// the calendar or not (see [GameState.unlocked]).
 const offers = <({String id, List<({bool paper, String id})> items})>[
   (id: 'pack_snow_day', items: [(paper: true, id: 'candy'), (paper: true, id: 'chocolate'), (paper: false, id: 'gingerman'), (paper: false, id: 'cane')]),

@@ -333,6 +333,9 @@ class _PaperSwatchPainter extends CustomPainter {
       canvas.clipRRect(rr);
       drawHoloSheen(canvas, rr.outerRect, 100 * dpr, time: tw ?? 0);
     }
+    // A string of lights under glass: smaller than on a flake, so a whole
+    // stretch of it, loops and bulbs, shows on the swatch.
+    if (pattern == 'lights') canvas.drawRRect(rr, makePaperFill(color, lightsLayer, rr.height * .62));
     // Glass glinting, and frosted glass.
     if (glassGlints(pattern)) {
       canvas.save();

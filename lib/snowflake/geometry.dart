@@ -557,10 +557,11 @@ const paperPatterns = [
   // The advent calendar's (see [adventRewards]).
   'snowfall',
   'candy',
-  'frost',
+  'lights',
   'tartan',
   // The shop's alone (see [offers]).
   'garland',
+  'frost',
   'chocolate',
 ];
 
@@ -2256,7 +2257,7 @@ Paint makePaperFill(Color color, String pattern, double unitPx, {double dpr = 1}
   // Tinted glass, as see-through as its colour is light: white glass all but
   // clear, dark glass rich. Its glints fall on it from outside (see
   // [drawGlassGlints]).
-  if (pattern == 'glass') return paint..color = glassTint(color).withValues(alpha: glassOpacity(color));
+  if (isGlass(pattern)) return paint..color = glassTint(color).withValues(alpha: glassOpacity(color));
   // Gift wrap: its colour, glowing in the middle of the sheet and darker
   // towards its edge (see [wrapperEdge]); its gold laid on separately (see
   // [wrapperGoldLayer] and [drawWedge]).
@@ -2296,6 +2297,8 @@ Paint makePaperFill(Color color, String pattern, double unitPx, {double dpr = 1}
     'knit' => math.max(43.2, unitPx * 1.08),
     // Gift wrap: a few gold loops across the paper, as on the real thing.
     wrapperGoldLayer => math.max(36.0, unitPx * .6),
+    // A few loops of the string of lights across the paper.
+    lightsLayer => math.max(60.0, unitPx * 1.3),
     _ when textureAssets.containsKey(pattern) => math.max(36.0, unitPx * .9),
     _ => math.max(8.0, unitPx * 0.075),
   };
@@ -2382,7 +2385,11 @@ void drawLightOn(Canvas canvas, String pattern, Rect area) => pattern == 'frost'
 
 /// Whether paper with [pattern] has light glinting on it as glass does (see
 /// [drawGlassGlints]): glass, and the sparkle lattice.
-bool glassGlints(String pattern) => pattern == 'glass' || pattern == 'frost';
+bool glassGlints(String pattern) => isGlass(pattern) || pattern == 'frost';
+
+/// Whether paper with [pattern] is glass: plain glass, or glass with a
+/// string of lights under it (see [lightsLayer]).
+bool isGlass(String pattern) => pattern == 'glass' || pattern == 'lights';
 
 /// Gift wrap's gold's outline: the gold, darker, on paper of any colour.
 const wrapperOutline = ui.Color.fromARGB(255, 176, 115, 0);
@@ -2404,6 +2411,17 @@ Color wrapperEdge(Color color) {
 
 /// The pattern of gift wrap's gold alone, on nothing, to lay over its paper.
 const wrapperGoldLayer = 'wrapperGold';
+
+/// The string of lights under glass ('lights') alone, on nothing: laid over
+/// the glass, not see-through with it.
+const lightsLayer = 'lightsString';
+
+/// The bulbs of a string of lights under glass of [color]: the glass's
+/// colour, lit up.
+Color lightsBulb(Color color) {
+  final hsv = HSVColor.fromColor(glassTint(color));
+  return hsv.withValue(math.max(hsv.value, .98)).withSaturation(hsv.saturation * .75).toColor();
+}
 
 /// How thick gift wrap's gold's outline is (see [wrapperOutline]): its
 /// stroke, half of it showing outside the gold, as a share of its tile.
@@ -2558,7 +2576,7 @@ ui.Image _tile(Color color, String pattern, double t) {
   final rec = ui.PictureRecorder();
   final x = Canvas(rec);
   // Gift wrap's gold alone lies on nothing: the paper is under it.
-  if (pattern != wrapperGoldLayer) x.drawRect(Rect.fromLTWH(0, 0, t, t), Paint()..color = color);
+  if (pattern != wrapperGoldLayer && pattern != lightsLayer) x.drawRect(Rect.fromLTWH(0, 0, t, t), Paint()..color = color);
   // Navy on light paper, white on dark paper, where navy would vanish.
   final dark = color.computeLuminance() < 0.2;
   final ink = dark ? const Color(0x38FFFFFF) : const Color(0x292E4A94); // rgba(46,74,148,.16)
@@ -2707,6 +2725,73 @@ ui.Image _tile(Color color, String pattern, double t) {
           ..close();
         x.drawPath(diamond, burst(c, 16, math.pi / 16));
         x.drawCircle(c, t * .035, Paint()..color = hi);
+      }
+    case lightsLayer:
+      // White wire winding along in two rows, curling into loops of
+      // different sizes as it goes, round bulbs all in one colour beside it
+      // on short stalks, to either side by turns (see [lightsBulb]), each
+      // glowing. Each row runs on into the next
+      // tile; a loop over the tile's edge comes back on the other side.
+      const samples = 480;
+      final bulb = lightsBulb(color), r = t * .019;
+      final shifts = [for (final dx in [-t, 0.0, t]) for (final dy in [-t, 0.0, t]) Offset(dx, dy)];
+      final wires = <Path>[], lamps = <Offset>[], stalks = <(Offset, Offset)>[];
+      for (final (y, phase, loops, bulbs) in const [(.26, 0.0, 4, 14), (.76, 2.1, 3, 12)]) {
+        Offset at(double u) {
+          final a = 2 * math.pi * u;
+          // Loops as a wheel's rim point traces them, bigger and smaller
+          // along the row; the row wandering up and down.
+          final r = t * (.1 + .04 * math.sin(a + phase));
+          return Offset(t * u - r * math.sin(loops * a), t * (y + .07 * math.sin(a + phase * 1.7)) - r * math.cos(loops * a));
+        }
+
+        final pts = [for (var i = 0; i <= samples; i++) at(i / samples)];
+        wires.add(Path()..addPolygon(pts, false));
+        // The bulbs evenly along the wire, the same way round each tile.
+        final along = [0.0];
+        for (var i = 1; i < pts.length; i++) {
+          along.add(along.last + (pts[i] - pts[i - 1]).distance);
+        }
+        for (var k = 0, i = 1; k < bulbs; k++) {
+          final d = (k + .5) / bulbs * along.last;
+          while (along[i] < d) {
+            i++;
+          }
+          final on = Offset.lerp(pts[i - 1], pts[i], (d - along[i - 1]) / (along[i] - along[i - 1]))!;
+          final dir = pts[i] - pts[i - 1];
+          final side = Offset(-dir.dy, dir.dx) / dir.distance * (k.isEven ? 1 : -1);
+          stalks.add((on, on + side * r * 1.4));
+          lamps.add(on + side * r * 2.2);
+        }
+      }
+      for (final o in shifts) {
+        for (final c in lamps) {
+          x.drawCircle(c + o, r * 3.2, Paint()..shader = ui.Gradient.radial(c + o, r * 3.2, [bulb.withValues(alpha: .7), bulb.withValues(alpha: .25), bulb.withValues(alpha: 0)], [0, .45, 1]));
+        }
+      }
+      final shade = Paint()
+        ..color = const Color(0x40000000)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1.6, t * .011);
+      final white = Paint()
+        ..color = const Color(0xFFFFFFFF)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = math.max(1.0, t * .007);
+      for (final p in [shade, white]) {
+        for (final o in shifts) {
+          for (final w in wires) {
+            x.drawPath(w.shift(o), p);
+          }
+          for (final (a, b) in stalks) {
+            x.drawLine(a + o, b + o, p);
+          }
+        }
+      }
+      for (final o in shifts) {
+        for (final c in lamps) {
+          x.drawCircle(c + o, r, Paint()..color = bulb);
+          x.drawCircle(c + o + Offset(-r * .35, -r * .35), r * .35, Paint()..color = const Color(0xDDFFFFFF));
+        }
       }
     case wrapperGoldLayer:
       // Gift wrap's gold, on nothing: long strings of beads winding about,

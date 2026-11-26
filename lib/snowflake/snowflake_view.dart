@@ -99,12 +99,15 @@ class _WedgeKey {
   final String pattern;
 
   /// The segment this wedge is cut from (see [toSheet]): each shows its own
-  /// part of the sheet's pattern. Plain paper looks the same in every one.
+  /// part of the sheet's pattern. Plain paper and glass (its string of
+  /// lights a layer of its own) look the same in every one.
   final int pos;
+
+  _WedgeKey withPattern(String p) => _WedgeKey(cuts, folds, color, p, px, pos);
 
   _WedgeKey at(int p) {
     final segs = folds * 2;
-    return _WedgeKey(cuts, folds, color, pattern, px, pattern == 'plain' ? 0 : ((p % segs) + segs) % segs);
+    return _WedgeKey(cuts, folds, color, pattern, px, pattern == 'plain' || isGlass(pattern) ? 0 : ((p % segs) + segs) % segs);
   }
 
   @override
@@ -452,8 +455,8 @@ class SnowflakePainter extends CustomPainter {
   }
 
   void _paintFlake(Canvas canvas, double s) {
-    final key = _wedgeKey(s);
-    final img = _wedgeImage(key);
+    final paper = _wedgeKey(s);
+    final img = _wedgeImage(paper);
     final segs = folds * 2;
     final step = math.pi * 2 / segs;
     final t = unfold.clamp(0.0, 1.0);
@@ -463,8 +466,10 @@ class SnowflakePainter extends CustomPainter {
 
     // Flaps lifted towards the viewer grow past the flake's box.
     final bounds = Rect.fromLTWH(0, 0, s, s).inflate(flat ? 0 : s * .3);
-    // The flake itself, turned as it lies; run again for glass's thickness.
-    void body() {
+    // The flake itself, turned as it lies; run again for glass's thickness,
+    // and with [layer]'s wedges for what lies over its paper.
+    void body([_WedgeKey? layer]) {
+      final key = layer ?? paper;
       canvas.save();
       canvas.translate(s / 2, s / 2);
       // Unfolded, a flake rests with a crease upright, half a segment round from
@@ -522,8 +527,8 @@ class SnowflakePainter extends CustomPainter {
       canvas.restore();
     }
 
-    if (pattern == 'glass') {
-      _paintGlass(canvas, s, bounds, body);
+    if (isGlass(pattern)) {
+      _paintGlass(canvas, s, bounds, body, paper);
     } else {
       canvas.saveLayer(bounds, Paint());
       body();
@@ -545,10 +550,11 @@ class SnowflakePainter extends CustomPainter {
   /// shadow falls but close) and over it the glass, solid, both then laid
   /// down as see-through as the glass is: solid till then, the glass hides
   /// the thickness under it, with no pass to wipe it away. Over that, its
-  /// glints (staying put on the screen however it turns): light on glass,
+  /// string of lights, if it has one ([paper]'s wedges with [lightsLayer]),
+  /// and its glints (staying put on the screen however it turns): light on glass,
   /// not in it, so not see-through with it, but kept to the glass by a mask
   /// of the flake's shape.
-  void _paintGlass(Canvas canvas, double s, Rect bounds, void Function() body) {
+  void _paintGlass(Canvas canvas, double s, Rect bounds, void Function([_WedgeKey?]) body, _WedgeKey paper) {
     canvas.saveLayer(bounds, Paint()..color = Color.fromRGBO(0, 0, 0, glassOpacity(color)));
     canvas.save();
     canvas.translate(0, s * glassDepth);
@@ -560,6 +566,8 @@ class SnowflakePainter extends CustomPainter {
     body();
     canvas.restore();
     canvas.restore();
+    // Under glass, a string of lights: not see-through with it.
+    if (pattern == 'lights') body(paper.withPattern(lightsLayer));
     canvas.saveLayer(bounds, Paint());
     drawGlassGlints(canvas, Rect.fromCircle(center: Offset(s / 2, s / 2), radius: s * .5));
     canvas.saveLayer(bounds, Paint()

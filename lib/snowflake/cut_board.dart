@@ -670,7 +670,7 @@ class _BoardPainter extends CustomPainter {
       // down as its shadow falls) and over it the wedge, both solid, laid down
       // together as see-through as the glass is: the solid glass hides the
       // thickness under it. Its glints go on after, over it, not see-through.
-      final glass = pattern == 'glass';
+      final glass = isGlass(pattern);
       if (glass) {
         canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, glassOpacity(color)));
         canvas.save();
@@ -683,6 +683,8 @@ class _BoardPainter extends CustomPainter {
       drawWedge(canvas, s, [...cuts, ...fallen], half, glass ? (Paint()..color = glassTint(color)) : fill, pattern: pattern, sheen: !glass, sheenTime: twinkle ?? 0, pos: foldedTop(folds), folds: folds, icing: color, dpr: dpr);
       if (glass) {
         canvas.restore();
+        // Under glass, a string of lights: not see-through with it.
+        if (pattern == 'lights') drawWedge(canvas, s, [...cuts, ...fallen], half, makePaperFill(color, lightsLayer, s, dpr: dpr), pos: foldedTop(folds), folds: folds);
         // Nothing but the glints, kept to the wedge and out of its holes.
         drawWedge(canvas, s, [...cuts, ...fallen], half, Paint()..color = const Color(0x00000000), pattern: pattern, pos: foldedTop(folds), folds: folds);
       }

@@ -19,7 +19,7 @@ const _red = Color(0xFFC0283B), _gold = Color(0xFFFFD34D);
 
 /// The colour each advent or shop paper is shown in behind its door or in
 /// its set, if not the shop's turn of colours.
-const _paperShown = {'snowfall': Color(0xFF3E61B8), 'candy': Color(0xFFE0405E), 'frost': Color(0xFF0047AB), 'tartan': Color(0xFF8E1F3A)};
+const _paperShown = {'snowfall': Color(0xFF3E61B8), 'candy': Color(0xFFE0405E), 'lights': Color(0xFF0047AB), 'tartan': Color(0xFF8E1F3A)};
 
 /// The home screen's way into the advent calendar: a little blue door (the
 /// calendar house's blue) with a red frame and a gift on it, and the count

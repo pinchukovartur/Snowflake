@@ -263,8 +263,8 @@ class _ShopViewState extends State<_ShopView> {
           ),
           // A little clear of it before the sets' fade begins.
           const SizedBox(height: 10),
-          // The sets down at the foot, scrolling if the screen is too short
-          // for them, under the note: fading out at the top (clear of the
+          // The sets up under the note, scrolling if the screen is too short
+          // for them: fading out at the top (clear of the
           // note, see [_scrollFade]) rather than cut off there, and
           // running on down under the screen's inset at its foot, to its
           // very edge (the dialog stops short of it, see [showDsDialog]).
@@ -291,10 +291,7 @@ class _ShopViewState extends State<_ShopView> {
                 // the first set shows whole; at the foot, clear of the
                 // screen's inset and as far from it as ever.
                 padding: EdgeInsets.fromLTRB(24, _scrollFade, 24, footInset + 24),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: math.max(0, box.maxHeight - _scrollFade - 24)),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
+                child: Column(
                     children: [
                       for (final (i, o) in _offers.indexed) ...[
                         if (i > 0) const SizedBox(height: 16),
@@ -310,7 +307,6 @@ class _ShopViewState extends State<_ShopView> {
                       ],
                     ],
                   ),
-                ),
               ),
                   ),
                 ),
