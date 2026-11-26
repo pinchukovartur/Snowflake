@@ -29,9 +29,11 @@ mixin FlakeTurnZoom<T extends StatefulWidget> on TickerProviderStateMixin<T> {
   static const _maxZoom = 3.0;
 
   /// Seconds the paper has shimmered for, once [startTwinkle] has been
-  /// called (for a flake on paper that [shimmers]).
-  double twinkleAt = 0;
-  late final _twinkle = createTicker((elapsed) => setState(() => twinkleAt = elapsed.inMicroseconds / 1e6));
+  /// called (for a flake on paper that [shimmers]). Ticking rebuilds just the
+  /// flake (see [turnZoomFlake]), not the whole screen.
+  double get twinkleAt => _twinkleAt.value;
+  final _twinkleAt = ValueNotifier<double>(0);
+  late final _twinkle = createTicker((elapsed) => _twinkleAt.value = elapsed.inMicroseconds / 1e6);
 
   void startTwinkle() {
     if (!_twinkle.isActive) _twinkle.start();
@@ -41,6 +43,7 @@ mixin FlakeTurnZoom<T extends StatefulWidget> on TickerProviderStateMixin<T> {
   void dispose() {
     _glide.dispose();
     _twinkle.dispose();
+    _twinkleAt.dispose();
     super.dispose();
   }
 
@@ -138,14 +141,15 @@ mixin FlakeTurnZoom<T extends StatefulWidget> on TickerProviderStateMixin<T> {
       );
 
   /// The flake [builder] draws for the player's turn (radians), zoomed and
-  /// panned; rebuilt as it coasts and whenever [also] ticks.
+  /// panned; rebuilt as it coasts, as its paper shimmers ([twinkleAt]) and
+  /// whenever [also] ticks.
   Widget turnZoomFlake(Widget Function(double turn) builder, {Listenable? also}) => IgnorePointer(
         // Touches pass through: the gesture view below does the touching.
         child: Transform(
           alignment: Alignment.center,
           transform: Matrix4.translationValues(_pan.dx, _pan.dy, 0)..scaleByDouble(_zoom, _zoom, 1, 1),
           child: AnimatedBuilder(
-            animation: also == null ? _glide : Listenable.merge([also, _glide]),
+            animation: Listenable.merge([_glide, _twinkleAt, ?also]),
             builder: (_, _) => KeyedSubtree(key: _flakeKey, child: builder(_turn)),
           ),
         ),

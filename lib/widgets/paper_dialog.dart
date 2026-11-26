@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -32,6 +34,9 @@ class PaperDialog extends StatelessWidget {
   /// How big the [preview] flake is across.
   static const previewSize = 180.0;
 
+  /// The gap between the patterns' rows.
+  static const _rowGap = 15.0;
+
   @override
   Widget build(BuildContext context) {
     return DsDialog(
@@ -46,30 +51,30 @@ class PaperDialog extends StatelessWidget {
           FlakeShadow(size: previewSize, child: preview(paper)),
           const SizedBox(height: 20),
           // The paper colours, six to a row.
-          for (var r = 0; r < paperColors.length; r += 6) ...[
+          for (var r = 0; r < PaperColor.values.length; r += 6) ...[
             if (r > 0) const SizedBox(height: 12),
             Row(
               children: [
-                for (final (i, p) in paperColors.skip(r).take(6).indexed) ...[
+                for (final (i, p) in PaperColor.values.skip(r).take(6).indexed) ...[
                   if (i > 0) const SizedBox(width: 8),
                   Expanded(
                     child: Semantics(
                       button: true,
-                      label: p.name,
-                      selected: p.color == paper.color,
+                      label: p.label,
+                      selected: p.rgb == paper.color,
                       child: GestureDetector(
-                        onTap: () => onChanged(paper.copyWith(color: p.color)),
+                        onTap: () => onChanged(paper.copyWith(color: p.rgb)),
                         child: AspectRatio(
                           aspectRatio: 1,
                           child: Container(
                             decoration: BoxDecoration(
-                              color: p.color,
+                              color: p.rgb,
                               shape: BoxShape.circle,
                               border: Border.all(color: const Color(0x1A101A3F), width: 2),
                               boxShadow: [
                                 const BoxShadow(color: C.snow300, offset: Offset(0, 3)),
                                 // Later shadows paint on top: the selection ring covers the drop shadow.
-                                if (p.color == paper.color) const BoxShadow(color: C.berry500, spreadRadius: 4),
+                                if (p.rgb == paper.color) const BoxShadow(color: C.berry500, spreadRadius: 4),
                               ],
                             ),
                           ),
@@ -85,15 +90,17 @@ class PaperDialog extends StatelessWidget {
           // Patterns four to a row, the last row left-aligned with blanks:
           // the free ones first, then those sold, then the calendar's.
           // Scrolling on their own, the flake and colours staying put; room
-          // all round for the selection ring.
+          // all round for the selection ring; at the foot, the gap between
+          // rows too, for the last row's names to spill into as the others'
+          // do (see [ItemName.spill]).
           Flexible(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.fromLTRB(6, 6, 6, 6 + _rowGap),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   for (final (row, ids) in _patternRows(patterns, locked).indexed) ...[
-                    if (row > 0) const SizedBox(height: 15),
+                    if (row > 0) const SizedBox(height: _rowGap),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -347,6 +354,7 @@ class _PaperSwatchPainter extends CustomPainter {
     if (pattern == 'wrapper') canvas.drawRRect(rr, makePaperFill(color, wrapperGoldLayer, 100 * dpr));
     canvas.restore();
     if (pattern == 'gingerbread') _gingerbread(canvas, size, r);
+    if (pattern == 'sequin') _sequin(canvas, size, r);
     canvas.drawRRect(
       r.deflate(1),
       Paint()
@@ -393,6 +401,46 @@ class _PaperSwatchPainter extends CustomPainter {
     // Its shadow first, a touch down, then the icing over it.
     canvas.drawPath(tree.shift(const Offset(0, 1)), icing..color = icingShade(color));
     canvas.drawPath(tree, icing..color = color);
+  }
+
+  /// The sequins along the sequins' swatch's line, and the swatch size they
+  /// were laid out for.
+  static (double, Sequins)? _swatchSequins;
+
+  /// The sequins' swatch's snakes: how far each sways either side, as a
+  /// share of the swatch, how many waves it makes corner to corner, the
+  /// straight steps it is drawn in, and how far the second is from the
+  /// first, across and down, as a share of the swatch.
+  static const _snakeSway = .09, _snakeWaves = 2.5, _snakeSteps = 64, _snakeApart = .36;
+
+  /// Sequins' swatch: a row of sequins snaking across it from its top left
+  /// corner to its bottom right, and another below it alongside (as along
+  /// cuts, see [drawSequins]), kept to its rounded box [box], glinting.
+  void _sequin(Canvas canvas, Size size, RRect box) {
+    final s = size.shortestSide;
+    // A sine wave along the diagonal, moved [off] of the swatch across it
+    // (up to the right), a little past the corners so the row runs off them;
+    // laid out once for its size, as it glints every frame.
+    Path snake(double off) {
+      final shift = Offset(off * size.width, -off * size.height);
+      final from = Offset(-.1 * size.width, -.1 * size.height) + shift, to = Offset(1.1 * size.width, 1.1 * size.height) + shift;
+      final along = to - from, across = Offset(along.dy, -along.dx) / along.distance;
+      final line = Path();
+      for (var i = 0; i <= _snakeSteps; i++) {
+        final t = i / _snakeSteps;
+        final p = from + along * t + across * (s * _snakeSway * math.sin(2 * math.pi * _snakeWaves * t));
+        i == 0 ? line.moveTo(p.dx, p.dy) : line.lineTo(p.dx, p.dy);
+      }
+      return line;
+    }
+
+    final kept = _swatchSequins;
+    final sequins = kept != null && kept.$1 == s ? kept.$2 : (_swatchSequins = (s, layOutSequins([snake(0), snake(-_snakeApart)], s * 1.6))).$2;
+    canvas.save();
+    canvas.clipRRect(box);
+    drawSequins(canvas, sequins, s * 1.6, color, dpr: dpr);
+    if (twinkle case final tw?) drawSequinGlints(canvas, sequins, s * 1.6, color, tw);
+    canvas.restore();
   }
 
   @override

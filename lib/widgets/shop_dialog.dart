@@ -115,7 +115,7 @@ class _ShopViewState extends State<_ShopView> {
   /// The colours the papers are shown in, by turns (see [_turn]): white,
   /// then the palette's bright ones.
   static final _turnColors = [
-    for (final id in const ['white', 'red', 'orange', 'green', 'blue', 'violet']) paperColors.firstWhere((c) => c.id == id).color,
+    for (final p in const [PaperColor.white, PaperColor.red, PaperColor.orange, PaperColor.green, PaperColor.blue, PaperColor.violet]) p.rgb,
   ];
 
   /// The turn of colours here: [_turnColors], led by the colour the player
@@ -165,11 +165,13 @@ class _ShopViewState extends State<_ShopView> {
     super.dispose();
   }
 
-  /// The room between the buttons in the top bar.
-  static const _barGap = 10.0;
-
   /// How big the demo flake is across.
   static const _flakeSize = 220.0;
+
+  /// How far "Try it!" runs in past the flake's left edge (over the corner
+  /// its round top leaves clear), and the least room it leaves at the
+  /// screen's edge.
+  static const _tryInto = 24.0, _tryMargin = 12.0;
 
   /// Where the stencil is cut, in wedge units (the apex at the origin, the
   /// cone pointing up, its rim a unit off): on its middle line, nearer the
@@ -193,8 +195,12 @@ class _ShopViewState extends State<_ShopView> {
       builder: (ctx, _) => Column(
         children: [
           TopBar(
-            // As wide as what is at the right, so the title keeps to the middle.
-            left: const SizedBox(width: kDebugMode ? 2 * 44 + _barGap : 44),
+            // For testing: every set back to be bought (as the board's
+            // restart, in the tutorial skip's orange). Else as wide as what is
+            // at the right, so the title keeps to the middle.
+            left: kDebugMode
+                ? RoundBtn(LucideIcons.rotateCcw, label: '${tr('reset_purchases')} (debug)', variant: Variant.orange, size: BtnSize.s, onTap: game.resetPurchases)
+                : const SizedBox(width: 44),
             title: tr('shop'),
             // As tall as the duel's progress bar, so the bar sits as the
             // duel's does; the title, a little taller, running on below.
@@ -202,58 +208,63 @@ class _ShopViewState extends State<_ShopView> {
               height: 48,
               child: OverflowBox(alignment: Alignment.topCenter, minWidth: 0, maxHeight: 52, child: DsDialogTitle(tr('shop'))),
             ),
-            right: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // For testing: every set back to be bought (as the board's
-                // restart, in the tutorial skip's orange).
-                if (kDebugMode) ...[
-                  RoundBtn(LucideIcons.rotateCcw, label: '${tr('reset_purchases')} (debug)', variant: Variant.orange, size: BtnSize.s, onTap: game.resetPurchases),
-                  const SizedBox(width: _barGap),
-                ],
-                // Placed as the duel's back button is, in a dialog's red.
-                RoundBtn(LucideIcons.x, label: tr('close'), variant: Variant.primary, size: BtnSize.s, onTap: () => Navigator.pop(ctx)),
-              ],
-            ),
+            // Placed as the duel's back button is, in a dialog's red.
+            right: RoundBtn(LucideIcons.x, label: tr('close'), variant: Variant.primary, size: BtnSize.s, onTap: () => Navigator.pop(ctx)),
           ),
           const SizedBox(height: 8),
           // The flake, and "Try it!" at its upper left, in italics, tilted up 5°.
-          Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.topCenter,
-            children: [
-              const SizedBox(width: double.infinity),
-              FlakeShadow(
-                size: _flakeSize,
-                // Each colour fading in over the last, which stays solid
-                // under it till it is gone: the same blend as the colour
-                // itself running into the next, but each colour's flake
-                // drawn once and only faded, not drawn again for every shade
-                // between.
-                child: AnimatedSwitcher(
-                  duration: _fade,
-                  transitionBuilder: (child, anim) => child.key == ValueKey(_colour) ? FadeTransition(opacity: anim, child: child) : child,
-                  child: SnowflakeView(
-                    key: ValueKey(_colour),
-                    cuts: [if (stencil != null) ...stencilParts(stencil, _stencilAt.dx, _stencilAt.dy, _stencilSize)],
+          LayoutBuilder(
+            builder: (_, box) {
+              // Where the flake's left edge is: the words end a little past
+              // it, where its round top is still clear of them, whatever the
+              // screen's width or the words' length; shrunk if the room to
+              // their left runs out.
+              final flakeLeft = (box.maxWidth - _flakeSize) / 2;
+              return Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.topCenter,
+                children: [
+                  const SizedBox(width: double.infinity),
+                  FlakeShadow(
                     size: _flakeSize,
-                    color: _colors[_colour],
-                    pattern: paper ?? 'plain',
+                    // Each colour fading in over the last, which stays solid
+                    // under it till it is gone: the same blend as the colour
+                    // itself running into the next, but each colour's flake
+                    // drawn once and only faded, not drawn again for every shade
+                    // between.
+                    child: AnimatedSwitcher(
+                      duration: _fade,
+                      transitionBuilder: (child, anim) => child.key == ValueKey(_colour) ? FadeTransition(opacity: anim, child: child) : child,
+                      child: SnowflakeView(
+                        key: ValueKey(_colour),
+                        cuts: [if (stencil != null) ...stencilParts(stencil, _stencilAt.dx, _stencilAt.dy, _stencilSize)],
+                        size: _flakeSize,
+                        color: _colors[_colour],
+                        pattern: paper ?? 'plain',
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              Positioned(
-                left: 36,
-                top: 4,
-                child: Transform.rotate(
-                  angle: -5 * math.pi / 180,
-                  child: Text(
-                    tr('try_it'),
-                    style: display(24, shadows: drop(3)).copyWith(fontStyle: FontStyle.italic),
+                  Positioned(
+                    right: box.maxWidth - flakeLeft - _tryInto,
+                    top: 4,
+                    child: Transform.rotate(
+                      angle: -5 * math.pi / 180,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: math.max(0, flakeLeft + _tryInto - _tryMargin)),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            tr('try_it'),
+                            maxLines: 1,
+                            style: display(24, shadows: drop(3)).copyWith(fontStyle: FontStyle.italic),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
           const SizedBox(height: 16),
           // The promise about ads, staying put over the sets as they scroll.
@@ -367,7 +378,14 @@ class _NoAdsNote extends StatelessWidget {
             const Icon(LucideIcons.check, size: 22, color: C.mint700),
             const SizedBox(width: 10),
           ],
-          Expanded(child: Text(tr(off ? 'shop_ads_off' : 'shop_no_ads'), style: body(16, color: ink, weight: FontWeight.w700, height: 1.2))),
+          // On one line, shrunk to fit it if it must.
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(tr(off ? 'shop_ads_off' : 'shop_no_ads'), maxLines: 1, style: body(16, color: ink, weight: FontWeight.w700, height: 1.2)),
+            ),
+          ),
         ],
       ),
     );

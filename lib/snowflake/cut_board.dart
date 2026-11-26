@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
@@ -182,9 +183,10 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   }
 
   /// Seconds the paper has shimmered for: glitter's glints twinkling, a
-  /// hologram's sheen drifting.
-  late final _twinkle = createTicker((elapsed) => setState(() => _twinkleAt = elapsed.inMicroseconds / 1e6));
-  double _twinkleAt = 0;
+  /// hologram's sheen drifting. Only what shimmers repaints as it ticks (see
+  /// [_GlintsPainter], [_BoardPainter.sheen]), nothing rebuilt.
+  late final _twinkle = createTicker((elapsed) => _twinkleAt.value = elapsed.inMicroseconds / 1e6);
+  final _twinkleAt = ValueNotifier<double>(0);
 
   void _syncTwinkle() {
     final on = widget.shimmer && shimmers(widget.pattern);
@@ -252,6 +254,7 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   void dispose() {
     _demo.dispose();
     _twinkle.dispose();
+    _twinkleAt.dispose();
     _press.dispose();
     for (final d in _drops) {
       d.anim.dispose();
@@ -559,6 +562,41 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
       // The drawn wedge spans 0.06·h − 8 … h − 8 of its box; centre that span.
       final mid = (widget.topInset + c.maxHeight - widget.bottomInset) / 2;
       _origin = Offset((c.maxWidth - _width) / 2, mid - 0.53 * widget.height + 8);
+      // A hologram's sheen is in its paper itself: that layer drawn again as
+      // it drifts.
+      final sheen = widget.pattern == 'holo' && widget.shimmer ? _twinkleAt : null;
+      _BoardPainter painter(_BoardLayer layer) => _BoardPainter(
+            layer: layer,
+            sheen: layer == _BoardLayer.paper ? sheen : null,
+            sheenAt: _twinkleAt.value,
+            cuts: widget.cuts,
+            fallen: widget.fallen,
+            drops: [for (final d in _drops) (d.pieces, d.cuts, d.anim.value)],
+            misses: [for (final m in _misses) (m.cut, m.anim.value)],
+            live: _live ?? _demoLive,
+            stencil: _stencilTool
+                ? (
+                    shape: _stencil,
+                    box: [for (final q in [_box.topLeft, _box.topRight, _box.bottomRight, _box.bottomLeft]) _fromStencil(q)],
+                    handles: [for (final q in _handles) _fromStencil(q)],
+                    knob: _fromStencil(_knob),
+                    knobBase: _fromStencil(_box.topCenter),
+                    turn: _stencilTurn,
+                    turning: _drag == _StencilDrag.rotate,
+                    centre: _stencilCentre,
+                    press: math.sin(_press.value * math.pi),
+                  )
+                : null,
+            half: wedgeHalfAngle(widget.folds),
+            folds: widget.folds,
+            s: _s,
+            apex: _apex,
+            color: widget.color,
+            pattern: widget.pattern,
+            paperOpacity: widget.paperOpacity,
+            hint: widget.hintOpacity > 0 ? (cuts: widget.hintCuts, opacity: widget.hintOpacity) : null,
+            dpr: MediaQuery.devicePixelRatioOf(context),
+          );
       final board = Listener(
         onPointerDown: _down,
         onPointerMove: _move,
@@ -566,39 +604,28 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
         onPointerCancel: _up,
         // A zoomed-in wedge stays inside the board.
         child: ClipRect(
-          child: CustomPaint(
-            size: c.biggest,
-            painter: _BoardPainter(
-              cuts: widget.cuts,
-              fallen: widget.fallen,
-              drops: [for (final d in _drops) (d.pieces, d.cuts, d.anim.value)],
-              misses: [for (final m in _misses) (m.cut, m.anim.value)],
-              live: _live ?? _demoLive,
-              stencil: _stencilTool
-                  ? (
-                      shape: _stencil,
-                      box: [for (final q in [_box.topLeft, _box.topRight, _box.bottomRight, _box.bottomLeft]) _fromStencil(q)],
-                      handles: [for (final q in _handles) _fromStencil(q)],
-                      knob: _fromStencil(_knob),
-                      knobBase: _fromStencil(_box.topCenter),
-                      turn: _stencilTurn,
-                      turning: _drag == _StencilDrag.rotate,
-                      centre: _stencilCentre,
-                      press: math.sin(_press.value * math.pi),
-                    )
-                  : null,
-              half: wedgeHalfAngle(widget.folds),
-              folds: widget.folds,
-              s: _s,
-              apex: _apex,
-              color: widget.color,
-              pattern: widget.pattern,
-              paperOpacity: widget.paperOpacity,
-              twinkle: shimmers(widget.pattern) ? _twinkleAt : null,
-              hint: widget.hintOpacity > 0 ? (cuts: widget.hintCuts, opacity: widget.hintOpacity) : null,
-              dpr: MediaQuery.devicePixelRatioOf(context),
-            ),
-          ),
+          child: Stack(children: [
+            // The paper, apart: drawn again only when it changes, not as
+            // its glints twinkle or a cut is drawn over it.
+            RepaintBoundary(child: CustomPaint(size: c.biggest, painter: painter(_BoardLayer.paper))),
+            if (sheetGlints(widget.pattern) && widget.shimmer)
+              CustomPaint(
+                size: c.biggest,
+                painter: _GlintsPainter(
+                  cuts: widget.cuts,
+                  fallen: widget.fallen,
+                  half: wedgeHalfAngle(widget.folds),
+                  folds: widget.folds,
+                  s: _s,
+                  apex: _apex,
+                  color: widget.color,
+                  pattern: widget.pattern,
+                  paperOpacity: widget.paperOpacity,
+                  time: _twinkleAt,
+                ),
+              ),
+            CustomPaint(size: c.biggest, painter: painter(_BoardLayer.marks)),
+          ]),
         ),
       );
       return board;
@@ -606,8 +633,16 @@ class _CutBoardState extends State<CutBoard> with TickerProviderStateMixin {
   }
 }
 
+/// The board's layers, bottom up, but for the glints between them (see
+/// [_GlintsPainter]): the paper, and what is marked over it (the cuts'
+/// outlines, a hint, the stencil, the cut being drawn, pieces falling).
+enum _BoardLayer { paper, marks }
+
 class _BoardPainter extends CustomPainter {
   _BoardPainter({
+    required this.layer,
+    required this.sheen,
+    required this.sheenAt,
     required this.cuts,
     required this.fallen,
     required this.drops,
@@ -621,10 +656,18 @@ class _BoardPainter extends CustomPainter {
     required this.color,
     required this.pattern,
     required this.paperOpacity,
-    required this.twinkle,
     required this.hint,
     required this.dpr,
-  });
+  }) : super(repaint: sheen);
+
+  final _BoardLayer layer;
+
+  /// A hologram's sheen's time, its paper drawn again as it drifts; null if
+  /// the paper doesn't drift (or this isn't the paper's layer).
+  final ValueListenable<double>? sheen;
+
+  /// The sheen's time as the board was built, for the pieces falling.
+  final double sheenAt;
 
   final List<Cut> cuts, fallen;
   final List<(List<Cut> pieces, List<Cut> cuts, double t)> drops;
@@ -642,8 +685,6 @@ class _BoardPainter extends CustomPainter {
   final String pattern;
   final double paperOpacity;
 
-  /// Seconds the paper has shimmered for (see [shimmers]); null if it doesn't.
-  final double? twinkle;
   final ({List<Cut> cuts, double opacity})? hint;
 
   /// The screen's pixels to the logical pixel: the paper's pattern drawn in
@@ -656,6 +697,17 @@ class _BoardPainter extends CustomPainter {
     canvas.translate(apex.dx, apex.dy);
 
     final fill = makePaperFill(color, pattern, s, dpr: dpr);
+    if (layer == _BoardLayer.paper) {
+      _paintPaper(canvas, fill);
+      canvas.restore();
+      return;
+    }
+    _paintMarks(canvas, fill);
+    canvas.restore();
+  }
+
+  /// The paper, as the board shows it.
+  void _paintPaper(Canvas canvas, Paint fill) {
     if (paperOpacity > 0) {
       final fading = paperOpacity < 1;
       if (fading) canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, paperOpacity));
@@ -680,7 +732,7 @@ class _BoardPainter extends CustomPainter {
       }
       // The folded paper shows its top layer (see [foldedTop]), so the flake
       // opens from just what the board showed.
-      drawWedge(canvas, s, [...cuts, ...fallen], half, glass ? (Paint()..color = glassTint(color)) : fill, pattern: pattern, sheen: !glass, sheenTime: twinkle ?? 0, pos: foldedTop(folds), folds: folds, icing: color, dpr: dpr);
+      drawWedge(canvas, s, [...cuts, ...fallen], half, glass ? (Paint()..color = glassTint(color)) : fill, pattern: pattern, sheen: !glass, sheenTime: sheen?.value ?? 0, pos: foldedTop(folds), folds: folds, icing: color, dpr: dpr);
       if (glass) {
         canvas.restore();
         // Under glass, a string of lights: not see-through with it.
@@ -688,11 +740,12 @@ class _BoardPainter extends CustomPainter {
         // Nothing but the glints, kept to the wedge and out of its holes.
         drawWedge(canvas, s, [...cuts, ...fallen], half, Paint()..color = const Color(0x00000000), pattern: pattern, pos: foldedTop(folds), folds: folds);
       }
-      final tw = twinkle;
-      if (tw != null && sheetGlints(pattern)) drawWedgeGlints(canvas, s, [...cuts, ...fallen], half, color, tw, pos: foldedTop(folds), folds: folds, pattern: pattern);
       if (fading) canvas.restore();
     }
+  }
 
+  /// What is marked over the paper.
+  void _paintMarks(Canvas canvas, Paint fill) {
     // Dashed outlines of removed pieces.
     if (paperOpacity > 0) {
       final ghost = Paint()
@@ -792,12 +845,11 @@ class _BoardPainter extends CustomPainter {
         canvas.clipPath(path);
         canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, 1 - t * t));
         // As the board draws its paper (the top layer, see there).
-        drawWedge(canvas, s, dropCuts, half, fill, pattern: pattern, sheenTime: twinkle ?? 0, pos: foldedTop(folds), folds: folds, icing: color, dpr: dpr);
+        drawWedge(canvas, s, dropCuts, half, fill, pattern: pattern, sheenTime: sheenAt, pos: foldedTop(folds), folds: folds, icing: color, dpr: dpr);
         canvas.restore();
         canvas.restore();
       }
     }
-    canvas.restore();
   }
 
   /// The paint-program selection round the stencil: a thin box, square
@@ -896,21 +948,79 @@ class _BoardPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_BoardPainter o) =>
+  bool shouldRepaint(_BoardPainter o) {
+    // What the paper is drawn from; the marks also from all the rest.
+    final paper = o.layer != layer ||
+        !identical(o.cuts, cuts) ||
+        !identical(o.fallen, fallen) ||
+        o.half != half ||
+        o.folds != folds ||
+        o.apex != apex ||
+        o.color != color ||
+        o.pattern != pattern ||
+        o.paperOpacity != paperOpacity ||
+        o.sheen != sheen ||
+        o.dpr != dpr ||
+        o.s != s;
+    if (layer == _BoardLayer.paper) return paper;
+    return paper ||
+        drops.isNotEmpty ||
+        o.drops.isNotEmpty ||
+        misses.isNotEmpty ||
+        o.misses.isNotEmpty ||
+        o.live != live ||
+        o.stencil != stencil ||
+        o.hint != hint;
+  }
+}
+
+/// The paper's glints over the board's paper (see [drawWedgeGlints]), drawn
+/// again as [time] ticks, on their own: the paper under them as it was.
+class _GlintsPainter extends CustomPainter {
+  _GlintsPainter({
+    required this.cuts,
+    required this.fallen,
+    required this.half,
+    required this.folds,
+    required this.s,
+    required this.apex,
+    required this.color,
+    required this.pattern,
+    required this.paperOpacity,
+    required this.time,
+  }) : super(repaint: time);
+
+  final List<Cut> cuts, fallen;
+  final double half, s, paperOpacity;
+  final int folds;
+  final Offset apex;
+  final Color color;
+  final String pattern;
+  final ValueListenable<double> time;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (paperOpacity <= 0) return;
+    canvas.save();
+    canvas.translate(apex.dx, apex.dy);
+    // As see-through as the paper under them, as it fades in.
+    final fading = paperOpacity < 1;
+    if (fading) canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, paperOpacity));
+    drawWedgeGlints(canvas, s, [...cuts, ...fallen], half, color, time.value, pos: foldedTop(folds), folds: folds, pattern: pattern);
+    if (fading) canvas.restore();
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(_GlintsPainter o) =>
       !identical(o.cuts, cuts) ||
       !identical(o.fallen, fallen) ||
-      drops.isNotEmpty ||
-      o.drops.isNotEmpty ||
-      misses.isNotEmpty ||
-      o.misses.isNotEmpty ||
-      o.live != live ||
-      o.stencil != stencil ||
+      o.half != half ||
+      o.folds != folds ||
+      o.s != s ||
       o.apex != apex ||
       o.color != color ||
       o.pattern != pattern ||
       o.paperOpacity != paperOpacity ||
-      o.twinkle != twinkle ||
-      o.dpr != dpr ||
-      o.hint != hint ||
-      o.s != s;
+      o.time != time;
 }

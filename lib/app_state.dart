@@ -6,10 +6,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'snowflake/geometry.dart';
 
+/// For the store's screenshots: the game as a player who has bought nothing
+/// sees it, but none of the testing switches below on, no shop or advent
+/// calendar buttons, and no papers or stencils still to be got (locked).
+/// Debug builds only, as the rest: `kDebugMode && true` to turn it on.
+const storeShots = kDebugMode && false;
+
+/// For the store's shot of the window: the home screen with nothing over the
+/// window, no buttons at all. Debug builds only: `kDebugMode && true` to turn
+/// it on.
+const bareWindow = kDebugMode && false;
+
 /// For testing tutorials: set to true to make every launch the first one, the
 /// tutorials all showing again (the stored "seen" marks are cleared at start).
 /// Debug builds only: a release never has it, whatever this says.
-const forceFirstLaunch = true && kDebugMode;
+const forceFirstLaunch = true && kDebugMode && !storeShots;
 
 /// The first launch's tutorial, step 1: the game opens on the cut board, the
 /// scissors all there is till the player's first cut.
@@ -48,17 +59,16 @@ const adventRewards = <({bool paper, String id})>[
   (paper: false, id: 'elfhat'),
   (paper: true, id: 'lights'),
   (paper: false, id: 'angel'),
-  (paper: true, id: 'candy'),
+  (paper: true, id: 'sequin'),
   (paper: false, id: 'deer'),
 ];
 
-/// The sets of papers and stencils sold in the shop, some of them the
-/// advent calendar's too (chocolate, the garland, the gingerbread man and
-/// the cane only here; snowfall, tartan, the lights under glass, the skate,
-/// the elf hat, the angel and the deer only in the calendar; candy in
-/// both): [id] is the product's id in Google Play (a one-time purchase),
-/// its name `offer_<id>` in the strings. What a set holds is the player's once it is bought, its doors in
-/// the calendar or not (see [GameState.unlocked]).
+/// The sets of papers and stencils sold in the shop, none of them behind the
+/// advent calendar's doors just now (though one may be: see [adventOnly]):
+/// [id] is the product's id in Google Play (a one-time purchase), its name
+/// `offer_<id>` in the strings. What a set holds is the player's once it is
+/// bought, its door in the calendar, if it has one, opened or not (see
+/// [GameState.unlocked]).
 const offers = <({String id, List<({bool paper, String id})> items})>[
   (id: 'pack_snow_day', items: [(paper: true, id: 'candy'), (paper: true, id: 'chocolate'), (paper: false, id: 'gingerman'), (paper: false, id: 'cane')]),
   (id: 'pack_holiday', items: [(paper: true, id: 'garland'), (paper: true, id: 'frost'), (paper: false, id: 'snowman'), (paper: false, id: 'ornament')]),
@@ -70,7 +80,7 @@ bool adventOnly(String id) => adventRewards.any((r) => r.id == id) && !offers.an
 
 /// For testing the advent calendar: a tap opens any door, its day come or
 /// not (shown as ever: locked till then). Debug builds only.
-const adventAnyDay = true && kDebugMode;
+const adventAnyDay = true && kDebugMode && !storeShots;
 
 /// Door [i]'s day in the season [now] is in: 18 December on, the last on
 /// Christmas Day (January counting with the December before it).
@@ -79,25 +89,25 @@ DateTime adventDay(int i, DateTime now) => DateTime(now.month == 1 ? now.year - 
 /// For testing the Halloween duel: a tap on the boss's flake knocks a cone
 /// off it, as if the next flake had been cut. Debug builds only: a release
 /// never has it, whatever this says.
-const duelCheat = true && kDebugMode;
+const duelCheat = true && kDebugMode && !storeShots;
 
 /// For testing duels: a button right of a duel's title starting it afresh,
 /// none of its flakes done. Debug builds only, as [duelCheat].
-const duelReset = true && kDebugMode;
+const duelReset = true && kDebugMode && !storeShots;
 
 /// For testing: a "Skip" button on the first launch's cut board, marking
 /// all the tutorials seen at once (see [GameState.skipTutorials]). Debug
 /// builds only, as [duelCheat].
-const tutorialSkip = true && kDebugMode;
+const tutorialSkip = true && kDebugMode && !storeShots;
 
 /// For testing events: a button beside the tools cutting the event's flake
 /// out just as it is. Debug builds only, as [duelCheat].
-const eventCheat = true && kDebugMode;
+const eventCheat = true && kDebugMode && !storeShots;
 
 /// For testing what falls off a flake: the cut board shows how the last cut
 /// weighed the paper's pieces (see [lastWeighing]), those that fell in red
 /// and the one that stayed in green. Debug builds only, as [duelCheat].
-const detachReadout = true && kDebugMode;
+const detachReadout = true && kDebugMode && !storeShots;
 
 /// A duel's flake done: which duel (its event's id) and which of its flakes
 /// (by preset).
@@ -283,6 +293,9 @@ class GameState extends ChangeNotifier {
   /// Each duel's flakes done, by its event's id ('duel.halloween.v1', …).
   static String _kDuel(String duel) => 'duel.$duel.v1';
 
+  /// The flakes the player made for each duel's flakes ('duel.halloween.made.v1', …).
+  static String _kDuelMade(String duel) => 'duel.$duel.made.v1';
+
   int coins = 128;
 
   bool sfx = true, vibration = true;
@@ -307,6 +320,24 @@ class GameState extends ChangeNotifier {
   final _duelHits = <String, Set<String>>{};
   final _duelSeen = <String, int>{};
 
+  /// Each duel (by its event's id): the flake the player made last for each
+  /// of its flakes done (by preset), shown in its window in its place. Read
+  /// from storage the first time asked for.
+  final _duelMade = <String, Map<String, SavedFlake>>{};
+
+  Map<String, SavedFlake> _made(String duel) => _duelMade.putIfAbsent(duel, () {
+        final raw = _prefs.getString(_kDuelMade(duel));
+        if (raw == null) return {};
+        return {
+          for (final MapEntry(:key, :value) in (jsonDecode(raw) as Map<String, Object?>).entries)
+            key: ?SavedFlake.fromJson(value as Map<String, Object?>),
+        };
+      });
+
+  /// The flake the player made last for [duel]'s flake [preset], if they
+  /// have done it.
+  SavedFlake? duelMade(String duel, String preset) => _made(duel)[preset];
+
   Set<String> duelHits(String duel) => _duelHits.putIfAbsent(duel, () => {...?_prefs.getStringList(_kDuel(duel))});
 
   /// How many of [duel]'s hits its window has shown landing: the rest still
@@ -318,11 +349,21 @@ class GameState extends ChangeNotifier {
   /// to show landing; cleared once it has. Not stored.
   DuelHit? duelFresh;
 
-  void duelHit(DuelHit hit) {
+  /// [hit] done, the player's flake for it [made] (none for the cheat, see
+  /// [duelCheat]): kept to show in its place, the latest made each time it
+  /// is done again.
+  void duelHit(DuelHit hit, {SavedFlake? made}) {
+    if (made != null) {
+      final kept = _made(hit.duel)..[hit.preset] = made;
+      _prefs.setString(_kDuelMade(hit.duel), jsonEncode({for (final MapEntry(:key, :value) in kept.entries) key: value.toJson()}));
+    }
     final hits = duelHits(hit.duel);
     // Those before it already seen, as they were.
     _duelSeen.putIfAbsent(hit.duel, () => hits.length);
-    if (!hits.add(hit.preset)) return;
+    if (!hits.add(hit.preset)) {
+      notifyListeners();
+      return;
+    }
     duelFresh = hit;
     _prefs.setStringList(_kDuel(hit.duel), [...hits]);
     notifyListeners();
@@ -331,9 +372,11 @@ class GameState extends ChangeNotifier {
   /// Duel [duel] started afresh, none of its flakes done (see [duelReset]).
   void resetDuel(String duel) {
     _duelHits[duel] = {};
+    _duelMade[duel] = {};
     _duelSeen.remove(duel);
     if (duelFresh?.duel == duel) duelFresh = null;
     _prefs.remove(_kDuel(duel));
+    _prefs.remove(_kDuelMade(duel));
     notifyListeners();
   }
 

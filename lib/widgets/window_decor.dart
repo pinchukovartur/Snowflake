@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 
+import '../app_state.dart';
+
 /// Something standing on the floor in front of the home window's door (a fir
 /// tree, say), drawn from [image], in a box the home screen lays out for it
 /// as wide as [aspect] times its height: taking taps inside its [outline]
@@ -42,7 +44,7 @@ class WindowDecor {
 /// For testing what stands in front of the door: a tap on it thaws it or
 /// freezes it again, whatever the day (see [WindowDecor.thawed]). Debug
 /// builds only.
-const decorCheat = true && kDebugMode;
+const decorCheat = true && kDebugMode && !storeShots;
 
 /// What stands in front of the door in this build, set by hand for each
 /// release; null for the door alone. This one a fir tree frozen in ice,

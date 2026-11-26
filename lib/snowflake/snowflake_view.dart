@@ -414,7 +414,13 @@ class SnowflakePainter extends CustomPainter {
     // Nothing to draw under a pixel across (an image can't be 0 wide), as when
     // laid out in no room.
     if ((s * dpr).round() < 1) return;
-    if (unfold < 1 || spin != 0 || twinkle != null) {
+    // An open flake whose paper itself doesn't change as it shimmers (a
+    // hologram's sheen and glass do) is baked once and turned whole, its
+    // glints laid over it: turned segment by segment, each one's image is
+    // resampled on its own, and they shift against one another a hair, plain
+    // to see where sequins lie across the creases.
+    final bakes = unfold >= 1 && !isGlass(pattern) && pattern != 'holo' && !glassGlints(pattern);
+    if (!bakes) {
       _paintFlake(canvas, s);
       return;
     }
@@ -423,7 +429,7 @@ class SnowflakePainter extends CustomPainter {
     if (img == null) {
       final rec = ui.PictureRecorder();
       final c = Canvas(rec)..scale(dpr);
-      _paintFlake(c, s);
+      _paintFlake(c, s, still: true);
       final px = (s * dpr).ceil();
       img = rec.endRecording().toImageSync(px, px);
       // Baked, a still flake never needs its wedges again (only moving ones
@@ -438,12 +444,68 @@ class SnowflakePainter extends CustomPainter {
       }
     }
     _flakeCache[key] = img;
+    canvas.save();
+    if (spin != 0) {
+      canvas.translate(s / 2, s / 2);
+      canvas.rotate(spin);
+      canvas.translate(-s / 2, -s / 2);
+    }
     canvas.drawImageRect(
       img,
       Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
       Rect.fromLTWH(0, 0, s, s),
       Paint()..filterQuality = FilterQuality.medium,
     );
+    canvas.restore();
+    final tw = twinkle;
+    if (tw != null && sheetGlints(pattern)) {
+      canvas.save();
+      canvas.translate(s / 2, s / 2);
+      canvas.rotate(spin + wedgeHalfAngle(folds));
+      _paintGlints(canvas, s, _wedgeKey(s), tw);
+      canvas.restore();
+    }
+  }
+
+  /// Glints at [tw] seconds (or flares) on an open flake of [key]'s wedges,
+  /// [canvas] turned as the flake lies, drawn straight on (no image per
+  /// frame): each segment clipped to its paper and showing its own part of
+  /// the sheet's.
+  void _paintGlints(Canvas canvas, double s, _WedgeKey key, double tw) {
+    final segs = folds * 2, step = math.pi * 2 / segs;
+    final r = s / 2 * .96;
+    final clip = _paperPath(key, r);
+    final h = wedgeHalfAngle(folds);
+    for (var i = 0; i < segs; i++) {
+      if (!_drawn(i)) continue;
+      canvas.save();
+      canvas.rotate(i * step);
+      if (i.isOdd) canvas.scale(-1, 1);
+      // Crystal's flares whole, those whose centres are on this
+      // segment's paper; the rest kept to it.
+      final crystal = pattern == 'crystal';
+      // Sequins' glints on the sequins, as the wedge lies, whole; each
+      // segment's own.
+      if (pattern == 'sequin') {
+        canvas.clipPath(sequinSector(r, h));
+        drawSequinGlints(canvas, sequinsOn(key.cuts, r, h), r, color, tw, seed: i);
+        canvas.restore();
+        continue;
+      }
+      if (!crystal) canvas.clipPath(clip);
+      toSheet(canvas, i - turns, folds);
+      // Only where this segment lies on the sheet.
+      final corners = [Offset.zero, Offset(-r * math.sin(h), -r * math.cos(h)), Offset(r * math.sin(h), -r * math.cos(h)), Offset(0, -r)];
+      final onSheet = [
+        for (final q in corners) _sheetPoint(i.isOdd ? Offset(-q.dx, q.dy) : q, (i - turns) * step + sheetTurn(folds)),
+      ];
+      var area = Rect.fromPoints(onSheet.first, onSheet.first);
+      for (final q in onSheet) {
+        area = area.expandToInclude(Rect.fromPoints(q, q));
+      }
+      drawSheetGlints(canvas, pattern, area.inflate(r * .05), color, r, tw, keep: crystal ? (at) => clip.contains(fromSheet(at, i - turns, folds)) : null);
+      canvas.restore();
+    }
   }
 
   /// Paper darkened towards black by [a]: mirrored segments face the light
@@ -454,7 +516,9 @@ class SnowflakePainter extends CustomPainter {
     return p;
   }
 
-  void _paintFlake(Canvas canvas, double s) {
+  /// The flake as it lies, turns and opens; [still], open and unturned, with
+  /// no glints, to bake.
+  void _paintFlake(Canvas canvas, double s, {bool still = false}) {
     final paper = _wedgeKey(s);
     final img = _wedgeImage(paper);
     final segs = folds * 2;
@@ -474,7 +538,7 @@ class SnowflakePainter extends CustomPainter {
       canvas.translate(s / 2, s / 2);
       // Unfolded, a flake rests with a crease upright, half a segment round from
       // the folded wedge's upright middle; it turns there as it opens.
-      canvas.rotate(spin + t * wedgeHalfAngle(folds));
+      canvas.rotate((still ? 0 : spin) + t * wedgeHalfAngle(folds));
       if (flat) {
         final front = _shade(0), back = _shade(shading ? _sideShade : 0);
         for (var i = 0; i < segs; i++) {
@@ -486,35 +550,7 @@ class SnowflakePainter extends CustomPainter {
           canvas.restore();
         }
         final tw = twinkle;
-        if (tw != null && sheetGlints(pattern)) {
-          // The glints (or flares), drawn straight on (no image per frame): each segment
-          // clipped to its paper and showing its own part of the sheet's.
-          final r = s / 2 * .96;
-          final clip = _paperPath(key, r);
-          final h = wedgeHalfAngle(folds);
-          for (var i = 0; i < segs; i++) {
-            if (!_drawn(i)) continue;
-            canvas.save();
-            canvas.rotate(i * step);
-            if (i.isOdd) canvas.scale(-1, 1);
-            // Crystal's flares whole, those whose centres are on this
-            // segment's paper; the rest kept to it.
-            final crystal = pattern == 'crystal';
-            if (!crystal) canvas.clipPath(clip);
-            toSheet(canvas, i - turns, folds);
-            // Only where this segment lies on the sheet.
-            final corners = [Offset.zero, Offset(-r * math.sin(h), -r * math.cos(h)), Offset(r * math.sin(h), -r * math.cos(h)), Offset(0, -r)];
-            final onSheet = [
-              for (final q in corners) _sheetPoint(i.isOdd ? Offset(-q.dx, q.dy) : q, (i - turns) * step + sheetTurn(folds)),
-            ];
-            var area = Rect.fromPoints(onSheet.first, onSheet.first);
-            for (final q in onSheet) {
-              area = area.expandToInclude(Rect.fromPoints(q, q));
-            }
-            drawSheetGlints(canvas, pattern, area.inflate(r * .05), color, r, tw, keep: crystal ? (at) => clip.contains(fromSheet(at, i - turns, folds)) : null);
-            canvas.restore();
-          }
-        }
+        if (!still && tw != null && sheetGlints(pattern)) _paintGlints(canvas, s, key, tw);
       } else {
         _paintFolded(canvas, key, src, dst, s, t);
       }

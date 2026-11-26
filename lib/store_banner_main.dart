@@ -87,7 +87,7 @@ class _ShootState extends State<_Shoot> {
 const _textAt = Offset(62, 170), _textWidth = 600.0, _textGap = 6.0;
 
 final _titleStyle = display(96, weight: FontWeight.w900, shadows: drop(7));
-final _taglineStyle = body(33, weight: FontWeight.w800, color: C.ice200).copyWith(shadows: drop(3));
+final _taglineStyle = body(33, weight: FontWeight.w800, color: Colors.white).copyWith(shadows: drop(3));
 
 /// The flakes the carpet is woven from: every classic six-fold one, each at
 /// least once.

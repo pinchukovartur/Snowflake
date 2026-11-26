@@ -113,6 +113,7 @@
   <string name="pattern_gradient">Градиент</string>
   <string name="pattern_analogous">Оттенки</string>
   <string name="pattern_gingerbread">Пряник</string>
+  <string name="pattern_sequin">Пайетки</string>
   <string name="pattern_crystal">Кристалл</string>
   <string name="pattern_lights">Огоньки в стекле</string>
   <string name="pattern_chocolate">Шоколад</string>
@@ -167,8 +168,8 @@
   <string name="offer_owned">КУПЛЕНО!</string>
   <string name="shop_unavailable">Недоступно</string>
   <string name="restore_purchases">Восстановить покупки</string>
-  <string name="shop_no_ads">Любая покупка отключает рекламу между снежинками!</string>
-  <string name="shop_ads_off">Реклама между снежинками отключена. Спасибо!</string>
+  <string name="shop_no_ads">Любая покупка отключает рекламу!</string>
+  <string name="shop_ads_off">Реклама отключена. Спасибо!</string>
   <string name="reset_purchases">Сбросить покупки</string>
   <string name="purchase_failed">Покупка не прошла. Попробуйте позже.</string>
 </resources>

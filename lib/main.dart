@@ -143,7 +143,7 @@ class _GameShellState extends State<GameShell> {
   /// readies one, going to [to] instead); the flake just done, if a duel's,
   /// strikes its boss.
   void _newFlake([Screen to = Screen.cut]) => setState(() {
-        if (_duelFlake case final f?) _game.duelHit(f);
+        if (_duelFlake case final f?) _game.duelHit(f, made: SavedFlake(cuts: _cuts, folds: _folds, color: _paper.color, pattern: _paper.pattern));
         _duelFlake = null;
         _runKey++;
         _session = CutSession()..folds = _session.folds;

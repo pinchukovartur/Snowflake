@@ -508,35 +508,38 @@ List<Cut> _zombies() {
   ];
 }
 
-class PaperColor {
-  const PaperColor(this.id, this.color);
-  final String id;
-  String get name => tr('color_$id');
-  final Color color;
-}
+/// The paper colours the player can pick, shown six to a row, a column per
+/// hue, lighter shades above darker ones, in this order. Flakes the game
+/// sets out (events, duels, bosses) take theirs from here, so the player can
+/// always cut one alike: a colour that isn't one of these can't be given.
+enum PaperColor {
+  white(Color(0xFFFFFFFF)),
+  pink(Color(0xFFFFC7D0)),
+  sun(Color(0xFFFFE08A)),
+  mint(Color(0xFF9DFFAA)),
+  ice(Color(0xFFC4ECFF)),
+  lilac(Color(0xFFDCD2FF)),
+  grey(Color(0xFF9AA3B5)),
+  red(Color(0xFFE0405E)),
+  orange(Color(0xFFFF9A3C)),
+  green(Color(0xFF2FB37E)),
+  blue(Color(0xFF0047AB)),
+  violet(Color(0xFF8A5CD6)),
+  black(Color(0xFF1E1F26)),
+  wine(Color(0xFF8E1F3A)),
+  brown(Color(0xFF713600)),
+  forest(Color(0xFF1E6B4F)),
+  navy(Color(0xFF00275F)),
+  plum(Color(0xFF4A1A6B));
 
-/// Shown six to a row, a column per hue, lighter shades above darker ones.
-/// Event flakes use these only, so the player can always cut one alike.
-const paperColors = [
-  PaperColor('white', Color(0xFFFFFFFF)),
-  PaperColor('pink', Color(0xFFFFC7D0)),
-  PaperColor('sun', Color(0xFFFFE08A)),
-  PaperColor('mint', Color(0xFF9DFFAA)),
-  PaperColor('ice', Color(0xFFC4ECFF)),
-  PaperColor('lilac', Color(0xFFDCD2FF)),
-  PaperColor('grey', Color(0xFF9AA3B5)),
-  PaperColor('red', Color(0xFFE0405E)),
-  PaperColor('orange', Color(0xFFFF9A3C)),
-  PaperColor('green', Color(0xFF2FB37E)),
-  PaperColor('blue', Color(0xFF0047AB)),
-  PaperColor('violet', Color(0xFF8A5CD6)),
-  PaperColor('black', Color(0xFF1E1F26)),
-  PaperColor('wine', Color(0xFF8E1F3A)),
-  PaperColor('brown', Color(0xFF713600)),
-  PaperColor('forest', Color(0xFF1E6B4F)),
-  PaperColor('navy', Color(0xFF00275F)),
-  PaperColor('plum', Color(0xFF4A1A6B)),
-];
+  const PaperColor(this.rgb);
+
+  /// The colour itself.
+  final Color rgb;
+
+  /// Its name in the player's language.
+  String get label => tr('color_$name');
+}
 
 const paperPatterns = [
   'plain',
@@ -556,10 +559,11 @@ const paperPatterns = [
   'crystal',
   // The advent calendar's (see [adventRewards]).
   'snowfall',
-  'candy',
   'lights',
   'tartan',
+  'sequin',
   // The shop's alone (see [offers]).
+  'candy',
   'garland',
   'frost',
   'chocolate',
@@ -581,13 +585,14 @@ final paperTextures = <String, ui.Image>{};
 
 /// Whether paper with [pattern] shimmers over time: glitter's glints
 /// twinkling (the sparkle lattice's along its lines), a hologram's sheen
-/// drifting, crystal's flares flashing.
-bool shimmers(String pattern) => pattern == 'sparkle' || pattern == 'frost' || pattern == 'holo' || pattern == 'crystal';
+/// drifting, crystal's flares flashing, sequins glinting.
+bool shimmers(String pattern) => pattern == 'sparkle' || pattern == 'frost' || pattern == 'holo' || pattern == 'crystal' || pattern == 'sequin';
 
 /// Whether paper with [pattern] has light flashing on its sheet as it
 /// shimmers, laid over the paper, segment by segment: glitter's glints (the
-/// sparkle lattice's too), crystal's flares (see [drawSheetGlints]).
-bool sheetGlints(String pattern) => pattern == 'sparkle' || pattern == 'frost' || pattern == 'crystal';
+/// sparkle lattice's too), crystal's flares (see [drawSheetGlints]),
+/// sequins' glints (see [drawSequinGlints]).
+bool sheetGlints(String pattern) => pattern == 'sparkle' || pattern == 'frost' || pattern == 'crystal' || pattern == 'sequin';
 
 /// The light flashing on paper with [pattern] at [time] seconds (see
 /// [sheetGlints]), in sheet terms (centre at the origin, radius [r]), over
@@ -2536,7 +2541,8 @@ double sheetTurn(int folds) => (restTurns + .5) * math.pi / folds;
 const restTurns = 2;
 
 /// [drawSheetGlints] for a paper wedge drawn by [drawWedge] (same [s],
-/// [cuts], [half] and segment [pos] of [folds]), kept to the paper.
+/// [cuts], [half] and segment [pos] of [folds]), kept to the paper; sequins' on
+/// the sequins, whole.
 void drawWedgeGlints(Canvas canvas, double s, List<Cut> cuts, double half, Color color, double time, {int pos = 0, int folds = 1, String pattern = 'sparkle'}) {
   final bounds = Rect.fromCircle(center: Offset.zero, radius: s * 1.3);
   final wedge = Path()
@@ -2555,6 +2561,14 @@ void drawWedgeGlints(Canvas canvas, double s, List<Cut> cuts, double half, Color
       final q = fromSheet(at, pos, folds);
       return wedge.contains(q) && !paths.any((p) => p.contains(q));
     });
+    canvas.restore();
+    return;
+  }
+  if (pattern == 'sequin') {
+    // On the sequins, as the wedge itself lies: whole, over the holes too.
+    canvas.save();
+    canvas.clipPath(sequinSector(s, half));
+    drawSequinGlints(canvas, sequinsOn(cuts, s, half), s, color, time, seed: pos);
     canvas.restore();
     return;
   }
@@ -3462,8 +3476,234 @@ void drawWedge(Canvas canvas, double s, List<Cut> cuts, double half, Paint fill,
     _bakedEdge(canvas, s, lines, half, pad);
     if (icing != null) _icing(canvas, s, lines, icing);
   }
+  // Sequins along every cut, whole, over its hole too: kept only to the
+  // wedge's sector, so each segment of an open flake has its own.
+  if (pattern == 'sequin') {
+    canvas.save();
+    canvas.clipPath(sequinSector(s, half));
+    drawSequins(canvas, sequinsOn(cuts, s, half), s, fill.color, dpr: dpr);
+    canvas.restore();
+  }
   canvas.restore();
 }
+
+/// Sequins laid out along a flake's cuts (see [layOutSequins]): those of
+/// each layer as one path, bottom up; all of them as one; where each lies;
+/// what shows of each with those over it on, null if all of it does; and
+/// each one's glint's beat, in seconds, and where in it it starts, as a
+/// share of it (see [drawSequinGlints]).
+typedef Sequins = ({List<Path> layers, Path all, List<Offset> at, List<Path?> shows, List<double> beats, List<double> phases});
+
+/// Sequins sewn along [lines] (cuts' outlines), for a flake [s] in radius,
+/// in three layers taking turns along the line, each layer's a little apart,
+/// overlapping the layers under them. Centred on the line, half of each over
+/// the cut's hole. If [paper] is given (whether a point is on the paper),
+/// only where the line edges it: none where it runs through the air (as a
+/// cut drawn past the paper's edge does).
+///
+/// Where a line runs along an earlier one (as a fallen piece's outline runs
+/// along the cuts that freed it), or along itself (as a slit's runs there and
+/// back), it gets none where it already has them: none sewn twice, nor
+/// shuffled as pieces fall.
+Sequins layOutSequins(Iterable<Path> lines, double s, {bool Function(Offset)? paper}) {
+  final r = s * _sequinRadius, layers = _sequinShades.length;
+  final discs = [for (var i = 0; i < layers; i++) Path()];
+  final all = Path(), at = <Offset>[], layer = <int>[];
+  // The sequins so far, each with its contour and place round it, in a grid
+  // of cells as wide as too close is.
+  final near = r * _sequinStep * .8, sewn = <(int, int), List<(Offset, int, int)>>{};
+  (int, int) cell(Offset p) => ((p.dx / near).floor(), (p.dy / near).floor());
+  var contour = 0;
+  // Whether one's too close to [p], the [i]th of [n] round this contour: its
+  // own few neighbours each side are close by design.
+  bool taken(Offset p, int i, int n) {
+    final (x, y) = cell(p);
+    for (var a = x - 1; a <= x + 1; a++) {
+      for (var b = y - 1; b <= y + 1; b++) {
+        for (final (q, c, j) in sewn[(a, b)] ?? const <(Offset, int, int)>[]) {
+          if (c == contour && math.min((i - j).abs(), n - (i - j).abs()) <= _sequinOwn) continue;
+          if ((q - p).distanceSquared < near * near) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  for (final line in lines) {
+    for (final m in line.computeMetrics()) {
+      contour++;
+      // A whole number of rounds of the layers, so they take turns all the way.
+      final n = math.max(layers, (m.length / (r * _sequinStep) / layers).round() * layers);
+      for (var i = 0; i < n; i++) {
+        final t = m.getTangentForOffset(m.length * i / n);
+        if (t == null) continue;
+        final p = t.position, across = Offset(-t.vector.dy, t.vector.dx) * r * .3;
+        if (paper != null && !paper(p + across) && !paper(p - across)) continue;
+        if (taken(p, i, n)) continue;
+        (sewn[cell(p)] ??= []).add((p, contour, i));
+        discs[i % layers].addOval(Rect.fromCircle(center: p, radius: r));
+        all.addOval(Rect.fromCircle(center: p, radius: r));
+        at.add(p);
+        layer.add(i % layers);
+      }
+    }
+  }
+  // What shows of each: its disc, less those of higher layers over it (no
+  // more than a neighbour or two each side), found in a grid of cells a
+  // sequin across.
+  final grid = <(int, int), List<int>>{};
+  (int, int) square(Offset p) => ((p.dx / (2 * r)).floor(), (p.dy / (2 * r)).floor());
+  for (var i = 0; i < at.length; i++) {
+    (grid[square(at[i])] ??= []).add(i);
+  }
+  final shows = <Path?>[];
+  for (var i = 0; i < at.length; i++) {
+    Path? left;
+    final (x, y) = square(at[i]);
+    for (var a = x - 1; a <= x + 1; a++) {
+      for (var b = y - 1; b <= y + 1; b++) {
+        for (final j in grid[(a, b)] ?? const <int>[]) {
+          if (layer[j] <= layer[i] || (at[j] - at[i]).distanceSquared >= 4 * r * r) continue;
+          left = Path.combine(PathOperation.difference, left ?? (Path()..addOval(Rect.fromCircle(center: at[i], radius: r))), Path()..addOval(Rect.fromCircle(center: at[j], radius: r)));
+        }
+      }
+    }
+    shows.add(left);
+  }
+  // Each one's glint's beat and phase by where it lies, well mixed (see
+  // [_mix]), so neighbours flash no more together than any others; by
+  // where, not by which it is, so cuts made since don't change them.
+  final beats = <double>[], phases = <double>[];
+  for (final p in at) {
+    final h = _mix((p.dx / s * 4096).round() ^ _mix((p.dy / s * 4096).round()));
+    beats.add(_sequinGlintPeriod * (1 + _mix(h ^ 0x9e3779b9) / 0x100000000));
+    phases.add(_mix(h) / 0x100000000);
+  }
+  return (layers: discs, all: all, at: at, shows: shows, beats: beats, phases: phases);
+}
+
+/// [h] mixed up thoroughly to 32 bits (murmur3's last step): numbers near
+/// one another come out nowhere near.
+int _mix(int h) {
+  h &= 0xffffffff;
+  h ^= h >> 16;
+  h = (h * 0x85ebca6b) & 0xffffffff;
+  h ^= h >> 13;
+  h = (h * 0xc2b2ae35) & 0xffffffff;
+  return h ^ (h >> 16);
+}
+
+/// The sequins along [cuts] of a wedge [half] wide, for a flake [s] in
+/// radius (see [layOutSequins]), only where they edge its paper; laid out
+/// once and kept: a shimmering flake is drawn every frame, its cuts the same
+/// till the next.
+Sequins sequinsOn(List<Cut> cuts, double s, double half) {
+  final drawn = [
+    for (final c in cuts)
+      if (c.length >= 3) c,
+  ];
+  for (final (size, wide, kept, sequins) in _sequinsKept) {
+    if (size == s && wide == half && kept.length == drawn.length && Iterable.generate(kept.length).every((i) => identical(kept[i], drawn[i]))) return sequins;
+  }
+  final lines = [for (final c in drawn) cutPath(c, s)];
+  final holes = [for (final l in lines) Path.from(l)..fillType = PathFillType.nonZero];
+  final sequins = layOutSequins(
+    lines,
+    s,
+    paper: (q) => q.distance <= s && math.atan2(q.dx, -q.dy).abs() <= half && !holes.any((h) => h.contains(q)),
+  );
+  _sequinsKept.insert(0, (s, half, drawn, sequins));
+  if (_sequinsKept.length > _sequinsKeep) _sequinsKept.removeLast();
+  return sequins;
+}
+
+/// Sequins laid out lately, latest first, with the size, wedge and cuts they
+/// were laid out for; how many are kept (the board, its falling pieces, the
+/// open flake and the paper's preview each have their own).
+final _sequinsKept = <(double, double, List<Cut>, Sequins)>[];
+const _sequinsKeep = 8;
+
+/// The sector of a wedge [half] wide, for a flake [s] in radius, that its
+/// sequins are kept to: out past the paper's rim, so those on it show whole,
+/// but not across its folds, the neighbouring segments' own.
+Path sequinSector(double s, double half) => Path()
+  ..moveTo(0, 0)
+  ..arcTo(Rect.fromCircle(center: Offset.zero, radius: s * (1 + 2 * _sequinRadius)), -math.pi / 2 - half, 2 * half, false)
+  ..close();
+
+/// [sequins] of the paper's [colour], for a flake [s] in radius: the higher
+/// the layer, the lighter its shade of the colour, each its shade's glitter;
+/// all of them casting one shadow. [dpr] as for [makePaperFill].
+///
+/// Each layer one path: four draws for all the flake's sequins.
+void drawSequins(Canvas canvas, Sequins sequins, double s, Color colour, {double dpr = 1}) {
+  final r = s * _sequinRadius;
+  // Their shadow, all of them as one, so it's no darker where they overlap.
+  canvas.drawPath(sequins.all.shift(Offset(r, r) * _sequinShadowOffset), Paint()..color = _sequinShadow);
+  for (var l = 0; l < sequins.layers.length; l++) {
+    final hsl = HSLColor.fromColor(colour), shade = hsl.withLightness((hsl.lightness + _sequinShades[l]).clamp(0.0, 1.0)).toColor();
+    canvas.drawPath(sequins.layers[l], makePaperFill(shade, 'sparkle', s, dpr: dpr));
+  }
+}
+
+/// The light flashing on [sequins] of paper of [colour] at [time] seconds,
+/// for a flake [s] in radius: each, now and then, lighting up all over and
+/// dying away, as glitter's glints do (see [drawGlints]), on its own beat
+/// (see [layOutSequins]), put off by [seed] (so an open flake's segments
+/// don't flash alike); only what shows of it, not what's under those over
+/// it. Light
+/// added to it, its glitter's dots and all, so they still show on it; on
+/// near-white paper, with nothing to brighten, a cool silver over it.
+///
+/// Not dodged (nor screened): a blend that has to read what's under it makes
+/// the engine copy the whole layer and lay it back, shifting it a hair while
+/// any glint plays.
+void drawSequinGlints(Canvas canvas, Sequins sequins, double s, Color colour, double time, {int seed = 0}) {
+  final r = s * _sequinRadius;
+  final light = HSLColor.fromColor(colour).lightness > .85;
+  final paint = Paint()..blendMode = light ? BlendMode.srcOver : BlendMode.plus;
+  // Each segment's beats put off by the golden ratio's share: as far from
+  // every other segment's as can be.
+  final off = seed * .6180339887;
+  for (var i = 0; i < sequins.at.length; i++) {
+    final p = sequins.at[i], period = sequins.beats[i], phase = sequins.phases[i] + off;
+    // Mostly dark, with a flash as long as ever once a cycle, however long
+    // the cycle; too faint to see, not drawn.
+    final x = (time / period + phase) % 1 * period / _sequinGlintFlash;
+    if (x >= 1) continue;
+    final w = math.sin(math.pi * x), a = w * w;
+    if (a < .02) continue;
+    paint.color = (light ? const Color(0xFF8A9BB8) : const Color(0xFFFFFFFF)).withValues(alpha: a * (light ? _sequinGlint : _sequinLight));
+    final shows = sequins.shows[i];
+    if (shows == null) {
+      canvas.drawCircle(p, r, paint);
+    } else {
+      canvas.drawPath(shows, paint);
+    }
+  }
+}
+
+/// Sequins: their radius as a share of the flake's; how far apart along the
+/// line, one from the next whatever its layer, as a share of their radius;
+/// how far down and right their shadow falls, as a share of their radius,
+/// and its colour.
+const _sequinRadius = .028, _sequinStep = 1.6, _sequinShadowOffset = .18;
+const _sequinShadow = Color(0x40000000);
+
+/// Sequins' glints: how strong the silver ones at their brightest; the
+/// shortest a beat of one may be, in seconds (the longest twice that); how
+/// long a flash lasts, in seconds; how much light it adds at its brightest
+/// (see [drawSequinGlints]).
+const _sequinGlint = .6, _sequinGlintPeriod = 10.0, _sequinGlintFlash = 2.4, _sequinLight = .28;
+
+/// How many of a sequin's neighbours each side round its contour may be as
+/// close as they like.
+const _sequinOwn = 2;
+
+/// Sequins' layers' shades of the paper's colour, bottom up: how much
+/// darker (below 0) or lighter, as a change in its lightness, so each keeps
+/// the colour's richness.
+const _sequinShades = [-.1, .05, .12];
 
 /// Icing piped along gingerbread's cuts: how far in from the edge, and how
 /// thick, as shares of the wedge's radius.

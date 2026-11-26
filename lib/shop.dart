@@ -8,12 +8,12 @@ import 'app_state.dart';
 /// Debug builds' stand-in for the store when it has no such product (an
 /// emulator, a build Play doesn't know): "buy" hands the set over at once.
 /// A release never has it, whatever this says.
-const fakePurchases = true && kDebugMode;
+const fakePurchases = true && kDebugMode && !storeShots;
 
 /// For testing the settings: their "restore purchases" button shown even
 /// with no store to reach (an emulator), where a tap does nothing. Debug
 /// builds only, as [fakePurchases].
-const showRestoreAlways = true && kDebugMode;
+const showRestoreAlways = true && kDebugMode && !storeShots;
 
 /// The shop: the [offers] as Google Play has them (their prices), buying
 /// them, and what was bought before coming back (on this device or another)

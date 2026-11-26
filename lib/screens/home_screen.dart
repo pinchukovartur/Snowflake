@@ -967,6 +967,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ),
         ),
+        // Its buttons; none in the store's shot of the window (see
+        // [bareWindow]).
+        if (!bareWindow)
         SafeArea(
           child: Column(
             children: [
@@ -1010,8 +1013,9 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   child: Column(
                     children: [
                       // The advent calendar, over "play" at the right (not while
-                      // the tutorial points at the collection).
-                      if (!widget.collectionArrow) ...[
+                      // the tutorial points at the collection, nor in the store's
+                      // screenshots, see [storeShots]).
+                      if (!widget.collectionArrow && !storeShots) ...[
                         if (kDebugMode) ...[
                           Align(alignment: Alignment.centerRight, child: AdventCheat(game: g)),
                           const SizedBox(height: 8),
@@ -1131,6 +1135,8 @@ class _Pane extends StatelessWidget {
         child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: onTap, child: const SizedBox.expand()),
       );
     }
+    // Bare glass in the store's shot of the window (see [bareWindow]).
+    if (f == null && bareWindow) return const SizedBox.expand();
     if (f == null) {
       // The whole glass takes the tap, not just the plus in its middle.
       return Semantics(

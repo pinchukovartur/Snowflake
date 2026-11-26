@@ -265,7 +265,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     _stencilsOpen = false;
     _tool = 'free';
     _s.stencilPlace = null;
-    _paper = Paper(color: f.color, pattern: f.pattern);
+    _paper = Paper(color: f.color.rgb, pattern: f.pattern);
     _boardKey++;
     // Fresh paper, folded like the event's flake.
     _show((cuts: const [], drops: const [], folds: f.folds));
@@ -380,7 +380,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
     final scale = (1 - settle) * (.9 + .1 * appear) + settle * radius / (size * .48);
     final at = Offset.lerp(Offset(w / 2, midY), apex, settle)!;
     // Folding down to the board's paper as it lies there (see [SnowflakePainter.turns]).
-    Widget view(List<Cut>? cuts) => SnowflakeView(cuts: cuts, preset: f.preset, folds: f.folds, color: f.color, pattern: f.pattern, unfold: fold, size: size, turns: 0);
+    Widget view(List<Cut>? cuts) => SnowflakeView(cuts: cuts, preset: f.preset, folds: f.folds, color: f.color.rgb, pattern: f.pattern, unfold: fold, size: size, turns: 0);
     return Stack(children: [
       Positioned(
         left: at.dx - size / 2,
@@ -601,7 +601,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
             return PaperDialog(
               paper: _paper,
               // In the tutorial only those already open: nothing to buy yet.
-              patterns: [for (final id in paperPatterns) if (!_tutorial || widget.game.unlocked(id)) id],
+              patterns: [for (final id in paperPatterns) if ((!_tutorial && !storeShots) || widget.game.unlocked(id)) id],
               locked: {for (final id in paperPatterns) if (!widget.game.unlocked(id)) id},
               // Back from the shop or the calendar, what was got there shows open.
               onLocked: (id) => showWhereToGet(ctx, widget.game, (paper: true, id: id), colour: _paper.color).then((_) => setLocal(() {})),
@@ -751,13 +751,13 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                                         padding: const EdgeInsets.all(_stencilsPad),
                                         child: Column(children: [
                                           for (final (i, group) in [
-                                            [for (final t in _stencils) if (!_stencilsOff.contains(t.$1) && !_stencilGroups.any((g) => g.$1.contains(t.$1)) && (!_tutorial || widget.game.unlocked(t.$1))) t],
+                                            [for (final t in _stencils) if (!_stencilsOff.contains(t.$1) && !_stencilGroups.any((g) => g.$1.contains(t.$1)) && ((!_tutorial && !storeShots) || widget.game.unlocked(t.$1))) t],
                                             // Those still to be bought too, locked (see [GameState.unlocked]),
                                             // after the rest of their group; not in the tutorial, where there
                                             // is nothing to buy yet.
                                             for (final (ids, _) in _stencilGroups) [
                                               for (final t in _stencils) if (ids.contains(t.$1) && !_stencilsOff.contains(t.$1) && widget.game.unlocked(t.$1)) t,
-                                              if (!_tutorial)
+                                              if (!_tutorial && !storeShots)
                                                 for (final t in _stencils) if (ids.contains(t.$1) && !_stencilsOff.contains(t.$1) && !widget.game.unlocked(t.$1)) t,
                                             ],
                                           ].indexed)
@@ -1099,9 +1099,9 @@ const _tutorialDelays = {
 /// The seasonal event's [id] in [_events]: the panel opens on it.
 const _seasonalEvent = 'christmas';
 
-/// A flake an event shows, and sets out to be made again: its [color] one
-/// of [paperColors], so the player can make it (test/flake_colors_test.dart).
-typedef _EventFlake = ({String preset, int folds, Color color, String pattern});
+/// A flake an event shows, and sets out to be made again: in one of the
+/// paper colours, so the player can make it.
+typedef _EventFlake = ({String preset, int folds, PaperColor color, String pattern});
 
 /// Events on offer, one at a time in the event panel, each showing its
 /// [flakes] in turn over its [title]: on the panel's night blue, or on its
@@ -1119,14 +1119,14 @@ const List<_Event> _allEvents = [
     boss: null,
     art: null,
     flakes: [
-      (preset: 'default_6_1', folds: 6, color: Color(0xFFC4ECFF), pattern: 'plain'),
-      (preset: 'default_6_2', folds: 6, color: Color(0xFFDCD2FF), pattern: 'plain'),
-      (preset: 'fern', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
-      (preset: 'leafy', folds: 6, color: Color(0xFFFFE08A), pattern: 'plain'),
-      (preset: 'spiky', folds: 6, color: Color(0xFFDCD2FF), pattern: 'plain'),
-      (preset: 'forked', folds: 6, color: Color(0xFF9DFFAA), pattern: 'plain'),
-      (preset: 'chevrons', folds: 6, color: Color(0xFFFFC7D0), pattern: 'plain'),
-      (preset: 'rhombi', folds: 6, color: Color(0xFF9DFFAA), pattern: 'plain'),
+      (preset: 'default_6_1', folds: 6, color: PaperColor.ice, pattern: 'plain'),
+      (preset: 'default_6_2', folds: 6, color: PaperColor.lilac, pattern: 'plain'),
+      (preset: 'fern', folds: 6, color: PaperColor.white, pattern: 'plain'),
+      (preset: 'leafy', folds: 6, color: PaperColor.sun, pattern: 'plain'),
+      (preset: 'spiky', folds: 6, color: PaperColor.lilac, pattern: 'plain'),
+      (preset: 'forked', folds: 6, color: PaperColor.mint, pattern: 'plain'),
+      (preset: 'chevrons', folds: 6, color: PaperColor.pink, pattern: 'plain'),
+      (preset: 'rhombi', folds: 6, color: PaperColor.mint, pattern: 'plain'),
     ],
   ),
   (
@@ -1134,23 +1134,23 @@ const List<_Event> _allEvents = [
     title: 'event_halloween',
     image: 'assets/Halloween/Halloween_Event_Ico.png',
     loud: true,
-    boss: (preset: 'halloween_boss', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
+    boss: (preset: 'halloween_boss', folds: 6, color: PaperColor.white, pattern: 'plain'),
     art: (title: 'duel_title', player: 'assets/Halloween/Halloween_Event_Fight_Player.png', hand: 'assets/Halloween/Halloween_Event_Fight_Player_Hand.png', boss: 'assets/Halloween/Halloween_Event_Fight_Boss.png', bg: Color(0xFFEECDFF), ink: Color(0xFF7B3FD1), glow: Color(0xFF3DFF6E), bossGlow: Color(0xFF5A1FA8), table: null, still: false, santa: false, inkFade: null, barFade: null, room: null, roomSky: null),
     // One for each of the boss flake's twelve cones.
     flakes: [
-      (preset: 'halloween_1', folds: 6, color: Color(0xFFFF9A3C), pattern: 'plain'),
-      (preset: 'halloween_2', folds: 6, color: Color(0xFF1E1F26), pattern: 'plain'),
-      (preset: 'spiders', folds: 6, color: Color(0xFF4A1A6B), pattern: 'plain'),
-      (preset: 'bats', folds: 6, color: Color(0xFF8A5CD6), pattern: 'plain'),
-      (preset: 'ghosts', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
-      (preset: 'hats', folds: 6, color: Color(0xFF1E6B4F), pattern: 'plain'),
-      (preset: 'cats', folds: 6, color: Color(0xFF00275F), pattern: 'plain'),
-      (preset: 'zombies', folds: 6, color: Color(0xFF9DFFAA), pattern: 'plain'),
-      (preset: 'halloween_3', folds: 4, color: Color(0xFFE0405E), pattern: 'plain'),
-      (preset: 'halloween_4', folds: 6, color: Color(0xFF713600), pattern: 'plain'),
-      (preset: 'halloween_5', folds: 6, color: Color(0xFF2FB37E), pattern: 'plain'),
+      (preset: 'halloween_1', folds: 6, color: PaperColor.orange, pattern: 'plain'),
+      (preset: 'halloween_2', folds: 6, color: PaperColor.black, pattern: 'plain'),
+      (preset: 'spiders', folds: 6, color: PaperColor.plum, pattern: 'plain'),
+      (preset: 'bats', folds: 6, color: PaperColor.violet, pattern: 'plain'),
+      (preset: 'ghosts', folds: 6, color: PaperColor.white, pattern: 'plain'),
+      (preset: 'hats', folds: 6, color: PaperColor.forest, pattern: 'plain'),
+      (preset: 'cats', folds: 6, color: PaperColor.navy, pattern: 'plain'),
+      (preset: 'zombies', folds: 6, color: PaperColor.mint, pattern: 'plain'),
+      (preset: 'halloween_3', folds: 4, color: PaperColor.red, pattern: 'plain'),
+      (preset: 'halloween_4', folds: 6, color: PaperColor.brown, pattern: 'plain'),
+      (preset: 'halloween_5', folds: 6, color: PaperColor.green, pattern: 'plain'),
       // A stand-in, till its own is drawn.
-      (preset: 'rhombi', folds: 6, color: Color(0xFF9AA3B5), pattern: 'plain'),
+      (preset: 'rhombi', folds: 6, color: PaperColor.grey, pattern: 'plain'),
     ],
   ),
   // The Christmas duel: stand-ins all through (pictures, flakes, words), till
@@ -1160,22 +1160,22 @@ const List<_Event> _allEvents = [
     title: 'event_christmas',
     image: 'assets/Christmas/Christmas_Event_Ico.png',
     loud: true,
-    boss: (preset: 'christmass_boss', folds: 4, color: Color(0xFFE0405E), pattern: 'plain'),
+    boss: (preset: 'christmass_boss', folds: 4, color: PaperColor.red, pattern: 'plain'),
     art: (title: 'duel_christmas_title', player: 'assets/Christmas/Christmas_Event_Fight_Player.png', hand: 'assets/Christmas/Christmas_Event_Fight_Player_Hand.png', boss: null, bg: Color(0xFF513C5E), ink: Color(0xFFC70F0E), glow: Color(0xFFFFD34D), bossGlow: Color(0xFFFFF2A6), table: Color(0xFFBC723E), still: true, santa: true, inkFade: (Color.fromARGB(255, 255, 164, 154), Color(0xFFD11011)), barFade: (Color(0xFFFFE36B), Color(0xFFF7A600)), room: 'assets/Christmas/Christmas_Event_Main_Bg.png', roomSky: 'assets/Christmas/Christmas_Event_Main_Bg_Window.png'),
     // One for each of the boss flake's twelve cones.
     flakes: [
-      (preset: 'christmass_2', folds: 4, color: Color(0xFFFFFFFF), pattern: 'analogous'),
-      (preset: 'christmass_3', folds: 6, color: Color(0xFF713600), pattern: 'plain'),
-      (preset: 'christmass_1', folds: 6, color: Color(0xFFFFFFFF), pattern: 'plain'),
-      (preset: 'christmass_4', folds: 6, color: Color(0xFF2FB37E), pattern: 'crystal'),
-      (preset: 'christmass_5', folds: 6, color: Color(0xFFC4ECFF), pattern: 'knit'),
-      (preset: 'christmass_6', folds: 4, color: Color(0xFF8E1F3A), pattern: 'glass'),
-      (preset: 'christmass_7', folds: 6, color: Color(0xFFFFE08A), pattern: 'sparkle'),
-      (preset: 'christmass_8', folds: 6, color: Color(0xFF2FB37E), pattern: 'plain'),
-      (preset: 'christmass_9', folds: 6, color: Color(0xFFFFFFFF), pattern: 'gingerbread'),
-      (preset: 'christmass_10', folds: 4, color: Color(0xFF8A5CD6), pattern: 'stripes'),
-      (preset: 'christmass_11', folds: 6, color: Color(0xFF9AA3B5), pattern: 'analogous'),
-      (preset: 'christmass_12', folds: 6, color: Color(0xFFFFC7D0), pattern: 'knit'),
+      (preset: 'christmass_2', folds: 4, color: PaperColor.white, pattern: 'analogous'),
+      (preset: 'christmass_3', folds: 6, color: PaperColor.brown, pattern: 'plain'),
+      (preset: 'christmass_1', folds: 6, color: PaperColor.white, pattern: 'plain'),
+      (preset: 'christmass_4', folds: 6, color: PaperColor.green, pattern: 'crystal'),
+      (preset: 'christmass_5', folds: 6, color: PaperColor.ice, pattern: 'knit'),
+      (preset: 'christmass_6', folds: 4, color: PaperColor.wine, pattern: 'glass'),
+      (preset: 'christmass_7', folds: 6, color: PaperColor.sun, pattern: 'sparkle'),
+      (preset: 'christmass_8', folds: 6, color: PaperColor.green, pattern: 'plain'),
+      (preset: 'christmass_9', folds: 6, color: PaperColor.white, pattern: 'gingerbread'),
+      (preset: 'christmass_10', folds: 4, color: PaperColor.violet, pattern: 'stripes'),
+      (preset: 'christmass_11', folds: 6, color: PaperColor.grey, pattern: 'analogous'),
+      (preset: 'christmass_12', folds: 6, color: PaperColor.pink, pattern: 'knit'),
     ],
   ),
 ];
@@ -1192,7 +1192,7 @@ SavedFlake? eventPrize(String preset) {
     if (b == null || b.preset != preset) continue;
     final cuts = snowflakePresets[preset];
     if (cuts == null) return null;
-    return SavedFlake(cuts: cuts, folds: b.folds, color: b.color, pattern: b.pattern, prize: preset);
+    return SavedFlake(cuts: cuts, folds: b.folds, color: b.color.rgb, pattern: b.pattern, prize: preset);
   }
   return null;
 }
@@ -1556,12 +1556,14 @@ abstract class _EventWindow extends StatelessWidget {
 }
 
 /// An event's flake [size] px across, turned by [angle], over its shadow
-/// (cast straight down on the screen, whatever the turn).
+/// (cast straight down on the screen, whatever the turn); the player's own
+/// for it in its place, if [made].
 class _ShadowedFlake extends StatelessWidget {
-  const _ShadowedFlake(this.f, {super.key, required this.size, this.angle = 0});
+  const _ShadowedFlake(this.f, {super.key, required this.size, this.angle = 0, this.made});
   final _EventFlake f;
   final double size;
   final double angle;
+  final SavedFlake? made;
 
   @override
   Widget build(BuildContext context) {
@@ -1569,7 +1571,10 @@ class _ShadowedFlake extends StatelessWidget {
       size: size,
       child: Transform.rotate(
         angle: angle,
-        child: SnowflakeView(preset: f.preset, folds: f.folds, color: f.color, pattern: f.pattern, size: size),
+        child: switch (made) {
+          final m? => SnowflakeView(cuts: m.cuts, folds: m.folds, color: m.color ?? f.color.rgb, pattern: m.pattern, size: size),
+          null => SnowflakeView(preset: f.preset, folds: f.folds, color: f.color.rgb, pattern: f.pattern, size: size),
+        },
       ),
     );
   }
@@ -1801,7 +1806,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
   /// window both.
   void _showVictory() {
     final b = widget.boss;
-    widget.game.keep(SavedFlake(cuts: snowflakePresets[b.preset] ?? const [], folds: b.folds, color: b.color, pattern: b.pattern, prize: b.preset));
+    widget.game.keep(SavedFlake(cuts: snowflakePresets[b.preset] ?? const [], folds: b.folds, color: b.color.rgb, pattern: b.pattern, prize: b.preset));
     showGeneralDialog(
       context: context,
       barrierColor: const Color(0xB3101A3F),
@@ -1830,7 +1835,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                   // From Santa, a gift.
                   Text(tr(widget.art.santa ? 'duel_won_subtitle_santa' : 'duel_won_subtitle'), textAlign: TextAlign.center, style: display(20, color: Colors.white, shadows: drop(3))),
                   const SizedBox(height: 28),
-                  FlakeShadow(size: 320, child: SnowflakeView(preset: b.preset, folds: b.folds, color: b.color, pattern: b.pattern, size: 320)),
+                  FlakeShadow(size: 320, child: SnowflakeView(preset: b.preset, folds: b.folds, color: b.color.rgb, pattern: b.pattern, size: 320)),
                 ]),
               ),
             ),
@@ -1923,7 +1928,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                 top: at.dy - size / 2,
                 child: Transform.rotate(
                   angle: there * math.pi,
-                  child: Transform.scale(scale: 1 - .45 * there, child: _ShadowedFlake(widget.flakes[_fresh], size: size)),
+                  child: Transform.scale(scale: 1 - .45 * there, child: _ShadowedFlake(widget.flakes[_fresh], size: size, made: widget.game.duelMade(widget.id, widget.flakes[_fresh].preset))),
                 ),
               ),
             ]);
@@ -2035,9 +2040,9 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
     Widget bossFlake(int hits, double size) {
       if (stages != null) {
         final stage = (hits * stages.length / widget.flakes.length).ceil();
-        return SnowflakeView(cuts: stage == 0 ? const [] : stages[stage - 1], folds: boss.folds, color: boss.color, pattern: boss.pattern, size: size);
+        return SnowflakeView(cuts: stage == 0 ? const [] : stages[stage - 1], folds: boss.folds, color: boss.color.rgb, pattern: boss.pattern, size: size);
       }
-      return SnowflakeView(preset: boss.preset, folds: boss.folds, color: boss.color, pattern: boss.pattern, size: size, segments: _cones(hits));
+      return SnowflakeView(preset: boss.preset, folds: boss.folds, color: boss.color.rgb, pattern: boss.pattern, size: size, segments: _cones(hits));
     }
     final santa = widget.art.santa;
     // The table's top, down the screen, and Santa's above it, the table over his belt.
@@ -2193,7 +2198,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                                         opacity: 1 - _blow.value,
                                         child: stages != null
                                             ? bossFlake(_before, size)
-                                            : SnowflakeView(preset: boss.preset, folds: boss.folds, color: boss.color, pattern: boss.pattern, size: size, segments: {for (final i in _order.sublist(_before, _hits)) i}),
+                                            : SnowflakeView(preset: boss.preset, folds: boss.folds, color: boss.color.rgb, pattern: boss.pattern, size: size, segments: {for (final i in _order.sublist(_before, _hits)) i}),
                                       ),
                                   ]),
                                 ),
@@ -2310,7 +2315,8 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
                                 ]);
                               },
                             ),
-                            _ShadowedFlake(f, size: 170),
+                            // The player's own for it, once done.
+                            _ShadowedFlake(f, size: 170, made: widget.game.duelMade(widget.id, f.preset)),
                           ]),
                         ),
                       ),
