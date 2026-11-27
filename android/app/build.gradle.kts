@@ -54,6 +54,14 @@ android {
             }
             // Branch huawei: R8 rules for the HMS IAP SDK (see the file).
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Branch huawei: no native debug symbols in the AAB. The AppGallery
+            // validator rejects bundles that carry them without a clear error
+            // (as in Excellence), and there is no crash reporting there to use
+            // them. Flutter then prints "Failed to strip debug symbols": the
+            // bundle is fine.
+            ndk {
+                debugSymbolLevel = "none"
+            }
         }
     }
 }
