@@ -70,4 +70,6 @@ dependencies {
     // ironSource (LevelPlay): the advertising ID and App Set ID, as its README asks.
     implementation("com.google.android.gms:play-services-appset:16.0.2")
     implementation("com.google.android.gms:play-services-ads-identifier:18.0.1")
+    // Unity Ads through LevelPlay (pulls in com.unity3d.ads:unity-ads 4.22.0).
+    implementation("com.unity3d.ads-mediation:unityads-adapter:5.17.0")
 }
