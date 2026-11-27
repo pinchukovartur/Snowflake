@@ -7,11 +7,19 @@ plugins {
 }
 
 // Release signing: android/key.properties (not in git) points to the keystore in ../app_keys/Snowflake.
+// Branch huawei: AppGallery has its own key, app_keys/Snowflake/huawei.jks
+// (see huawei.properties next to it), as in Excellence. App Signing is
+// mandatory for an AAB, and AGC keeps that key (Method 2, sign.zip); the
+// Play key is the one Play updates come from and stays out of a second store.
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
-if (keystorePropertiesFile.exists()) {
+val huaweiPropertiesFile = File("/Users/arturpincukov/Documents/PinchApp/app_keys/Snowflake/huawei.properties")
+if (huaweiPropertiesFile.exists()) {
+    huaweiPropertiesFile.inputStream().use { keystoreProperties.load(it) }
+} else if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.inputStream().use { keystoreProperties.load(it) }
 }
+val hasReleaseKey = huaweiPropertiesFile.exists() || keystorePropertiesFile.exists()
 
 android {
     namespace = "com.Pinchukov.Snowflake"
@@ -36,7 +44,7 @@ android {
 
     signingConfigs {
         create("release") {
-            if (keystorePropertiesFile.exists()) {
+            if (hasReleaseKey) {
                 keyAlias = keystoreProperties["keyAlias"] as String
                 keyPassword = keystoreProperties["keyPassword"] as String
                 storeFile = keystoreProperties["storeFile"]?.let { file(it) }
@@ -47,7 +55,7 @@ android {
 
     buildTypes {
         release {
-            signingConfig = if (keystorePropertiesFile.exists()) {
+            signingConfig = if (hasReleaseKey) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")
