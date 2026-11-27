@@ -31,6 +31,13 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Huawei app id for HMS IAP. The com.huawei.agconnect plugin would put it
+             here from agconnect-services.json, but it isn't used; without it IAP
+             fails with 907135000 "appid and cpid cannot be found". Value from
+             agconnect-services.json, client.app_id (AppGallery app "Снежинки"). -->
+        <meta-data
+            android:name="com.huawei.hms.client.appid"
+            android:value="appid=120015125" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

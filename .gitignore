@@ -55,3 +55,6 @@ app.*.map.json
 .env.*
 .claude/settings.local.json
 Thumbs.db
+
+# AppGallery Connect config (branch huawei): holds the client secret and API key.
+android/app/agconnect-services.json
