@@ -1,0 +1,4 @@
+[submodule "packages/pinch_l10n"]
+	path = packages/pinch_l10n
+	url = https://github.com/pinchukovartur/pinch_l10n.git
+	branch = main
