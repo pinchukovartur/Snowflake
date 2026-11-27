@@ -52,6 +52,8 @@ android {
             } else {
                 signingConfigs.getByName("debug")
             }
+            // Branch huawei: R8 rules for the HMS IAP SDK (see the file).
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 }
@@ -67,9 +69,18 @@ flutter {
 }
 
 dependencies {
-    // ironSource (LevelPlay): the advertising ID and App Set ID, as its README asks.
-    implementation("com.google.android.gms:play-services-appset:16.0.2")
-    implementation("com.google.android.gms:play-services-ads-identifier:18.0.1")
+    // Branch huawei (AppGallery): no Google services. Huawei phones since
+    // 2020 ship without GMS, so play-services-appset / -ads-identifier (which
+    // main adds for LevelPlay) would be dead weight and a review question.
+    // LevelPlay and Unity Ads work without them.
     // Unity Ads through LevelPlay (pulls in com.unity3d.ads:unity-ads 4.22.0).
     implementation("com.unity3d.ads-mediation:unityads-adapter:5.17.0")
+    // Purchases: Huawei IAP instead of Play Billing (see HuaweiBilling.kt).
+    implementation("com.huawei.hms:iap:6.16.6.305")
+}
+
+// Keep Google Play services out even when a library pulls them in.
+configurations.all {
+    exclude(group = "com.google.android.gms")
+    exclude(group = "com.android.billingclient")
 }

@@ -2,6 +2,8 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // Huawei IAP (branch huawei) lives only in Huawei's own repository.
+        maven { url = uri("https://developer.huawei.com/repo/") }
     }
 }
 

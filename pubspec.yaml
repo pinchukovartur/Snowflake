@@ -39,7 +39,6 @@ dependencies:
   shared_preferences: ^2.5.5
   share_plus: 13.3.1
   flutter_soloud: 5.2.1
-  in_app_purchase: 3.3.1
   unity_levelplay_mediation: 9.5.0
 
 dev_dependencies:
