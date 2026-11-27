@@ -1,0 +1,12 @@
+{
+  "table": "l10n/strings.csv",
+  "out": "lib/l10n/strings.g.dart",
+  "fallback": "en",
+  "scan": [
+    "lib"
+  ],
+  "exclude": [
+    "lib/l10n/"
+  ],
+  "bare": null
+}

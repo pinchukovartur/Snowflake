@@ -4,6 +4,7 @@
          because the Play Console ad ID declaration says the app uses it. -->
     <uses-permission android:name="com.google.android.gms.permission.AD_ID"/>
     <application
+        android:localeConfig="@xml/locales_config"
         android:label="@string/app_name"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
