@@ -1028,7 +1028,15 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                   Positioned(
                     right: screenPad,
                     bottom: 12,
-                    child: Btn('Skip', size: BtnSize.s, variant: Variant.orange, onTap: _skipTutorial),
+                    // Only the room right of the palette button: a long
+                    // translation («Überspringen») shrinks instead of covering it.
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * .22),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Btn(tr('debug_skip'), size: BtnSize.s, variant: Variant.orange, onTap: _skipTutorial),
+                      ),
+                    ),
                   ),
                 // Testing: the event's flake cut out perfectly (see [eventCheat]),
                 // right of the tool row.
@@ -1036,7 +1044,7 @@ class _CutScreenState extends State<CutScreen> with TickerProviderStateMixin {
                   Positioned(
                     right: screenPad,
                     bottom: 12,
-                    child: RoundBtn(LucideIcons.wandSparkles, label: 'Cheat', size: BtnSize.s, variant: Variant.orange, onTap: _cheatCut),
+                    child: RoundBtn(LucideIcons.wandSparkles, label: tr('debug_cheat'), size: BtnSize.s, variant: Variant.orange, onTap: _cheatCut),
                   ),
               ],
             ),
@@ -2105,7 +2113,7 @@ class _DuelWindowState extends State<_DuelWindow> with TickerProviderStateMixin 
               // Testing: the duel afresh (see [duelReset]), its window closed
               // to open again from the start.
               right: duelReset
-                  ? BarBtn(LucideIcons.rotateCcw, label: 'Reset', onTap: () {
+                  ? BarBtn(LucideIcons.rotateCcw, label: tr('debug_reset'), onTap: () {
                       widget.game.resetDuel(widget.id);
                       Navigator.pop(context);
                     })

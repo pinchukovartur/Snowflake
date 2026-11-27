@@ -21,7 +21,7 @@ import 'theme/tokens.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
-  await loadLocalization();
+  await loadLocalization(prefs.getString(GameState.kLanguage));
   await loadSvgFlakes();
   await loadPaperTextures();
   await Sfx.init();
@@ -45,9 +45,39 @@ Future<void> main() async {
   runApp(SnowflakeApp(game: game));
 }
 
-class SnowflakeApp extends StatelessWidget {
+class SnowflakeApp extends StatefulWidget {
   const SnowflakeApp({super.key, required this.game});
   final GameState game;
+
+  @override
+  State<SnowflakeApp> createState() => _SnowflakeAppState();
+}
+
+class _SnowflakeAppState extends State<SnowflakeApp> {
+  GameState get game => widget.game;
+
+  @override
+  void initState() {
+    super.initState();
+    L10n.language.addListener(_relabel);
+  }
+
+  @override
+  void dispose() {
+    L10n.language.removeListener(_relabel);
+    super.dispose();
+  }
+
+  /// A new language: every widget builds again where it is — the screen,
+  /// its state and an open dialog stay, only their texts change.
+  void _relabel() {
+    void rebuild(Element e) {
+      e.markNeedsBuild();
+      e.visitChildren(rebuild);
+    }
+
+    (context as Element).visitChildren(rebuild);
+  }
 
   @override
   Widget build(BuildContext context) {

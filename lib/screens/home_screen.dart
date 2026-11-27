@@ -290,6 +290,15 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     checked: g.vibration,
                     onChanged: (v) => g.setSetting(vibration: v),
                   ),
+                  const SizedBox(height: 24),
+                  Btn(
+                    tr('language_value', {'name': languageNames[g.language] ?? tr('language_device')}),
+                    icon: LucideIcons.languages,
+                    variant: Variant.light,
+                    size: BtnSize.s,
+                    block: true,
+                    onTap: () => _openLanguages(ctx),
+                  ),
                   // Purchases made before (reinstalled, or on another
                   // device) asked of the store again: they are at every
                   // launch too, so this is only in case they didn't come.
@@ -299,6 +308,46 @@ class HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     const SizedBox(height: 24),
                     Btn(tr('restore_purchases'), variant: Variant.light, size: BtnSize.s, block: true, onTap: shop.restore),
                   ],
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// The language list over the settings: the device's, then each of the
+  /// game's in its own name. The pick shows at once.
+  void _openLanguages(BuildContext context) {
+    showDsDialog(
+      context,
+      builder: (ctx) {
+        return ListenableBuilder(
+          listenable: widget.game,
+          builder: (ctx, _) {
+            final g = widget.game;
+            Widget option(String? code, String name) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Btn(
+                    name,
+                    variant: g.language == code ? Variant.success : Variant.light,
+                    size: BtnSize.s,
+                    block: true,
+                    onTap: () {
+                      g.setLanguage(code);
+                      Navigator.pop(ctx);
+                    },
+                  ),
+                );
+            return DsDialog(
+              title: tr('language'),
+              onClose: () => Navigator.pop(ctx),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  option(null, tr('language_device')),
+                  for (final e in languageNames.entries) option(e.key, e.value),
                 ],
               ),
             );
