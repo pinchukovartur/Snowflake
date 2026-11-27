@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'l10n.dart';
 import 'snowflake/geometry.dart';
 
 /// For the store's screenshots: the game as a player who has bought nothing
@@ -280,6 +281,10 @@ class GameState extends ChangeNotifier {
   static const _kCoins = 'coins';
   static const _kSfx = 'settings.sfx';
   static const _kVibration = 'settings.vibration';
+
+  /// The language picked in the settings; none — the device's. Read in
+  /// main() before the state exists, to load the strings in it.
+  static const kLanguage = 'settings.language';
   static const _kCollection = 'collection.v1';
   static const _kWindow = 'window.v2';
   static const _kWindowV1 = 'window.v1';
@@ -476,6 +481,21 @@ class GameState extends ChangeNotifier {
   /// The collection: the player's flakes, newest first. (The built-in
   /// presets are the game's own, for its events, and never in it.)
   final saved = <SavedFlake>[];
+
+  /// The language picked in the settings, or null for the device's.
+  String? get language => _prefs.getString(kLanguage);
+
+  /// Shows the game in [code] at once (null — the device's language) and
+  /// keeps the choice.
+  void setLanguage(String? code) {
+    if (code == null) {
+      _prefs.remove(kLanguage);
+    } else {
+      _prefs.setString(kLanguage, code);
+    }
+    L10n.setLanguage(code);
+    notifyListeners();
+  }
 
   void setSetting({bool? sfx, bool? vibration}) {
     this.sfx = sfx ?? this.sfx;

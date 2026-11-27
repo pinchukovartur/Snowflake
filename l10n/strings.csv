@@ -152,3 +152,9 @@ shop_no_ads,Any purchase turns off ads!,Любая покупка отключа
 shop_ads_off,Ads are off. Thank you!,Реклама отключена. Спасибо!,Werbung ist aus. Danke!,Les pubs sont désactivées. Merci !,Pubblicità disattivata. Grazie!,Anuncios desactivados. ¡Gracias!,Anúncios desativados. Obrigado!,広告はオフです。ありがとう！,광고가 꺼졌어요. 고마워요!,广告已关闭。谢谢！,廣告已關閉。謝謝！,
 reset_purchases,Reset purchases,Сбросить покупки,Käufe zurücksetzen,Réinitialiser les achats,Reimposta acquisti,Restablecer compras,Redefinir compras,購入をリセット,구매 초기화,重置购买,重設購買,
 purchase_failed,The purchase didn't go through. Try again later.,Покупка не прошла. Попробуйте позже.,Der Kauf hat nicht geklappt. Versuch es später noch mal.,L'achat n'a pas abouti. Réessaie plus tard.,L'acquisto non è andato a buon fine. Riprova più tardi.,La compra no se ha completado. Inténtalo más tarde.,A compra não foi concluída. Tente novamente mais tarde.,購入できませんでした。しばらくしてからお試しください。,구매에 실패했어요. 나중에 다시 시도해 주세요.,购买未成功，请稍后再试。,購買未成功，請稍後再試。,
+debug_skip,Skip,Пропустить,Überspringen,Passer,Salta,Saltar,Pular,スキップ,건너뛰기,跳过,跳過,отладка: пропустить обучение
+debug_cheat,Cheat,Чит,Cheat,Triche,Trucco,Truco,Trapaça,チート,치트,作弊,作弊,отладка: вырезать снежинку события
+debug_reset,Reset,Сбросить,Zurücksetzen,Réinitialiser,Ripristina,Reiniciar,Redefinir,リセット,초기화,重置,重設,отладка: начать дуэль заново
+language_value,Language: {name},Язык: {name},Sprache: {name},Langue : {name},Lingua: {name},Idioma: {name},Idioma: {name},言語：{name},언어: {name},语言：{name},語言：{name},кнопка в настройках: текущий язык
+language_device,As on device,Как на устройстве,Wie am Gerät,Comme l’appareil,Come il dispositivo,Como el dispositivo,Como no aparelho,端末の設定,기기 설정,跟随系统,跟隨系統,язык не выбран — берётся язык телефона
+language,Language,Язык,Sprache,Langue,Lingua,Idioma,Idioma,言語,언어,语言,語言,заголовок списка языков в настройках

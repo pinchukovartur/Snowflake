@@ -8,5 +8,13 @@
   "exclude": [
     "lib/l10n/"
   ],
-  "bare": null
+  "bare": null,
+  "ui": [
+    "Text(",
+    "Btn(",
+    "RoundBtn(",
+    "BarBtn(",
+    "label:",
+    "tooltip:"
+  ]
 }
